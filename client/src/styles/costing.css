@@ -1,0 +1,132 @@
+.cost-kpis {
+  margin-bottom: 16px;
+}
+
+.cost-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.cost-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.cost-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 8px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+}
+
+.cost-meta strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.cost-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+  align-items: start;
+}
+
+.cost-card {
+  position: sticky;
+  top: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.cost-card h2 {
+  margin: 0 0 4px;
+  font-size: 1rem;
+}
+
+.cost-card p {
+  margin: 0 0 12px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.cost-line,
+.cost-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: 0.9rem;
+}
+
+.cost-total {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-weight: 650;
+}
+
+.cost-total--quote {
+  color: var(--text-primary);
+}
+
+.cost-total--final strong {
+  color: #0356c5;
+}
+
+.cost-formula {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-secondary);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.cost-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.cost-flow span {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--surface-secondary);
+}
+
+.cost-table input,
+.cost-table select {
+  min-width: 88px;
+}
+
+.cost-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.modal--wide {
+  width: min(960px, calc(100vw - 32px));
+}
+
+@media (max-width: 1100px) {
+  .cost-layout,
+  .cost-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .cost-card {
+    position: static;
+  }
+}

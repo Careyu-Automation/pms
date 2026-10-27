@@ -1,0 +1,250 @@
+.auth {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(420px, 0.92fr);
+  background: var(--app-background);
+}
+
+.auth__story {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 100vh;
+  padding: 40px 48px;
+  background: var(--auth-story);
+  color: var(--auth-story-text);
+}
+
+.auth__story-inner {
+  position: relative;
+  z-index: 1;
+  max-width: 480px;
+}
+
+.auth__story .brand__name {
+  color: var(--auth-story-text);
+}
+
+.auth__story .brand__sub {
+  color: var(--auth-muted);
+}
+
+.auth__kicker {
+  margin: 28px 0 0;
+  color: var(--primary);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.auth__kicker--form {
+  margin: 0 0 8px;
+  color: var(--primary);
+}
+
+.auth__headline {
+  margin: 10px 0 14px;
+  font-family: var(--font-heading);
+  font-size: clamp(2.5rem, 4vw, 3.6rem);
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: 0.01em;
+}
+
+.auth__lede {
+  max-width: 38rem;
+  color: var(--auth-muted);
+  font-size: 1.05rem;
+}
+
+.auth__points {
+  display: grid;
+  gap: 12px;
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.auth__points li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--auth-story-text);
+}
+
+.auth__scene {
+  position: absolute;
+  right: -20px;
+  bottom: 0;
+  width: min(720px, 108%);
+  color: var(--scene-ink);
+  pointer-events: none;
+}
+
+.auth__scene-grid {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+.auth__rack {
+  fill: var(--scene-rack-fill);
+  stroke: var(--scene-rack-stroke);
+  stroke-width: 1.4;
+}
+
+.auth__pallet rect {
+  fill: var(--bright-blue);
+}
+
+.auth__crane {
+  fill: var(--scene-crane);
+  stroke: var(--primary);
+  stroke-width: 2;
+}
+
+.auth__floor {
+  stroke: var(--scene-floor);
+  stroke-width: 2;
+}
+
+.auth__panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--auth-panel);
+  border-left: 1px solid var(--border-subtle);
+}
+
+.auth__story .auth__kicker {
+  color: var(--auth-kicker);
+}
+
+.auth__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 16px 20px 0;
+}
+
+.auth__panel-inner {
+  width: min(440px, 100%);
+  margin: auto;
+  padding: 12px 28px 40px;
+}
+
+.auth__title {
+  font-family: var(--font-heading);
+  font-size: 2.15rem;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+.auth__subtitle {
+  margin: 8px 0 22px;
+  color: var(--text-secondary);
+}
+
+.stack-form {
+  display: grid;
+  gap: 14px;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.auth__alert,
+.auth__note {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.92rem;
+}
+
+.auth__alert {
+  background: var(--danger-light);
+  color: var(--danger-text);
+}
+
+.auth__note {
+  background: var(--success-light);
+  color: var(--success-text);
+}
+
+.auth__switch {
+  margin-top: 18px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.requirements {
+  display: grid;
+  gap: 4px;
+  margin: -4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.requirements li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+}
+
+.requirements li.is-met {
+  color: var(--success);
+}
+
+.requirements__mark {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+}
+
+@media (max-width: 960px) {
+  .auth {
+    grid-template-columns: 1fr;
+  }
+
+  .auth__story,
+  .auth__panel {
+    min-height: 0;
+  }
+
+  .auth__story {
+    padding: 24px 20px 8px;
+  }
+
+  .auth__scene,
+  .auth__points,
+  .auth__lede {
+    display: none;
+  }
+
+  .auth__headline {
+    font-size: 2rem;
+    margin-bottom: 0;
+  }
+
+  .auth__panel-inner {
+    padding: 12px 20px 32px;
+  }
+}
+
+@media (max-width: 640px) {
+  .form-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

@@ -1,0 +1,257 @@
+.mywork-head,
+.mywork-toolbar,
+.mywork-actions,
+.mywork-empty-actions,
+.mywork-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.mywork-head {
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.mywork-empty {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+}
+
+.mywork-head h1 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-title);
+}
+
+.mywork-head p,
+.mywork-quiet {
+  margin: 4px 0 0;
+  color: var(--text-secondary);
+}
+
+.mywork,
+.mywork-scroll,
+.mywork-board-scroll {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mywork-kpis,
+.mywork-skeleton {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mywork-kpi,
+.mywork-skeleton span {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.mywork-kpi {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+}
+
+.mywork-kpi span,
+.mywork-kpi small {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.mywork-kpi strong {
+  color: var(--text-primary);
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.mywork-kpi.is-attention strong {
+  color: var(--danger-text, var(--danger));
+}
+
+.mywork-skeleton span {
+  height: 72px;
+}
+
+.mywork-toolbar {
+  margin: 16px 0;
+}
+
+.mywork-toolbar .input,
+.mywork-toolbar .select {
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.mywork-toolbar .input {
+  flex-basis: 220px;
+}
+
+.mywork-views {
+  margin-left: auto;
+  padding: 4px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.mywork-views button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.mywork-views button.is-active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.mywork-section {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.mywork-section h2,
+.mywork-board h2 {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, var(--text-secondary));
+}
+
+.mywork-scroll,
+.mywork-board-scroll {
+  overflow-x: auto;
+}
+
+.mywork-source {
+  display: grid;
+  gap: 2px;
+}
+
+.mywork-source em {
+  font-style: normal;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.mywork-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.mywork-progress__track {
+  width: 72px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-secondary, var(--bg-secondary));
+  overflow: hidden;
+}
+
+.mywork-progress__track span {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+}
+
+.mywork-status {
+  min-width: 132px;
+  height: 34px;
+}
+
+.mywork-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.mywork-board section {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  background: var(--bg-secondary, var(--surface));
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.mywork-board header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mywork-board article {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.mywork-board article strong {
+  color: var(--text-primary);
+}
+
+.mywork-owner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.modal.mywork-dialog {
+  width: min(640px, 100%);
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+}
+
+.mywork-dialog .modal__body {
+  min-height: 0;
+  overflow: auto;
+}
+
+@media (max-width: 1100px) {
+  .mywork-kpis,
+  .mywork-skeleton {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .mywork-kpis,
+  .mywork-skeleton,
+  .mywork-owner {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .mywork-views {
+    margin-left: 0;
+  }
+
+  .mywork-board {
+    grid-template-columns: repeat(4, minmax(240px, 1fr));
+  }
+}

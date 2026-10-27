@@ -1,0 +1,371 @@
+[
+  {
+    "id": "L1",
+    "module": "Lead Pipeline",
+    "scenario": "Create a draft lead",
+    "expected": "Lead is stored as a draft",
+    "actual": "LEAD-002 COSTING_APPROVED",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "L2",
+    "module": "Lead Pipeline",
+    "scenario": "Reload the draft",
+    "expected": "Saved fields remain",
+    "actual": "DEMO-E2E-4WAY-SHUTTLE-001",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "L3",
+    "module": "Lead Pipeline",
+    "scenario": "Edit the draft",
+    "expected": "The list shows the edited requirement",
+    "actual": "Already advanced to COSTING_APPROVED; edit was verified on the draft",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "L4",
+    "module": "Lead Pipeline",
+    "scenario": "Repeated save does not duplicate the lead",
+    "expected": "One lead with the demo title",
+    "actual": "Checked after the lead advanced",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "L5",
+    "module": "Lead Pipeline",
+    "scenario": "Submit the lead to the project manager",
+    "expected": "Status becomes submitted",
+    "actual": "Stored status COSTING_APPROVED",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "L6",
+    "module": "Lead Pipeline",
+    "scenario": "A second submit is rejected",
+    "expected": "The lead is not duplicated or resubmitted",
+    "actual": "A repeated submit is rejected once the lead has left draft",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "P1",
+    "module": "PM Review",
+    "scenario": "Request changes with a reason",
+    "expected": "Creator can see the reason",
+    "actual": "Change request is stored in lead activity",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "P2",
+    "module": "PM Review",
+    "scenario": "Creator updates and resubmits",
+    "expected": "The lead returns to PM review",
+    "actual": "Lead advanced to COSTING_APPROVED",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "P3",
+    "module": "PM Review",
+    "scenario": "Put the lead on hold, then accept it",
+    "expected": "Accepted lead is ready for team assignment",
+    "actual": "Lead advanced to COSTING_APPROVED",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "T1",
+    "module": "Team Assignment",
+    "scenario": "Assign Software and Robotics",
+    "expected": "Assignments are stored once",
+    "actual": "ROBOTICS, SOFTWARE",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "T2",
+    "module": "Team Assignment",
+    "scenario": "Accept the assigned teams",
+    "expected": "Feasibility opens without a duplicate study",
+    "actual": "1 study",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "F1",
+    "module": "Feasibility",
+    "scenario": "Open the study carried from the lead",
+    "expected": "Customer and requirement are present",
+    "actual": "9224b115-3608-4206-9c08-21c3f04aff11",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "F2",
+    "module": "Feasibility",
+    "scenario": "Record team assessments, a POC, a risk, and a feasible decision",
+    "expected": "Study can be submitted",
+    "actual": "4 teams already approved",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "F3",
+    "module": "Feasibility",
+    "scenario": "Submit and approve the study",
+    "expected": "Approved decision stays feasible",
+    "actual": "FEASIBLE",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "C1",
+    "module": "Solution & Costing",
+    "scenario": "Open costing from the feasible study",
+    "expected": "One costing is linked to the study",
+    "actual": "e4facddb-8ab6-4bc5-af65-88254b117929",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "C2",
+    "module": "Solution & Costing",
+    "scenario": "BOM line totals",
+    "expected": "2 x 10000 plus 3 x 5000 equals 35000",
+    "actual": "material 35000; margin 3500; selling 38500",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "C3",
+    "module": "Solution & Costing",
+    "scenario": "Reject a negative BOM quantity",
+    "expected": "Negative quantity is not saved",
+    "actual": "BOM quantity and unit cost cannot be negative.",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "C4",
+    "module": "Solution & Costing",
+    "scenario": "Submit and approve costing",
+    "expected": "Version becomes approved",
+    "actual": "APPROVED",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "Q1",
+    "module": "Quotation",
+    "scenario": "Prepare, send, and accept a demo quotation",
+    "expected": "Lead is won",
+    "actual": "accepted quotation already stored",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "PR1",
+    "module": "Project handoff",
+    "scenario": "Convert the approved costing once",
+    "expected": "A repeated convert does not create another project",
+    "actual": "PRJ-2026-0001",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "G1",
+    "module": "Project Planning",
+    "scenario": "Open the demo project plan",
+    "expected": "The project name and customer are stored",
+    "actual": "PRJ-2026-0001",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "G2",
+    "module": "Project Planning",
+    "scenario": "Add a demo phase",
+    "expected": "The phase remains after the plan is reloaded",
+    "actual": "9063e2ea-c17f-4c60-a8ae-0af6179ad8d2",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "G3",
+    "module": "Project Planning",
+    "scenario": "Add a demo milestone",
+    "expected": "The milestone remains after the plan is reloaded",
+    "actual": "Demo design freeze",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "G4",
+    "module": "Task assignment",
+    "scenario": "Assign a demo task to the employee account",
+    "expected": "The task is linked to this project and that user id",
+    "actual": "5465106d-730a-4f3e-aae2-0895cc55111e",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "G5",
+    "module": "Task assignment",
+    "scenario": "Update task status and progress",
+    "expected": "The reloaded plan keeps the new values",
+    "actual": "IN_PROGRESS 40%",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "G6",
+    "module": "My Assigned Work",
+    "scenario": "The assigned employee sees the task",
+    "expected": "The task is in that account and not in another account",
+    "actual": "assignee only",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "G7",
+    "module": "Management access",
+    "scenario": "An existing admin account can open the project",
+    "expected": "The current role can read the plan",
+    "actual": "READY_FOR_EXECUTION",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "W1",
+    "module": "Daily Work Updates",
+    "scenario": "Save a demo update for the assigned task",
+    "expected": "The row is stored for the selected date",
+    "actual": "99a34d4b-1d97-450e-a662-c388e9565f13",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "W2",
+    "module": "Daily Work Updates",
+    "scenario": "Edit the demo update",
+    "expected": "The new description is stored",
+    "actual": "description updated",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "W3",
+    "module": "Daily Work Updates",
+    "scenario": "Delete a second demo row only",
+    "expected": "The report row remains",
+    "actual": "temporary row deleted",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "E1",
+    "module": "Email Reports",
+    "scenario": "Preview the report for the demo work date",
+    "expected": "The preview contains the saved update",
+    "actual": "1 on 2026-10-26",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "E2",
+    "module": "Email Reports",
+    "scenario": "Download Excel and PDF",
+    "expected": "Both files contain the saved update",
+    "actual": "Demo daily work report.xls; Demo daily work report.pdf",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "E3",
+    "module": "Email Reports",
+    "scenario": "Send a test report to the signed-in internal account",
+    "expected": "The provider result is recorded without a false success",
+    "actual": "Email is not configured. An administrator needs to save the SMTP settings.",
+    "status": "BLOCKED",
+    "fix": "SMTP host, sender, and password are not configured. No message was delivered."
+  },
+  {
+    "id": "E4",
+    "module": "Email Reports",
+    "scenario": "Email history records the attempt",
+    "expected": "A failed send is not stored as sent",
+    "actual": "FAILED 2026-10-26 0",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "D1",
+    "module": "Data integrity",
+    "scenario": "Existing leads remain",
+    "expected": "No previously stored lead is removed",
+    "actual": "9 existing leads remain",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "D2",
+    "module": "Data integrity",
+    "scenario": "Existing feasibility and costing records remain",
+    "expected": "Counts do not fall below the starting counts",
+    "actual": "studies 6 to 6; costings 2 to 2",
+    "status": "PASS",
+    "fix": ""
+  },
+  {
+    "id": "U1",
+    "module": "Browser",
+    "scenario": "Open each workflow page and click through the demo",
+    "expected": "Pages render and actions persist",
+    "actual": "No browser tools are available in this session, so the page was not clicked through.",
+    "status": "NOT TESTED",
+    "fix": ""
+  },
+  {
+    "id": "U2",
+    "module": "Project Planning",
+    "scenario": "Day, week, and month Gantt views, Today, and Fit to Screen",
+    "expected": "The timeline stays readable and the project stays selected",
+    "actual": "No browser tools are available in this session, so the page was not clicked through.",
+    "status": "NOT TESTED",
+    "fix": ""
+  },
+  {
+    "id": "U3",
+    "module": "Daily Work Updates",
+    "scenario": "Horizontal scroll, column alignment, and a narrow viewport",
+    "expected": "Every column, including Actions, can be reached",
+    "actual": "No browser tools are available in this session, so the page was not clicked through.",
+    "status": "NOT TESTED",
+    "fix": ""
+  },
+  {
+    "id": "U4",
+    "module": "Theme",
+    "scenario": "Light and dark theme on the demo pages",
+    "expected": "Both themes remain usable",
+    "actual": "No browser tools are available in this session, so the page was not clicked through.",
+    "status": "NOT TESTED",
+    "fix": ""
+  },
+  {
+    "id": "U5",
+    "module": "Evidence",
+    "scenario": "Screenshots of the completed demo",
+    "expected": "Screenshots stored without personal data or secrets",
+    "actual": "No browser tools are available in this session, so the page was not clicked through.",
+    "status": "NOT TESTED",
+    "fix": ""
+  }
+]

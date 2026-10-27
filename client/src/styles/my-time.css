@@ -1,0 +1,366 @@
+.time-head,
+.time-nav,
+.time-card,
+.time-card__copy,
+.time-card__actions,
+.time-log header,
+.time-report__head,
+.time-history header,
+.time-form__actions,
+.time-form__times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.time-head,
+.time-report__head,
+.time-log header,
+.time-history header {
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 16px;
+}
+
+.time-head h1,
+.time-summary h2,
+.time-log h2,
+.time-report h2,
+.time-history h2,
+.time-teams h2 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.time-head p,
+.time-card p,
+.time-muted,
+.time-report__body small,
+.time-duration {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.time-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border-subtle, var(--border));
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.time-tabs button,
+.time-week button,
+.time-team-grid button,
+.time-link,
+.time-log li button {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.time-tabs button {
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+
+.time-tabs button.is-active,
+.time-week button.is-active,
+.time-team-grid button.is-active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.time-nav {
+  margin-bottom: 16px;
+}
+
+.time-nav__date {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.time-nav__date input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.time-stats,
+.time-summary dl,
+.time-team-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.time-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 14px;
+}
+
+.time-stats div,
+.time-card,
+.time-summary,
+.time-log,
+.time-report__body,
+.time-teams,
+.time-history,
+.time-team-grid button {
+  border: 1px solid var(--border-subtle, var(--border));
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.time-stats div,
+.time-card,
+.time-summary,
+.time-log,
+.time-report__body,
+.time-teams,
+.time-history {
+  padding: 14px 16px;
+}
+
+.time-stats span,
+.time-summary dt {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.time-stats strong,
+.time-summary dd,
+.time-week strong {
+  color: var(--text-primary);
+}
+
+.time-card {
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.time-card__copy {
+  align-items: flex-start;
+}
+
+.time-card__actions .input {
+  width: 140px;
+}
+
+.time-summary {
+  margin-bottom: 14px;
+}
+
+.time-summary dl {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 12px 0 0;
+}
+
+.time-summary dd {
+  margin: 2px 0 0;
+}
+
+.time-breaks ul,
+.time-log ol,
+.time-members {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.time-breaks li,
+.time-log li,
+.time-members li {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-subtle, var(--border));
+  color: var(--text-primary);
+}
+
+.time-log time,
+.time-members span:last-child {
+  color: var(--text-secondary);
+  min-width: 84px;
+}
+
+.time-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.time-week button {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border: 1px solid var(--border-subtle, var(--border));
+  border-radius: 10px;
+  background: var(--surface);
+  text-transform: uppercase;
+  font-size: 0.75rem;
+}
+
+.time-week button.is-active strong,
+.time-week button.is-active span {
+  color: #fff;
+}
+
+.time-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--text-secondary);
+}
+
+.time-dot--worked {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.time-dot--incomplete {
+  background: transparent;
+  border-color: #b45309;
+  box-shadow: inset 0 0 0 2px #b45309;
+}
+
+.time-week-total {
+  margin: 10px 0 16px;
+  color: var(--text-secondary);
+}
+
+.time-week-total strong {
+  color: var(--text-primary);
+}
+
+.time-log li button,
+.time-link {
+  margin-left: auto;
+  color: var(--primary);
+}
+
+.time-empty {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  margin: 8px 0 16px;
+}
+
+.time-form {
+  display: grid;
+  gap: 12px;
+}
+
+.time-form__times {
+  align-items: end;
+}
+
+.time-form__times .field,
+.time-form .field {
+  flex: 1;
+  min-width: 140px;
+}
+
+.time-form__actions {
+  justify-content: flex-end;
+}
+
+.time-error {
+  margin: 0;
+  color: #b42318;
+}
+
+.time-report__body,
+.time-teams,
+.time-history {
+  margin-bottom: 14px;
+}
+
+.time-report__body {
+  display: grid;
+  gap: 12px;
+}
+
+.time-report__head .is-submitted {
+  color: var(--primary);
+}
+
+.time-team-grid {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  margin-top: 12px;
+}
+
+.time-team-grid button {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+  color: var(--text-primary);
+}
+
+.time-team-grid button.is-active strong,
+.time-team-grid button.is-active span {
+  color: #fff;
+}
+
+.time-table-wrap {
+  overflow-x: auto;
+}
+
+.time-skeleton {
+  min-height: 180px;
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.time-range {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.time-range .input {
+  width: auto;
+}
+
+@media (max-width: 900px) {
+  .time-stats,
+  .time-summary dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .time-week {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .time-stats,
+  .time-summary dl,
+  .time-week {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .time-card,
+  .time-head,
+  .time-report__head {
+    align-items: stretch;
+  }
+}

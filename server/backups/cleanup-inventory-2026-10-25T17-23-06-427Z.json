@@ -1,0 +1,2131 @@
+{
+  "createdAt": "2026-10-25T17:23:09.016Z",
+  "host": "pg-18aac1dc-aicareyuautomation-76ba.a.aivencloud.com",
+  "port": 16363,
+  "database": "ProjectManagementSystem",
+  "dbUser": "avnadmin",
+  "searchPath": "{pms_app,public}",
+  "relations": [
+    {
+      "schema": "pms_app",
+      "name": "attendance_sessions",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "break_entries",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "checklist_activity",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "checklist_items",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "checklist_visibility",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "checklists",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "conversation_members",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 30
+    },
+    {
+      "schema": "pms_app",
+      "name": "conversations",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 11
+    },
+    {
+      "schema": "pms_app",
+      "name": "credential_policy",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "daily_report_activity",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "daily_reports",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "daily_work_activity",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "daily_work_attachments",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "daily_work_dependencies",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "daily_work_items",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 469
+    },
+    {
+      "schema": "pms_app",
+      "name": "daily_work_types",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 15
+    },
+    {
+      "schema": "pms_app",
+      "name": "daily_work_updates",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 469
+    },
+    {
+      "schema": "pms_app",
+      "name": "email_report_activity",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "email_report_deliveries",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "email_report_recipients",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "email_report_runs",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "email_report_templates",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 6
+    },
+    {
+      "schema": "pms_app",
+      "name": "email_reports",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "email_settings",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 1
+    },
+    {
+      "schema": "pms_app",
+      "name": "escalation_activity",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "escalation_attachments",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "escalation_comments",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "escalations",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "feasibility_activity",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "feasibility_assessments",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "feasibility_communications",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "feasibility_customer_inputs",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "feasibility_documents",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "feasibility_requirements",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "feasibility_risks",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "feasibility_studies",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 5
+    },
+    {
+      "schema": "pms_app",
+      "name": "feasibility_team_assignments",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "feasibility_team_members",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "feasibility_validations",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 5
+    },
+    {
+      "schema": "pms_app",
+      "name": "forum_attachments",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "forum_follows",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "forum_reactions",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "forum_replies",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "forum_tags",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 12
+    },
+    {
+      "schema": "pms_app",
+      "name": "forum_thread_tags",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "forum_threads",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "forum_views",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "lead_activity",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "lead_documents",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "lead_team_assignment_members",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "lead_team_assignments",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "leads",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 8
+    },
+    {
+      "schema": "pms_app",
+      "name": "leave_activity",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 2
+    },
+    {
+      "schema": "pms_app",
+      "name": "leave_approval_history",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 1
+    },
+    {
+      "schema": "pms_app",
+      "name": "leave_balances",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 18
+    },
+    {
+      "schema": "pms_app",
+      "name": "leave_number_counters",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 2
+    },
+    {
+      "schema": "pms_app",
+      "name": "leave_requests",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 1
+    },
+    {
+      "schema": "pms_app",
+      "name": "leave_types",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 6
+    },
+    {
+      "schema": "pms_app",
+      "name": "message_edits",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "messages",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 10
+    },
+    {
+      "schema": "pms_app",
+      "name": "negotiation_events",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 1
+    },
+    {
+      "schema": "pms_app",
+      "name": "notifications",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 38
+    },
+    {
+      "schema": "pms_app",
+      "name": "organization_activity",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "organization_calendar",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 1
+    },
+    {
+      "schema": "pms_app",
+      "name": "organization_holidays",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "password_reset_tokens",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "permission_approval_history",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 1
+    },
+    {
+      "schema": "pms_app",
+      "name": "permission_requests",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 1
+    },
+    {
+      "schema": "pms_app",
+      "name": "procurement_request_items",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "procurement_requests",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "products",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "project_activity",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "project_baselines",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "project_documents",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "project_milestones",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "project_phases",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "project_registry",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "project_tasks",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 44
+    },
+    {
+      "schema": "pms_app",
+      "name": "project_teams",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "project_time_entries",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "projects",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 28
+    },
+    {
+      "schema": "pms_app",
+      "name": "quotations",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 1
+    },
+    {
+      "schema": "pms_app",
+      "name": "role_permissions",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 300
+    },
+    {
+      "schema": "pms_app",
+      "name": "roles",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 6
+    },
+    {
+      "schema": "pms_app",
+      "name": "solution_bom_items",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "solution_cost_entries",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "solution_costing_activity",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "solution_costing_approvals",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "solution_costing_components",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "solution_costing_documents",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "solution_costing_risks",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "solution_costing_teams",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "solution_costing_versions",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 1
+    },
+    {
+      "schema": "pms_app",
+      "name": "solution_costings",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 1
+    },
+    {
+      "schema": "pms_app",
+      "name": "system_settings",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 1
+    },
+    {
+      "schema": "pms_app",
+      "name": "task_dependencies",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "team_activity",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "team_meetings",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "team_members",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 7
+    },
+    {
+      "schema": "pms_app",
+      "name": "team_work_requests",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "teams",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 5
+    },
+    {
+      "schema": "pms_app",
+      "name": "user_auth_state",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 2
+    },
+    {
+      "schema": "pms_app",
+      "name": "user_permission_overrides",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "pms_app",
+      "name": "user_preferences",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 2
+    },
+    {
+      "schema": "pms_app",
+      "name": "user_presence",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 1
+    },
+    {
+      "schema": "pms_app",
+      "name": "users",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 13
+    },
+    {
+      "schema": "pms_app",
+      "name": "workflow_events",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "public",
+      "name": "assignment_history",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 48
+    },
+    {
+      "schema": "public",
+      "name": "audits",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 328
+    },
+    {
+      "schema": "public",
+      "name": "chat_messages",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 10
+    },
+    {
+      "schema": "public",
+      "name": "conversation_participants",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 33
+    },
+    {
+      "schema": "public",
+      "name": "conversations",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 12
+    },
+    {
+      "schema": "public",
+      "name": "daily_updates",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 474
+    },
+    {
+      "schema": "public",
+      "name": "email_notification_claims",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "public",
+      "name": "entity_documents",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 9
+    },
+    {
+      "schema": "public",
+      "name": "escalations",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "public",
+      "name": "feasibility_employee_allocations",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "public",
+      "name": "feasibility_team_assignments",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 7
+    },
+    {
+      "schema": "public",
+      "name": "forum_comments",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 3
+    },
+    {
+      "schema": "public",
+      "name": "forum_live_messages",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "public",
+      "name": "forum_posts",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 1
+    },
+    {
+      "schema": "public",
+      "name": "forum_reactions",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 1
+    },
+    {
+      "schema": "public",
+      "name": "forum_tags",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 2
+    },
+    {
+      "schema": "public",
+      "name": "lead_activities",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "public",
+      "name": "lead_comments",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 40
+    },
+    {
+      "schema": "public",
+      "name": "lead_documents",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "public",
+      "name": "lead_status_history",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 24
+    },
+    {
+      "schema": "public",
+      "name": "leads",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 8
+    },
+    {
+      "schema": "public",
+      "name": "leave_requests",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "public",
+      "name": "live_demonstrations",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "public",
+      "name": "notification_deliveries",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 13
+    },
+    {
+      "schema": "public",
+      "name": "notifications",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 38
+    },
+    {
+      "schema": "public",
+      "name": "outbound_emails",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 164
+    },
+    {
+      "schema": "public",
+      "name": "pending_signups",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 1
+    },
+    {
+      "schema": "public",
+      "name": "procurement_requests",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "public",
+      "name": "project_phases",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "public",
+      "name": "projects",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 0
+    },
+    {
+      "schema": "public",
+      "name": "roles",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 12
+    },
+    {
+      "schema": "public",
+      "name": "stage_transitions",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 1
+    },
+    {
+      "schema": "public",
+      "name": "store_collections",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 33
+    },
+    {
+      "schema": "public",
+      "name": "system_meta",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 81
+    },
+    {
+      "schema": "public",
+      "name": "tasks",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 44
+    },
+    {
+      "schema": "public",
+      "name": "teams",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 5
+    },
+    {
+      "schema": "public",
+      "name": "user_directory",
+      "relkind": "v",
+      "owner": "avnadmin",
+      "total": 13
+    },
+    {
+      "schema": "public",
+      "name": "users",
+      "relkind": "r",
+      "owner": "avnadmin",
+      "total": 13
+    }
+  ],
+  "foreignKeys": [
+    {
+      "schema": "pms_app",
+      "table_name": "break_entries",
+      "column_name": "attendance_session_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "attendance_sessions",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "checklist_activity",
+      "column_name": "checklist_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "checklists",
+      "foreign_column": "id",
+      "delete_rule": "n"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "checklist_items",
+      "column_name": "checklist_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "checklists",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "checklist_visibility",
+      "column_name": "checklist_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "checklists",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "daily_report_activity",
+      "column_name": "daily_report_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "daily_reports",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "escalation_activity",
+      "column_name": "escalation_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "escalations",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "escalation_attachments",
+      "column_name": "escalation_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "escalations",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "escalation_comments",
+      "column_name": "escalation_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "escalations",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "feasibility_activity",
+      "column_name": "feasibility_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "feasibility_studies",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "feasibility_assessments",
+      "column_name": "assignment_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "feasibility_team_assignments",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "feasibility_communications",
+      "column_name": "feasibility_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "feasibility_studies",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "feasibility_customer_inputs",
+      "column_name": "feasibility_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "feasibility_studies",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "feasibility_documents",
+      "column_name": "assignment_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "feasibility_team_assignments",
+      "foreign_column": "id",
+      "delete_rule": "n"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "feasibility_documents",
+      "column_name": "feasibility_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "feasibility_studies",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "feasibility_requirements",
+      "column_name": "feasibility_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "feasibility_studies",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "feasibility_risks",
+      "column_name": "feasibility_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "feasibility_studies",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "feasibility_team_assignments",
+      "column_name": "feasibility_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "feasibility_studies",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "feasibility_team_members",
+      "column_name": "assignment_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "feasibility_team_assignments",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "feasibility_validations",
+      "column_name": "feasibility_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "feasibility_studies",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "lead_team_assignment_members",
+      "column_name": "assignment_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "lead_team_assignments",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "leave_activity",
+      "column_name": "leave_request_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "leave_requests",
+      "foreign_column": "id",
+      "delete_rule": "n"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "leave_activity",
+      "column_name": "permission_request_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "permission_requests",
+      "foreign_column": "id",
+      "delete_rule": "n"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "leave_approval_history",
+      "column_name": "leave_request_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "leave_requests",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "leave_balances",
+      "column_name": "leave_type_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "leave_types",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "leave_requests",
+      "column_name": "leave_type_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "leave_types",
+      "foreign_column": "id",
+      "delete_rule": "a"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "permission_approval_history",
+      "column_name": "permission_request_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "permission_requests",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "procurement_request_items",
+      "column_name": "request_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "procurement_requests",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "solution_bom_items",
+      "column_name": "version_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "solution_costing_versions",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "solution_cost_entries",
+      "column_name": "version_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "solution_costing_versions",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "solution_costing_activity",
+      "column_name": "costing_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "solution_costings",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "solution_costing_activity",
+      "column_name": "version_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "solution_costing_versions",
+      "foreign_column": "id",
+      "delete_rule": "n"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "solution_costing_approvals",
+      "column_name": "version_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "solution_costing_versions",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "solution_costing_components",
+      "column_name": "version_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "solution_costing_versions",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "solution_costing_documents",
+      "column_name": "version_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "solution_costing_versions",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "solution_costing_risks",
+      "column_name": "version_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "solution_costing_versions",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "solution_costing_teams",
+      "column_name": "version_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "solution_costing_versions",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "solution_costing_versions",
+      "column_name": "costing_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "solution_costings",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    },
+    {
+      "schema": "pms_app",
+      "table_name": "solution_costings",
+      "column_name": "feasibility_id",
+      "foreign_schema": "pms_app",
+      "foreign_table": "feasibility_studies",
+      "foreign_column": "id",
+      "delete_rule": "c"
+    }
+  ],
+  "linkColumns": [
+    {
+      "table_schema": "pms_app",
+      "table_name": "conversations",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "daily_work_items",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "daily_work_items",
+      "column_name": "task_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "daily_work_updates",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "daily_work_updates",
+      "column_name": "task_deadline"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "escalations",
+      "column_name": "costing_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "escalations",
+      "column_name": "feasibility_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "escalations",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "escalations",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "escalations",
+      "column_name": "task_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "feasibility_activity",
+      "column_name": "feasibility_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "feasibility_communications",
+      "column_name": "feasibility_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "feasibility_customer_inputs",
+      "column_name": "feasibility_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "feasibility_documents",
+      "column_name": "feasibility_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "feasibility_requirements",
+      "column_name": "feasibility_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "feasibility_risks",
+      "column_name": "feasibility_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "feasibility_studies",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "feasibility_studies",
+      "column_name": "technical_feasibility"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "feasibility_team_assignments",
+      "column_name": "feasibility_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "feasibility_team_assignments",
+      "column_name": "team_lead_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "feasibility_validations",
+      "column_name": "feasibility_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "forum_threads",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "lead_activity",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "lead_documents",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "lead_team_assignments",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "lead_team_assignments",
+      "column_name": "team_lead_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "leads",
+      "column_name": "assigned_lead_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "leads",
+      "column_name": "lead_code"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "messages",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "messages",
+      "column_name": "task_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "negotiation_events",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "procurement_request_items",
+      "column_name": "estimated_cost"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "procurement_requests",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "products",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "project_activity",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "project_baselines",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "project_documents",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "project_milestones",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "project_phases",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "project_registry",
+      "column_name": "costing_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "project_registry",
+      "column_name": "costing_version_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "project_registry",
+      "column_name": "feasibility_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "project_registry",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "project_registry",
+      "column_name": "project_code"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "project_registry",
+      "column_name": "project_manager_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "project_registry",
+      "column_name": "project_type"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "project_tasks",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "project_tasks",
+      "column_name": "task_code"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "project_teams",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "project_time_entries",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "project_time_entries",
+      "column_name": "task_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "projects",
+      "column_name": "costing_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "projects",
+      "column_name": "costing_version_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "projects",
+      "column_name": "feasibility_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "projects",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "projects",
+      "column_name": "project_code"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "projects",
+      "column_name": "project_manager_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "projects",
+      "column_name": "project_type"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "quotations",
+      "column_name": "costing_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "quotations",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "solution_bom_items",
+      "column_name": "lead_time"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "solution_bom_items",
+      "column_name": "unit_cost"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "solution_costing_activity",
+      "column_name": "costing_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "solution_costing_documents",
+      "column_name": "source_feasibility_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "solution_costing_risks",
+      "column_name": "cost_impact"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "solution_costing_teams",
+      "column_name": "estimated_cost"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "solution_costing_versions",
+      "column_name": "component_lead_time"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "solution_costing_versions",
+      "column_name": "costing_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "solution_costings",
+      "column_name": "costing_code"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "solution_costings",
+      "column_name": "feasibility_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "solution_costings",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "task_dependencies",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "team_work_requests",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "team_work_requests",
+      "column_name": "task_id"
+    },
+    {
+      "table_schema": "pms_app",
+      "table_name": "teams",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "conversations",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "daily_updates",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "daily_updates",
+      "column_name": "lead_number"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "daily_updates",
+      "column_name": "project_code"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "daily_updates",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "daily_updates",
+      "column_name": "project_name"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "daily_updates",
+      "column_name": "task_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "daily_updates",
+      "column_name": "task_title"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "email_notification_claims",
+      "column_name": "task_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "escalations",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "escalations",
+      "column_name": "project_name"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "feasibility_employee_allocations",
+      "column_name": "feasibility_team_assignment_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "feasibility_employee_allocations",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "feasibility_employee_allocations",
+      "column_name": "team_lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "feasibility_team_assignments",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "feasibility_team_assignments",
+      "column_name": "team_lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "feasibility_team_assignments",
+      "column_name": "team_lead_name"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "lead_activities",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "lead_comments",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "lead_documents",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "lead_status_history",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "assigned_team_lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "assigned_team_lead_name"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_bom_components"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_commercial_assumptions"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_component_costs"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_documents"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_engineering_costs"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_installation_costs"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_other_costs"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_pm_approved_at"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_pm_approved_by"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_pm_return_reason"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_procurement_costs"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_return_reason"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_software_costs"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_status"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_submitted_at"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_submitted_by"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_submitted_by_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_total_estimated_cost"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_vendor_quotations"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "costing_vendor_requirements"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "expected_project_timeline"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "feasibility_return_reason"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "fs_technical_feasibility"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "lead_date"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "lead_number"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "project_description"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "leads",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "live_demonstrations",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "live_demonstrations",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "live_demonstrations",
+      "column_name": "support_task_ids"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "live_demonstrations",
+      "column_name": "task_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "procurement_requests",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "procurement_requests",
+      "column_name": "project_name"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "project_phases",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "projects",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "projects",
+      "column_name": "lead_number"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "projects",
+      "column_name": "team_lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "projects",
+      "column_name": "team_lead_name"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "stage_transitions",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "stage_transitions",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "system_meta",
+      "column_name": "users_leadership_pruned_at"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tasks",
+      "column_name": "feasibility_team_assignment_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tasks",
+      "column_name": "lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tasks",
+      "column_name": "lead_name"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tasks",
+      "column_name": "lead_stage_at_creation"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tasks",
+      "column_name": "parent_task_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tasks",
+      "column_name": "project_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tasks",
+      "column_name": "project_name"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tasks",
+      "column_name": "requested_from_task_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "tasks",
+      "column_name": "task_type"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "teams",
+      "column_name": "team_lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "teams",
+      "column_name": "team_lead_name"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "users",
+      "column_name": "team_lead_id"
+    },
+    {
+      "table_schema": "public",
+      "table_name": "users",
+      "column_name": "team_lead_name"
+    }
+  ]
+}

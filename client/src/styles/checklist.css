@@ -1,0 +1,277 @@
+.checklist-back {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.checklist-head,
+.checklist-head__actions,
+.checklist-toolbar,
+.checklist-form__actions,
+.checklist-items__add,
+.checklist-card header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.checklist-head {
+  justify-content: space-between;
+  align-items: flex-end;
+  margin: 8px 0 14px;
+}
+
+.checklist-head h1 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--font-title);
+}
+
+.checklist-head p,
+.checklist-card p,
+.checklist-progress span {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.checklist-employee {
+  margin-top: 8px;
+  color: var(--text-primary);
+}
+
+.checklist-head__actions {
+  margin-left: auto;
+}
+
+.checklist-toolbar {
+  margin-bottom: 14px;
+}
+
+.checklist-toolbar .input {
+  flex: 1 1 220px;
+}
+
+.checklist-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.checklist-card,
+.checklist-skeleton {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle, var(--border));
+  border-radius: var(--radius-md);
+  padding: 14px;
+}
+
+.checklist-card.is-complete {
+  border-color: var(--border);
+}
+
+.checklist-card header {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.checklist-card h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.checklist-complete {
+  color: var(--primary);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.checklist-progress {
+  display: grid;
+  gap: 6px;
+  margin: 10px 0;
+}
+
+.checklist-progress i,
+.checklist-progress i b {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+}
+
+.checklist-progress i {
+  background: var(--surface-secondary, var(--bg-secondary));
+}
+
+.checklist-progress i b {
+  background: var(--primary);
+}
+
+.checklist-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.checklist-row input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.checklist-row__box {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--primary);
+}
+
+.checklist-row.is-done .checklist-row__box {
+  border-color: var(--primary);
+}
+
+.checklist-row.is-done span:last-child {
+  color: var(--text-secondary);
+  text-decoration: line-through;
+}
+
+.checklist-skeleton {
+  min-height: 160px;
+}
+
+.checklist-picker {
+  position: relative;
+  min-width: 220px;
+}
+
+.checklist-picker__button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  background-image: none;
+  cursor: pointer;
+}
+
+.checklist-picker__panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  width: min(320px, 80vw);
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.checklist-picker__panel ul {
+  max-height: 240px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.checklist-picker__panel button {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.checklist-picker__panel button[aria-selected='true'] {
+  background: var(--surface-secondary, var(--bg-secondary));
+}
+
+.checklist-picker__empty {
+  padding: 8px;
+  color: var(--text-secondary);
+}
+
+.checklist-form {
+  display: grid;
+  gap: 12px;
+}
+
+.checklist-items__add .input {
+  flex: 1;
+}
+
+.checklist-items ul {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checklist-items li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.checklist-items li .input {
+  flex: 1;
+}
+
+.checklist-form__actions {
+  position: sticky;
+  bottom: 0;
+  justify-content: flex-end;
+  padding-top: 8px;
+  background: var(--surface);
+}
+
+.modal.checklist-dialog {
+  width: min(600px, 100%);
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+}
+
+.checklist-dialog .modal__body {
+  min-height: 0;
+  overflow: auto;
+}
+
+@media (max-width: 900px) {
+  .checklist-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .checklist-head__actions,
+  .checklist-picker {
+    width: 100%;
+  }
+}

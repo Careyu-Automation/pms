@@ -1,0 +1,368 @@
+{
+  "createdAt": "2026-10-25T16:34:38.315Z",
+  "note": "Restore with CREATE OR REPLACE VIEW pms_app.projects AS <definition>. No task rows were deleted.",
+  "definition": " SELECT app_uuid('project'::text, label) AS id,\n    (('PRJ-'::text || lpad(row_number() OVER (ORDER BY src.title)::text, 3, '0'::text)))::character varying(20) AS project_code,\n    title::character varying(200) AS title,\n    customer_name::character varying(200) AS customer_name,\n    NULL::uuid AS lead_id,\n    NULL::uuid AS feasibility_id,\n    NULL::uuid AS costing_id,\n    NULL::uuid AS costing_version_id,\n    'IN_PROGRESS'::character varying(40) AS status,\n    'MEDIUM'::character varying(20) AS priority,\n    NULL::uuid AS project_manager_id,\n    NULL::date AS start_date,\n    NULL::date AS target_date,\n    NULL::date AS completion_date,\n    ''::text AS description,\n    ''::text AS site_location,\n    ''::text AS customer_contact,\n    ''::text AS hold_reason,\n    ''::text AS risk_reason,\n    ''::text AS completion_remarks,\n    NULL::numeric AS approved_value,\n    NULL::uuid AS created_by,\n    now() AS created_at,\n    now() AS updated_at,\n    ''::character varying(40) AS project_type,\n    ''::character varying(100) AS department,\n    ''::character varying(40) AS team_code,\n    ''::character varying(30) AS assignment_type,\n    NULL::uuid AS assigned_to_id,\n    NULL::uuid AS assigned_team_id,\n    ''::character varying(40) AS team_review_status,\n    NULL::uuid AS team_reviewed_by,\n    ''::text AS handover_notes,\n    NULL::timestamp with time zone AS handover_at\n   FROM ( SELECT\n                CASE\n                    WHEN btrim(COALESCE(tasks.project_name, ''::text)) = ''::text THEN 'internal work'::text\n                    ELSE lower(btrim(tasks.project_name))\n                END AS label,\n                CASE\n                    WHEN btrim(COALESCE(tasks.project_name, ''::text)) = ''::text THEN 'Internal work'::text\n                    ELSE btrim(tasks.project_name)\n                END AS title,\n            COALESCE(max(NULLIF(btrim(tasks.customer_name), ''::text)), ''::text) AS customer_name\n           FROM tasks\n          GROUP BY (\n                CASE\n                    WHEN btrim(COALESCE(tasks.project_name, ''::text)) = ''::text THEN 'internal work'::text\n                    ELSE lower(btrim(tasks.project_name))\n                END), (\n                CASE\n                    WHEN btrim(COALESCE(tasks.project_name, ''::text)) = ''::text THEN 'Internal work'::text\n                    ELSE btrim(tasks.project_name)\n                END)) src;",
+  "tasks": [
+    {
+      "id": 9049,
+      "title": "Persist probe task 1789456464382",
+      "project_name": "KDDL",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905545188-oeir"
+    },
+    {
+      "id": 9050,
+      "title": "Implement PMS integration and add required features similar to the Daily Work Updates page, validate data synchronizatio",
+      "project_name": "PMS Integration",
+      "customer_name": null,
+      "status": "DONE",
+      "assigned_to_id": "u-1787905026592-44qp"
+    },
+    {
+      "id": 9051,
+      "title": "Waiting feedback from the sahay team",
+      "project_name": "Rack Configurator",
+      "customer_name": null,
+      "status": "IN_PROGRESS",
+      "assigned_to_id": "u-1787905026592-44qp"
+    },
+    {
+      "id": 9052,
+      "title": "1. Implement the required updates requested for TaskForge from users.",
+      "project_name": "Taskforge",
+      "customer_name": null,
+      "status": "IN_PROGRESS",
+      "assigned_to_id": "u-1787905026592-44qp"
+    },
+    {
+      "id": 9054,
+      "title": "Shuttle implementation at R&D centre – integration activities, communication/interface validation, testing and pending i",
+      "project_name": "4-Way Shuttle",
+      "customer_name": null,
+      "status": "IN_PROGRESS",
+      "assigned_to_id": "u-tl-rob"
+    },
+    {
+      "id": 9055,
+      "title": "Complete deployment, identify required fine-tuning, implement improvements and validate software performance",
+      "project_name": "Auto Annotation Software",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905545188-oeir"
+    },
+    {
+      "id": 9056,
+      "title": "A. Finalize system accuracy timeline B. Finalize camera/barcode verification method C. Finalize integration timeline and",
+      "project_name": "Hero Mainline – Vision Action Items",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905545188-oeir"
+    },
+    {
+      "id": 9057,
+      "title": "Complete defect analysis system preparation, validate required functionality and prepare the system for customer/interna",
+      "project_name": "Roca-2 – Fittings Defect Analysis",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905545188-oeir"
+    },
+    {
+      "id": 9060,
+      "title": "Solution Drawing",
+      "project_name": "Manikaran Power",
+      "customer_name": null,
+      "status": "IN_PROGRESS",
+      "assigned_to_id": "u-tl-rob"
+    },
+    {
+      "id": 9061,
+      "title": "New task",
+      "project_name": null,
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905421223-82dt"
+    },
+    {
+      "id": 9062,
+      "title": "Client Visit",
+      "project_name": "Maini precision",
+      "customer_name": null,
+      "status": "IN_PROGRESS",
+      "assigned_to_id": "u-tl-rob"
+    },
+    {
+      "id": 9966,
+      "title": "Checking the feasibility of using software for object measurement and developing an internal demo for the KDDL project.",
+      "project_name": "KDDL",
+      "customer_name": null,
+      "status": "IN_PROGRESS",
+      "assigned_to_id": "u-1787905545188-oeir"
+    },
+    {
+      "id": 10532,
+      "title": "Implement Rack Layout Using Rack Configurator",
+      "project_name": "Rack Configurator",
+      "customer_name": null,
+      "status": "DONE",
+      "assigned_to_id": "u-1787905421223-82dt"
+    },
+    {
+      "id": 11182,
+      "title": "Yet to complete drawing.",
+      "project_name": "Manikaran",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-tl-rob"
+    },
+    {
+      "id": 11480,
+      "title": "Map Node RFID mapping",
+      "project_name": "WMS-ASRS",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905150629-ltxa"
+    },
+    {
+      "id": 11529,
+      "title": "Quotation Justification report preparation.",
+      "project_name": "Dvise",
+      "customer_name": null,
+      "status": "IN_PROGRESS",
+      "assigned_to_id": "u-1787905150629-ltxa"
+    },
+    {
+      "id": 11563,
+      "title": "Solution updation with AMR to already proposed ASRS solution.",
+      "project_name": "Maini Precision",
+      "customer_name": null,
+      "status": "IN_PROGRESS",
+      "assigned_to_id": "u-tl-rob"
+    },
+    {
+      "id": 11958,
+      "title": "2. Deploying an application on Google App Engine.",
+      "project_name": "Google App Engine",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905150629-ltxa"
+    },
+    {
+      "id": 11996,
+      "title": "Deploying an application on Google App Engine.",
+      "project_name": "Google App Engine",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905026592-44qp"
+    },
+    {
+      "id": 12116,
+      "title": "Continued work on both software planning and hardware feasibility for the Mainline project.",
+      "project_name": "HERO-mainline",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905545188-oeir"
+    },
+    {
+      "id": 12137,
+      "title": "software-hardware -timeline",
+      "project_name": "HERO-mainline",
+      "customer_name": null,
+      "status": "IN_PROGRESS",
+      "assigned_to_id": "u-1787905545188-oeir"
+    },
+    {
+      "id": 12179,
+      "title": "Continue testing and validating the software developed for the triggering mechanism and barcode scanning, and address an",
+      "project_name": "HERO-mainline vision inspection",
+      "customer_name": null,
+      "status": "IN_PROGRESS",
+      "assigned_to_id": "u-1787905545188-oeir"
+    },
+    {
+      "id": 12200,
+      "title": "Module 1 – Software Development\n\n* Finalizing and preparing the software development timeline/document.\n* Timeline cover",
+      "project_name": "HERO-mainline_vision_inspection",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905545188-oeir"
+    },
+    {
+      "id": 12222,
+      "title": "Module 1 – Software Development\n\n* Finalizing and preparing the software development timeline/document.\n* Timeline cover",
+      "project_name": "Hero Mainline",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905545188-oeir"
+    },
+    {
+      "id": 12268,
+      "title": "Continue identifying and sourcing a suitable camera for testing and validation, and proceed with the remaining software",
+      "project_name": "KDDL",
+      "customer_name": null,
+      "status": "IN_PROGRESS",
+      "assigned_to_id": "u-1787905545188-oeir"
+    },
+    {
+      "id": 12315,
+      "title": "Hardwares Procurement Finalization\nProcurement of system hardwares and equipments - Consolidation for submitting to Fina",
+      "project_name": "Hero Mainline",
+      "customer_name": null,
+      "status": "IN_PROGRESS",
+      "assigned_to_id": "u-tl-rob"
+    },
+    {
+      "id": 12504,
+      "title": "Backend Timeout Bug Fix :\nFix the backend timeout issue in the PMS and verify the affected API/workflow.",
+      "project_name": "PMS",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905026592-44qp"
+    },
+    {
+      "id": 12532,
+      "title": "Conduct the UI/UX discussion and finalize the required design and user-flow changes.Need to Get input from Mrs.Vanippriy",
+      "project_name": "Hero Mainline System",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905026592-44qp"
+    },
+    {
+      "id": 12561,
+      "title": "Coordinate with Mr.Arun  work on the 4-Way Shuttle system requirements and implementation.",
+      "project_name": "4-Way Shuttle",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905026592-44qp"
+    },
+    {
+      "id": 12741,
+      "title": "Product Idea from Research and existing POC application",
+      "project_name": "Tracking Application",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905150629-ltxa"
+    },
+    {
+      "id": 12865,
+      "title": "Creating PLC simulator and testing communication from WCS",
+      "project_name": "WMS-ASRS",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905150629-ltxa"
+    },
+    {
+      "id": 13153,
+      "title": "Implement the OTR (Order Tracking Report) workflow into TaskForge.1.OTR implement done. I need to test the workflow. 2.",
+      "project_name": "Task Forge",
+      "customer_name": null,
+      "status": "IN_PROGRESS",
+      "assigned_to_id": "u-1787905026592-44qp"
+    },
+    {
+      "id": 13219,
+      "title": "UI Redesign in all component",
+      "project_name": "WMS-ASRS",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905150629-ltxa"
+    },
+    {
+      "id": 13663,
+      "title": "New Pie Graph chart Report in dashboard",
+      "project_name": "WMS-ASRS",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905150629-ltxa"
+    },
+    {
+      "id": 13909,
+      "title": "Review WMS–ASRS requirements, identify pending development/integration activities, complete implementation and testing a",
+      "project_name": "WMS – ASRS",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905150629-ltxa"
+    },
+    {
+      "id": 14055,
+      "title": "Continue reviewing the transmission vision inspection requirements and refine the proposed vision system approach based",
+      "project_name": "HERO vision inspection for Transmission",
+      "customer_name": null,
+      "status": "IN_PROGRESS",
+      "assigned_to_id": "u-1787905545188-oeir"
+    },
+    {
+      "id": 14093,
+      "title": "Continue developing the software for the Century Ply vision inspection workflow based on the completed preprocessing ste",
+      "project_name": "century ply",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905545188-oeir"
+    },
+    {
+      "id": 15341,
+      "title": "Camera Trigger via Vehicle Detection - R&D",
+      "project_name": "Hero Mainline",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-tl-rob"
+    },
+    {
+      "id": 16301,
+      "title": "Testing shuttle movement in multiple scenario",
+      "project_name": "WMS-ASRS",
+      "customer_name": null,
+      "status": "IN_PROGRESS",
+      "assigned_to_id": "u-1787905150629-ltxa"
+    },
+    {
+      "id": 17200,
+      "title": "Develop a centralized visitor capture system to scan/upload visitor cards or passes, extract and store visitor details i",
+      "project_name": "Visiting card website",
+      "customer_name": null,
+      "status": "IN_PROGRESS",
+      "assigned_to_id": "u-1787905026592-44qp"
+    },
+    {
+      "id": 17938,
+      "title": "Get approval for Deployment services.",
+      "project_name": "PMS",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905150629-ltxa"
+    },
+    {
+      "id": 18021,
+      "title": "Get approval for Deployment services.",
+      "project_name": "PMS",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905150629-ltxa"
+    },
+    {
+      "id": 18063,
+      "title": "Review WMS–ASRS requirements, identify pending development/integration activities, complete implementation and testing a",
+      "project_name": "WMS-ASRS",
+      "customer_name": null,
+      "status": "TODO",
+      "assigned_to_id": "u-1787905150629-ltxa"
+    },
+    {
+      "id": 18192,
+      "title": "RackVision – ViewSonic TV Optimization Status\n\nOptimizing the RackVision software for the 65-inch ViewSonic interactive",
+      "project_name": "Rack Configurator",
+      "customer_name": null,
+      "status": "DONE",
+      "assigned_to_id": "u-1787905026592-44qp"
+    }
+  ],
+  "before": {
+    "projects": 28,
+    "tasks": 44,
+    "leads": 8,
+    "feasibility": 5,
+    "costings": 1,
+    "users": 13,
+    "teams": 5
+  }
+}

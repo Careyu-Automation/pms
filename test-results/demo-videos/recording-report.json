@@ -1,0 +1,86 @@
+{
+  "video": "C:\\Users\\Kabitha\\Desktop\\PMS\\test-results\\demo-videos\\CareYu_Project_Hub_Complete_Workflow_Demo.mp4",
+  "folder": "C:\\Users\\Kabitha\\Desktop\\PMS\\test-results\\demo-videos",
+  "results": [
+    {
+      "step": "Login and dashboard",
+      "status": "PASS",
+      "actual": "Business Head"
+    },
+    {
+      "step": "Show required-field validation",
+      "status": "PASS",
+      "actual": "Validation message shown"
+    },
+    {
+      "step": "Create and save the inspection lead",
+      "status": "PASS",
+      "actual": "Automated Component Inspection System"
+    },
+    {
+      "step": "Show the lead in the pipeline and open it",
+      "status": "PASS",
+      "actual": "http://localhost:5176/lead-pipeline/ea81448f-1734-4010-ad93-257842de1c9a"
+    },
+    {
+      "step": "Submit the lead to the project manager",
+      "status": "PASS",
+      "actual": "submitted"
+    },
+    {
+      "step": "Create separate leads for hold and change request",
+      "status": "PASS",
+      "actual": "two review leads submitted"
+    },
+    {
+      "step": "Project manager reviews, holds, requests changes, and approves",
+      "status": "PASS",
+      "actual": "approved"
+    },
+    {
+      "step": "Assign the five delivery teams",
+      "status": "PASS",
+      "actual": "assignments reloaded"
+    },
+    {
+      "step": "Accept the team assignments",
+      "status": "PASS",
+      "actual": "http://localhost:5176/feasibility-studies/lead/ea81448f-1734-4010-ad93-257842de1c9a"
+    },
+    {
+      "step": "Complete the feasibility study",
+      "status": "PASS",
+      "actual": "feasible"
+    },
+    {
+      "step": "Build and approve solution costing",
+      "status": "PASS",
+      "actual": "costing approved"
+    },
+    {
+      "step": "Accept the quotation and convert the project",
+      "status": "PASS",
+      "actual": "PRJ-2026-0002"
+    },
+    {
+      "step": "Plan the project and assign a task",
+      "status": "PASS",
+      "actual": "task created"
+    },
+    {
+      "step": "Employee sees the task and logs daily work",
+      "status": "PASS",
+      "actual": "Bolt and nut inspection check"
+    },
+    {
+      "step": "Email delivery",
+      "status": "BLOCKED",
+      "actual": "Send Test Email is disabled for this account. SMTP is not configured, so no message was sent."
+    },
+    {
+      "step": "Preview and download the daily work report",
+      "status": "PASS",
+      "actual": "preview shown"
+    }
+  ]
+}

@@ -1,0 +1,480 @@
+.feas-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.feas-header {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.feas-header h1 {
+  margin: 4px 0 0;
+  color: var(--text-primary);
+  font-size: var(--font-title);
+}
+
+.feas-header__title,
+.feas-header__status,
+.feas-header__actions,
+.feas-section__header,
+.feas-team-card header,
+.feas-team-panel__header,
+.feas-record__meta,
+.feas-inline {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.feas-header__actions,
+.feas-record__meta {
+  justify-content: flex-end;
+}
+
+.feas-section__header,
+.feas-team-panel__header {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.feas-header__status {
+  margin-top: 8px;
+  color: var(--text-secondary);
+}
+
+.feas-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 16px;
+  margin: 0;
+}
+
+.feas-facts dt,
+.feas-muted {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.feas-facts dd {
+  margin: 4px 0 0;
+  color: var(--text-primary);
+}
+
+.feas-muted {
+  display: block;
+  margin-top: 4px;
+}
+
+.feas-flow {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+}
+
+.feas-flow__step {
+  flex: 1 0 120px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--surface-secondary);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.feas-flow__step.is-done {
+  background: var(--success-light);
+  color: var(--success-text);
+}
+
+.feas-flow__step.is-current {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.feas-kpis {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.feas-kpi {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 14px 36px 14px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.feas-kpi p,
+.feas-kpi span,
+.feas-note,
+.feas-team-card p,
+.feas-team-panel__header p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.feas-kpi p {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.feas-kpi strong {
+  color: var(--text-primary);
+  font-size: 1.05rem;
+}
+
+.feas-kpi svg {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  color: var(--primary);
+}
+
+.feas-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.feas-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 10px 12px;
+  font: inherit;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.feas-tabs button[aria-selected='true'] {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.feas-grid,
+.feas-breakdown,
+.feas-team-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+
+.feas-span,
+.feas-upload,
+.feas-more,
+.feas-note,
+.feas-members {
+  grid-column: 1 / -1;
+}
+
+.feas-breakdown {
+  margin-top: 12px;
+}
+
+.feas-meter {
+  display: grid;
+  gap: 6px;
+}
+
+.feas-meter__label {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.feas-meter__label strong,
+.feas-subhead {
+  color: var(--text-primary);
+}
+
+.feas-subhead {
+  margin: 8px 0 0;
+  font-size: 1rem;
+}
+
+.feas-team-card,
+.feas-record,
+.feas-upload,
+.feas-more {
+  padding: 14px;
+  background: var(--surface-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.feas-team-card h3,
+.feas-team-panel h2,
+.feas-team-panel h3 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.feas-team-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.feas-members {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.feas-members legend {
+  padding: 0 6px;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.feas-members label,
+.checkbox-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--text-primary);
+}
+
+.feas-upload {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.feas-more summary {
+  cursor: pointer;
+  color: var(--primary);
+  font-weight: 650;
+}
+
+.feas-record {
+  display: grid;
+  gap: 12px;
+}
+
+.feas-tab {
+  min-width: 0;
+}
+
+.feas-tab .data-table .input,
+.feas-tab .data-table .select {
+  min-width: 140px;
+}
+
+@media (max-width: 1100px) {
+  .feas-kpis,
+  .feas-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .feas-grid,
+  .feas-breakdown,
+  .feas-team-grid,
+  .feas-upload,
+  .feas-members,
+  .feas-kpis,
+  .feas-facts,
+  .feas-strip,
+  .feas-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.feas-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.feas-top h1 {
+  margin: 4px 0 8px;
+  color: var(--text-primary);
+  font-size: 1.35rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.feas-back {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.feas-back:hover {
+  color: var(--primary);
+}
+
+.feas-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.feas-context--meta {
+  margin-top: 10px;
+  align-items: center;
+}
+
+.feas-top__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.feas-strip {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.feas-strip article {
+  display: grid;
+  gap: 4px;
+  min-height: 76px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+}
+
+.feas-strip p {
+  margin: 0;
+  font-size: 0.75rem;
+}
+
+.feas-strip strong {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.feas-track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.feas-track li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.feas-track li.is-done {
+  color: var(--text-secondary);
+}
+
+.feas-track li.is-current {
+  color: var(--primary);
+  font-weight: 650;
+}
+
+.feas-track li + li::before {
+  content: "→";
+  margin-right: 6px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.feas-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.feas-points {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+}
+
+.feas-empty {
+  padding: 12px 0 4px;
+  color: var(--text-secondary);
+}
+
+.feas-empty strong {
+  color: var(--text-primary);
+}
+
+.feas-empty p {
+  margin: 4px 0 0;
+}
+
+.feas-team-grid {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.feas-team-card p {
+  margin: 4px 0;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 1100px) {
+  .feas-strip,
+  .feas-split {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .feas-split {
+    grid-template-columns: 1fr;
+  }
+
+  .feas-top {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 720px) {
+  .feas-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

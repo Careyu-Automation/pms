@@ -1,0 +1,500 @@
+.pd-page {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.pd-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.pd-back,
+.pd-text,
+.pd-row-actions button,
+.pd-team button,
+.pd-cal-tools button,
+.pd-month header button {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pd-back {
+  padding: 0;
+  color: var(--primary);
+}
+
+.pd-crumb,
+.pd-meta,
+.pd-muted,
+.pd-code {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.pd-crumb a {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.pd-header h1,
+.pd-section h2,
+.pd-side h2 {
+  margin: 4px 0;
+  color: var(--text-primary);
+}
+
+.pd-header h1 {
+  font-size: var(--font-title);
+}
+
+.pd-pills,
+.pd-actions,
+.pd-section__head,
+.pd-toolbar,
+.pd-cal-tools,
+.pd-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.pd-code {
+  font-weight: 650;
+  color: var(--text-secondary);
+}
+
+.pd-meta {
+  margin-top: 8px;
+  color: var(--text-secondary);
+}
+
+.pd-actions {
+  justify-content: flex-end;
+}
+
+.pd-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.pd-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  padding: 10px 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pd-tabs button[aria-selected='true'] {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.pd-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  align-items: start;
+}
+
+.pd-main,
+.pd-stack,
+.pd-hours {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.pd-section,
+.pd-side section {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.pd-side {
+  display: grid;
+  gap: 12px;
+}
+
+.pd-side h2,
+.pd-section h2 {
+  font-size: 0.95rem;
+}
+
+.pd-side dl,
+.pd-health {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.pd-side dl div,
+.pd-health div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.pd-side dt,
+.pd-health dt {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.pd-side dd,
+.pd-health dd {
+  margin: 0;
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.pd-description {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.pd-bar,
+.pd-mini,
+.project-meter__track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-secondary, var(--bg-secondary));
+  overflow: hidden;
+}
+
+.pd-bar span,
+.pd-mini span,
+.project-meter__track span {
+  display: block;
+  height: 100%;
+  background: var(--primary);
+}
+
+.pd-mini {
+  width: 88px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+.pd-progress-label {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-secondary);
+}
+
+.pd-health {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.pd-health div {
+  display: grid;
+  justify-content: start;
+  padding: 8px 0;
+}
+
+.pd-health dd {
+  text-align: left;
+  font-weight: 650;
+}
+
+.pd-team,
+.pd-activity,
+.pd-points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.pd-team button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  text-align: left;
+  padding: 8px;
+  border-radius: var(--radius-md);
+}
+
+.pd-team button.is-selected,
+.pd-team button:hover {
+  background: var(--bg-hover);
+}
+
+.pd-team strong,
+.pd-activity strong {
+  display: block;
+  color: var(--text-primary);
+}
+
+.pd-team small,
+.pd-team em,
+.pd-activity span,
+.pd-activity time {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-style: normal;
+}
+
+.pd-activity li,
+.pd-member-work li,
+.pd-points li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.pd-member-work {
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.pd-member-work h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.pd-table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.pd-table {
+  min-width: 920px;
+}
+
+.pd-clip {
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pd-row-actions button {
+  color: var(--primary);
+}
+
+.data-table tbody tr.is-clickable {
+  cursor: pointer;
+}
+
+.pd-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.pd-board section {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.pd-board header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pd-board h2 {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.pd-board article {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.pd-board article strong {
+  color: var(--text-primary);
+}
+
+.pd-board article span,
+.pd-board article small {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.pd-calendar,
+.pd-timeline {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.pd-cal-tools button.is-active {
+  color: var(--primary);
+  font-weight: 650;
+}
+
+.pd-month,
+.pd-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.pd-week {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.pd-month > div,
+.pd-week > div,
+.pd-dow {
+  min-width: 0;
+  min-height: 92px;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+}
+
+.pd-dow {
+  min-height: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  background: transparent;
+  border: 0;
+}
+
+.pd-month .is-outside {
+  opacity: 0.55;
+}
+
+.pd-month header,
+.pd-week header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pd-month button[class],
+.pd-week > div > button,
+.pd-month > div > button {
+  display: grid;
+  width: 100%;
+  margin-top: 4px;
+  padding: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  text-align: left;
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.pd-month button.is-milestone,
+.pd-week button.is-milestone {
+  background: var(--primary-light, var(--bg-selected));
+}
+
+.pd-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pd-check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.pd-skeleton {
+  display: grid;
+  gap: 10px;
+}
+
+.pd-skeleton span {
+  display: block;
+  height: 72px;
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.project-card,
+.project-tile,
+.project-board .data-table tbody tr.is-clickable {
+  cursor: pointer;
+}
+
+.project-card:hover,
+.project-tile:hover,
+.project-board .data-table tbody tr.is-clickable:hover td {
+  border-color: var(--primary);
+}
+
+.project-card:hover,
+.project-tile:hover {
+  box-shadow: 0 6px 16px rgba(2, 11, 27, 0.08);
+}
+
+.project-meter__track.is-empty {
+  border: 1px dashed var(--border-subtle);
+}
+
+@media (max-width: 1100px) {
+  .pd-layout,
+  .pd-board {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .pd-header,
+  .pd-form-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .pd-actions {
+    justify-content: flex-start;
+  }
+
+  .pd-month {
+    grid-template-columns: 1fr;
+  }
+
+  .pd-dow {
+    display: none;
+  }
+}

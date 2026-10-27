@@ -1,0 +1,11 @@
+{
+  "name": "careyu-pms",
+  "private": true,
+  "description": "CareYu Automation project hub. npm run dev starts the API and the web app.",
+  "scripts": {
+    "dev": "npm run dev --prefix client",
+    "dev:web": "npm run dev:web --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "start:api": "npm start --prefix server"
+  }
+}
