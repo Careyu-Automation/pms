@@ -682,7 +682,16 @@ export function DocumentsSection({ study, uploadType, uploadTeamId, onUploadType
     <Section title="Documents" description="Lead creation files and feasibility uploads stay linked to this study. Preview and download go through the API — storage paths are never exposed.">
       {access.canUpload ? (
         <form className="feas-upload" onSubmit={onUpload}>
-          <Choice id="document-type" label="Document category" value={uploadType} options={DOCUMENT_TYPES} onChange={onUploadType} />
+          <Choice
+            id="document-type"
+            label="Document category"
+            value={uploadType}
+            options={[
+              'Customer Requirements', 'Technical Drawing', 'Technical Specification', 'BOM',
+              'Proposed Solution', 'Cost Estimation', 'POC / Validation Report', 'Vendor Document', 'Other',
+            ]}
+            onChange={onUploadType}
+          />
           <label className="field">
             <span className="field__label">Team</span>
             <select className="select" value={uploadTeamId} onChange={(event) => onUploadTeam(event.target.value)}>

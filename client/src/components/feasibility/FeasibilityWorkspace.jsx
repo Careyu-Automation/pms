@@ -43,8 +43,12 @@ function EmptyNote({ title, detail, action }) {
   );
 }
 
-export function StudyHeader({ lead, study, statusInfo, dirty, access, busy, onBack, onStart, onSave, onSubmit, onApprove, onChanges, onReject, onProceed }) {
+export function StudyHeader({
+  lead, study, statusInfo, dirty, access, editing, busy,
+  onBack, onStart, onEdit, onCancelEdit, onSave, onSubmit, onApprove, onChanges, onReject, onProceed, onUploadTab,
+}) {
   const submitLabel = study.submittedAt ? 'Resubmit for PM Review' : 'Submit for PM Review';
+  const canAssess = Boolean(access.canEditAssessment || access.canEditStudy);
   return (
     <header className="feas-top">
       <div>
@@ -60,13 +64,17 @@ export function StudyHeader({ lead, study, statusInfo, dirty, access, busy, onBa
           <span>Priority: {text(lead.priority)}</span>
           <span>Owner: {study.ownerName || lead.assignedPm || 'Not assigned'}</span>
           <span>Last updated: {formatDate(study.updatedAt)}</span>
-          {dirty ? <span>Unsaved draft</span> : null}
+          {editing ? <span>Editing</span> : null}
+          {dirty ? <span>Unsaved changes</span> : null}
         </div>
       </div>
-        <div className="feas-top__actions">
+      <div className="feas-top__actions">
         {access.canStart ? <Button onClick={onStart} loading={busy === 'start'} disabled={Boolean(busy)}>Start study</Button> : null}
-        {access.canSave ? <Button variant="secondary" onClick={onSave} loading={busy === 'save'} disabled={Boolean(busy)}>Save Draft</Button> : null}
-        {access.canSubmit ? <Button onClick={onSubmit} disabled={Boolean(busy)}>{submitLabel}</Button> : null}
+        {canAssess && !editing ? <Button variant="secondary" onClick={onEdit} disabled={Boolean(busy)}>Edit Assessment</Button> : null}
+        {editing ? <Button variant="secondary" onClick={onCancelEdit} disabled={Boolean(busy)}>Cancel</Button> : null}
+        {editing && access.canSave ? <Button onClick={onSave} loading={busy === 'save'} disabled={Boolean(busy) || !dirty}>Save Changes</Button> : null}
+        {access.canUpload ? <Button variant="secondary" onClick={onUploadTab} disabled={Boolean(busy)}>Upload Document</Button> : null}
+        {access.canSubmit ? <Button onClick={onSubmit} disabled={Boolean(busy) || editing && dirty}>{submitLabel}</Button> : null}
         {access.canRequestChanges ? <Button variant="secondary" onClick={onChanges} disabled={Boolean(busy)}>Request Changes</Button> : null}
         {access.canReject ? <Button variant="danger" onClick={onReject} disabled={Boolean(busy)}>Reject</Button> : null}
         {access.canApprove ? <Button onClick={onApprove} loading={busy === 'approve'} disabled={Boolean(busy)}>Approve</Button> : null}

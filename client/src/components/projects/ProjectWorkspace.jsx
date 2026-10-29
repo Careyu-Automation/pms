@@ -14,11 +14,26 @@ import { formatDate } from '../../utils/format';
 const STATUS = {
   NOT_STARTED: { label: 'Not Started', tone: 'neutral' },
   PLANNING: { label: 'Planning', tone: 'review' },
+  READY_FOR_EXECUTION: { label: 'Ready for Execution', tone: 'info' },
   IN_PROGRESS: { label: 'In Progress', tone: 'progress' },
   AT_RISK: { label: 'At Risk', tone: 'warning' },
   ON_HOLD: { label: 'On Hold', tone: 'hold' },
   COMPLETED: { label: 'Completed', tone: 'completed' },
   CANCELLED: { label: 'Cancelled', tone: 'danger' },
+  ASSIGNED: { label: 'Assigned', tone: 'progress' },
+  TEAM_REVIEW: { label: 'Team Review', tone: 'review' },
+  TASK_BREAKDOWN: { label: 'Task Breakdown', tone: 'progress' },
+  COMPLETION_SUBMITTED: { label: 'Completion Submitted', tone: 'review' },
+  HANDOVER: { label: 'Handover', tone: 'info' },
+};
+
+const PAYMENT = {
+  AWAITING_PAYMENT: { label: 'Awaiting Payment', tone: 'pending' },
+  PARTIALLY_PAID: { label: 'Partially Paid', tone: 'warning' },
+  PAYMENT_CONFIRMED: { label: 'Payment Confirmed', tone: 'completed' },
+  PAYMENT_OVERDUE: { label: 'Payment Overdue', tone: 'danger' },
+  CREDIT_APPROVED: { label: 'Credit Approved', tone: 'info' },
+  WAIVED: { label: 'Waived / N/A', tone: 'neutral' },
 };
 
 const PRIORITY = { LOW: 'Low', MEDIUM: 'Medium', HIGH: 'High', CRITICAL: 'Critical' };
@@ -44,13 +59,16 @@ function progressText(project) {
   return `${project.progress ?? 0}%`;
 }
 
-export function ProjectWorkspace({ projects, managers, allowCreate, onChanged, onError }) {
+export function ProjectWorkspace({ projects, managers, summary, mode = 'all', allowCreate, onChanged, onError }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const manage = canManage(user);
-  const [view, setView] = useState(() => localStorage.getItem('projectViewMode') || 'cards');
+  const activeMode = mode === 'active';
+  const [view, setView] = useState(() => localStorage.getItem('projectViewMode') || 'list');
   const [query, setQuery] = useState('');
   const [projectStatus, setProjectStatus] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState('');
+  const [managerId, setManagerId] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
@@ -69,13 +87,15 @@ export function ProjectWorkspace({ projects, managers, allowCreate, onChanged, o
 
   useEffect(() => {
     setPage(1);
-  }, [query, projectStatus, dateFrom, dateTo]);
+  }, [query, projectStatus, paymentStatus, managerId, dateFrom, dateTo]);
 
   const filtered = useMemo(() => {
     return projects.filter((row) => {
-      const text = `${row.projectCode} ${row.title} ${row.customerName} ${row.projectManager} ${row.teams} ${row.leadCode}`.toLowerCase();
+      const text = `${row.projectCode} ${row.orderCode} ${row.title} ${row.customerName} ${row.projectManager} ${row.teams} ${row.leadCode}`.toLowerCase();
       if (query && !text.includes(query.trim().toLowerCase())) return false;
       if (projectStatus && row.status !== projectStatus) return false;
+      if (paymentStatus && row.paymentStatus !== paymentStatus) return false;
+      if (managerId && row.projectManagerId !== managerId) return false;
       const start = row.startDate || row.targetDate || '';
       const end = row.targetDate || row.startDate || '';
       if ((dateFrom || dateTo) && !start && !end) return false;
@@ -83,14 +103,35 @@ export function ProjectWorkspace({ projects, managers, allowCreate, onChanged, o
       if (dateTo && start && start > dateTo) return false;
       return true;
     }).sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
-  }, [projects, query, projectStatus, dateFrom, dateTo]);
+  }, [projects, query, projectStatus, paymentStatus, managerId, dateFrom, dateTo]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const visible = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const cards = activeMode
+    ? [
+      ['Total Active', summary?.total ?? projects.length],
+      ['In Progress', summary?.inProgress ?? 0],
+      ['Not Started', summary?.notStarted ?? 0],
+      ['On Hold', summary?.onHold ?? 0],
+      ['Nearing Deadline', summary?.nearingDeadline ?? 0],
+      ['Overdue', summary?.overdue ?? 0],
+      ['Completed', summary?.completed ?? 0],
+    ]
+    : [
+      ['Total Projects', summary?.total ?? projects.length],
+      ['Planning', summary?.planning ?? 0],
+      ['Not Started', summary?.notStarted ?? 0],
+      ['In Progress', summary?.inProgress ?? 0],
+      ['On Hold', summary?.onHold ?? 0],
+      ['Completed', summary?.completed ?? 0],
+      ['Overdue', summary?.overdue ?? 0],
+    ];
 
   function clearFilters() {
     setQuery('');
     setProjectStatus('');
+    setPaymentStatus('');
+    setManagerId('');
     setDateFrom('');
     setDateTo('');
   }
@@ -169,8 +210,12 @@ export function ProjectWorkspace({ projects, managers, allowCreate, onChanged, o
       <header className="project-board__head">
         <div>
           <p className="project-board__crumb">Projects</p>
-          <h1>{allowCreate ? 'Projects' : 'Active Projects'}</h1>
-          <p>{allowCreate ? 'Manage and track all project execution activities.' : 'Projects currently in execution.'}</p>
+          <h1>{activeMode ? 'Active Projects' : 'Projects'}</h1>
+          <p>
+            {activeMode
+              ? 'Confirmed orders that have completed payment confirmation and project activation.'
+              : 'Central workspace for planning, tracking, and executing converted projects.'}
+          </p>
         </div>
         <div className="project-board__tools">
           <div className="project-views" role="tablist" aria-label="Project view">
@@ -181,12 +226,28 @@ export function ProjectWorkspace({ projects, managers, allowCreate, onChanged, o
           {allowCreate ? <Button onClick={openCreate}><Plus size={16} /> New Project</Button> : null}
         </div>
       </header>
+      <section className="project-summary" aria-label="Project summary">
+        {cards.map(([label, value]) => (
+          <article key={label}>
+            <p>{label}</p>
+            <strong>{value}</strong>
+          </article>
+        ))}
+      </section>
       <p className="project-board__count">{filtered.length === projects.length ? `${projects.length} Projects` : `Showing ${filtered.length} of ${projects.length} projects`}</p>
       <div className="project-filters">
-        <input className="input" placeholder="Search name, code, client, team..." value={query} onChange={(event) => setQuery(event.target.value)} />
+        <input className="input" placeholder="Search project, order, customer, lead..." value={query} onChange={(event) => setQuery(event.target.value)} />
         <select className="select" value={projectStatus} onChange={(event) => setProjectStatus(event.target.value)}>
           <option value="">All statuses</option>
-          {Object.entries(STATUS).filter(([value]) => allowCreate || !['COMPLETED', 'CANCELLED'].includes(value)).map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}
+          {Object.entries(STATUS).filter(([value]) => !activeMode || value !== 'CANCELLED').map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}
+        </select>
+        <select className="select" value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value)}>
+          <option value="">All payment statuses</option>
+          {Object.entries(PAYMENT).map(([value, meta]) => <option key={value} value={value}>{meta.label}</option>)}
+        </select>
+        <select className="select" value={managerId} onChange={(event) => setManagerId(event.target.value)}>
+          <option value="">All managers</option>
+          {(managers || []).map((person) => <option key={person.id} value={person.id}>{person.fullName}</option>)}
         </select>
         <div className="project-range">
           <input className="input" type="date" aria-label="From date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
@@ -196,8 +257,13 @@ export function ProjectWorkspace({ projects, managers, allowCreate, onChanged, o
       </div>
       {!projects.length ? (
         <div className="lead-section">
-          <EmptyState title={allowCreate ? 'No projects yet' : 'No active projects'} description="Projects will appear here after an approved opportunity is converted into a project." />
-          <Button onClick={() => navigate('/lead-pipeline')}>Open lead pipeline</Button>
+          <EmptyState
+            title={activeMode ? 'No active projects' : 'No projects yet'}
+            description={activeMode
+              ? 'A project becomes active only after order conversion and the required payment confirmation.'
+              : 'Convert an approved costing with an accepted quotation to create a project record.'}
+          />
+          <Button onClick={() => navigate(activeMode ? '/projects' : '/lead-pipeline')}>{activeMode ? 'Open Projects' : 'Open lead pipeline'}</Button>
         </div>
       ) : null}
       {projects.length && !filtered.length ? (
@@ -271,31 +337,47 @@ export function ProjectWorkspace({ projects, managers, allowCreate, onChanged, o
           <table className="data-table">
             <thead>
               <tr>
-                <th>Project ID</th><th>Project</th><th>Customer</th><th>Manager</th><th>Team</th>
-                <th>Status</th><th>Priority</th><th>Progress</th><th>Start</th><th>Target</th><th>Updated</th><th />
+                <th>Project ID</th>
+                {activeMode ? <th>Order ID</th> : <th>Lead ID</th>}
+                <th>Project</th>
+                <th>Customer</th>
+                {activeMode ? <th>Order Date</th> : null}
+                {activeMode ? <th>Payment</th> : <th>Order ID</th>}
+                {activeMode ? <th>Activated</th> : null}
+                <th>Manager</th>
+                <th>Progress</th>
+                <th>Target</th>
+                <th>Stage</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th />
               </tr>
             </thead>
             <tbody>
               {visible.map((project) => {
                 const meta = STATUS[project.status] || { label: project.status, tone: 'neutral' };
+                const pay = PAYMENT[project.paymentStatus] || { label: project.paymentStatus || '—', tone: 'neutral' };
                 return (
                   <tr key={project.id} className="is-clickable" onClick={() => navigate(`/projects/${project.id}`)}>
                     <td>{project.projectCode}</td>
+                    {activeMode ? <td>{project.orderCode || '—'}</td> : <td>{project.leadCode || '—'}</td>}
                     <td>{project.title}</td>
                     <td>{project.customerName}</td>
+                    {activeMode ? <td>{formatDate(project.orderDate)}</td> : null}
+                    {activeMode ? <td><Badge tone={pay.tone}>{pay.label}</Badge></td> : <td>{project.orderCode || '—'}</td>}
+                    {activeMode ? <td>{formatDate(project.activatedAt)}</td> : null}
                     <td>{project.projectManager || 'Not assigned'}</td>
-                    <td>{teamLabel(project)}</td>
+                    <td>{progressText(project)}</td>
+                    <td>{formatDate(project.targetDate)}</td>
+                    <td>{project.currentStage || meta.label}</td>
                     <td><Badge tone={meta.tone}>{meta.label}</Badge></td>
                     <td>{PRIORITY[project.priority] || project.priority}</td>
-                    <td>{progressText(project)}</td>
-                    <td>{formatDate(project.startDate)}</td>
-                    <td>{formatDate(project.targetDate)}</td>
-                    <td>{formatDate(project.updatedAt)}</td>
                     <td className="project-row-actions" onClick={(event) => event.stopPropagation()}>
-                      <Button size="sm" onClick={() => navigate(`/projects/${project.id}`)}>Open</Button>
-                      {manage ? <Button size="sm" variant="secondary" onClick={() => setEditProject({ ...project })}>Edit</Button> : null}
-                      {manage ? <button type="button" className="project-more" aria-label="More actions" onClick={() => setMenuId(menuId === project.id ? '' : project.id)}><MoreHorizontal size={16} /></button> : null}
-                      {manage && menuId === project.id ? <div className="project-menu"><button type="button" onClick={() => setPendingDelete(project)}>Delete</button></div> : null}
+                      <Button size="sm" onClick={() => navigate(`/projects/${project.id}`)}>View Project</Button>
+                      <Button size="sm" variant="secondary" onClick={() => navigate(`/projects/${project.id}?tab=tasks`)}>Tasks</Button>
+                      {manage && allowCreate ? <Button size="sm" variant="secondary" onClick={() => setEditProject({ ...project })}>Edit</Button> : null}
+                      {manage && allowCreate ? <button type="button" className="project-more" aria-label="More actions" onClick={() => setMenuId(menuId === project.id ? '' : project.id)}><MoreHorizontal size={16} /></button> : null}
+                      {manage && allowCreate && menuId === project.id ? <div className="project-menu"><button type="button" onClick={() => setPendingDelete(project)}>Delete</button></div> : null}
                     </td>
                   </tr>
                 );

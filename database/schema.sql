@@ -2072,6 +2072,25 @@ ALTER TABLE projects ADD CONSTRAINT projects_status_check CHECK (status IN (
   'READY_FOR_EXECUTION', 'ASSIGNED', 'TEAM_REVIEW', 'TASK_BREAKDOWN', 'COMPLETION_SUBMITTED', 'HANDOVER'
 ));
 
+CREATE SEQUENCE IF NOT EXISTS order_code_seq START 1;
+
+CREATE TABLE IF NOT EXISTS project_orders (
+  project_id UUID PRIMARY KEY,
+  order_code VARCHAR(40) NOT NULL UNIQUE,
+  order_date DATE,
+  payment_status VARCHAR(40) NOT NULL DEFAULT 'AWAITING_PAYMENT',
+  payment_confirmed_at TIMESTAMPTZ,
+  payment_confirmed_by UUID REFERENCES users (id) ON DELETE SET NULL,
+  payment_reference TEXT NOT NULL DEFAULT '',
+  payment_notes TEXT NOT NULL DEFAULT '',
+  activated_at TIMESTAMPTZ,
+  activated_by UUID REFERENCES users (id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS project_orders_activated_idx ON project_orders (activated_at);
+
 ALTER TABLE project_tasks DROP CONSTRAINT IF EXISTS project_tasks_status_check;
 ALTER TABLE project_tasks ADD CONSTRAINT project_tasks_status_check CHECK (status IN (
   'NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'AT_RISK', 'ON_HOLD', 'CANCELLED', 'BLOCKED'

@@ -61,11 +61,19 @@ export function convertCosting(id, body) {
 }
 
 export function listProjects(view) {
-  return api(view ? `/projects?view=${view}` : '/projects');
+  return api(view ? `/projects?view=${encodeURIComponent(view)}` : '/projects');
 }
 
 export function loadProjectHub() {
   return api('/projects/hub');
+}
+
+export function confirmProjectPayment(id, body) {
+  return api(`/projects/${id}/confirm-payment`, { method: 'POST', body });
+}
+
+export function activateProject(id) {
+  return api(`/projects/${id}/activate`, { method: 'POST', body: {} });
 }
 
 export function updateProjectStatus(id, body) {

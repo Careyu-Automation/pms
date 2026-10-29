@@ -62,8 +62,8 @@ export const navigation = [
         path: '/projects/active',
         icon: 'Activity',
         title: 'Active Projects',
-        description: 'Projects currently in execution',
-        note: 'Projects appear here after an approved costing is converted.',
+        description: 'Orders activated after payment confirmation',
+        note: 'Shown only after order conversion and required payment confirmation.',
       },
       {
         id: 'projects',
@@ -71,8 +71,8 @@ export const navigation = [
         path: '/projects',
         icon: 'FolderKanban',
         title: 'Projects',
-        description: 'Manage and track all project execution activities.',
-        note: 'Projects appear here after an approved costing is converted.',
+        description: 'Plan, track, and execute converted projects.',
+        note: 'Includes planning and execution projects linked to leads and orders.',
       },
       {
         id: 'planning',

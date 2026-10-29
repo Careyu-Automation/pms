@@ -77,5 +77,7 @@ router.get('/:id', solution.getProject);
 router.patch('/:id', solution.updateProject);
 router.delete('/:id', solution.deleteProject);
 router.post('/:id/status', solution.updateProjectStatus);
+router.post('/:id/confirm-payment', solution.confirmPayment);
+router.post('/:id/activate', solution.activateProject);
 
 module.exports = router;

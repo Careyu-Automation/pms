@@ -32,6 +32,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import {
+  activateProject,
+  confirmProjectPayment,
   deleteProject,
   deleteProjectDocument,
   downloadProjectDocument,
@@ -367,6 +369,33 @@ export default function ProjectDetailPage() {
             </p>
           </div>
           <div className="pd-actions">
+            {access.canEdit && project.orderCode && !['PAYMENT_CONFIRMED', 'CREDIT_APPROVED', 'WAIVED'].includes(project.paymentStatus) ? (
+              <Button
+                variant="secondary"
+                loading={busy}
+                onClick={async () => {
+                  const payload = await run(
+                    () => confirmProjectPayment(projectId, { paymentStatus: 'PAYMENT_CONFIRMED', activate: true }),
+                    'Payment confirmed and project activated where eligible.',
+                  );
+                  if (payload?.data?.project) setProject(payload.data.project);
+                }}
+              >
+                Confirm Payment
+              </Button>
+            ) : null}
+            {access.canEdit && project.orderCode && !project.isActivated && ['PAYMENT_CONFIRMED', 'CREDIT_APPROVED', 'WAIVED', 'PARTIALLY_PAID'].includes(project.paymentStatus) ? (
+              <Button
+                variant="secondary"
+                loading={busy}
+                onClick={async () => {
+                  const payload = await run(() => activateProject(projectId), 'Project activated for execution.');
+                  if (payload?.data?.project) setProject(payload.data.project);
+                }}
+              >
+                Activate Project
+              </Button>
+            ) : null}
             {access.canComplete && project.status !== 'COMPLETED' ? (
               <Button variant="secondary" onClick={() => setConfirm({ type: 'complete' })}>Mark complete</Button>
             ) : null}
@@ -386,7 +415,7 @@ export default function ProjectDetailPage() {
                 statusNote: '',
                 projectType: project.projectType || '',
               })}
-              >Edit</Button>
+              >Edit Project</Button>
             ) : null}
             {access.canPlan ? <Button onClick={() => openCreate()}>+ New task</Button> : null}
             {access.canDelete ? <Button variant="danger" onClick={() => setConfirm({ type: 'project' })}>Delete</Button> : null}

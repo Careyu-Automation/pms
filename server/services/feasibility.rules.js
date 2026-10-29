@@ -33,7 +33,9 @@ const RISK_STATUSES = new Set(['OPEN', 'MITIGATING', 'MITIGATED', 'ACCEPTED']);
 const INPUT_STATUSES = new Set(['PENDING', 'RECEIVED', 'NOT_REQUIRED']);
 const COMMUNICATION_TYPES = new Set(['Email', 'Call', 'Meeting', 'Site Visit', 'Teams Meeting', 'Other']);
 const DOCUMENT_TYPES = new Set([
-  'Customer Requirement', 'Technical Drawing', 'Specification', 'BOM', 'Quotation', 'POC Report', 'Other',
+  'Customer Requirements', 'Customer Requirement', 'Technical Drawing', 'Technical Specification', 'Specification',
+  'BOM', 'Proposed Solution', 'Cost Estimation', 'POC / Validation Report', 'POC Report', 'Vendor Document',
+  'Quotation', 'Other',
   'Customer Documents', 'Technical Documents', 'Drawings', 'POC Reports', 'Vendor Documents', 'Feasibility Reports',
   'Drawing', 'Report', 'POC Evidence', 'Photo', 'Presentation',
 ]);
@@ -358,7 +360,7 @@ function buildAccess(user, study) {
   const code = roleCode(user);
   const { isPm, isTeamLead } = require('./workflow.roles');
   const pm = isPm(user);
-  const teamLead = isTeamLead(user) || code === 'team_lead';
+  const teamLeadRole = isTeamLead(user) || code === 'team_lead';
   const sales = code === 'sales';
   const locked = isLocked(study);
   const started = Boolean(study.startedAt);
@@ -368,28 +370,35 @@ function buildAccess(user, study) {
     .filter((team) => team.teamLeadId === user.id || (team.memberIds || []).includes(user.id))
     .map((team) => team.id);
   const leadTeamIds = teams
-    .filter((team) => team.teamLeadId === user.id || (code === 'team_lead' && memberTeamIds.includes(team.id)))
+    .filter((team) => team.teamLeadId === user.id || (teamLeadRole && memberTeamIds.includes(team.id)))
     .map((team) => team.id);
-  const core = !locked && (pm || owner);
+  // Study team leads may run the full assessment; plain members only their team rows.
+  const studyTeamLead = teams.some((team) => team.teamLeadId === user.id);
+  const assignedAssessor = owner || studyTeamLead;
+  const core = !locked && (pm || assignedAssessor);
 
   return {
-    canStart: !started && (pm || teamLead),
-    canSave: !locked && (pm || owner || sales || memberTeamIds.length > 0),
+    canStart: !started && (pm || teamLeadRole || owner || studyTeamLead),
+    canSave: !locked && (pm || owner || studyTeamLead || sales || memberTeamIds.length > 0),
     canEditCore: core,
     canEditStudy: core && started,
     canEditTeams: core && started,
+    canEditAssessment: !locked && started && (core || memberTeamIds.length > 0),
     editableTeamIds: !locked && started ? (core ? teams.map((team) => team.id) : memberTeamIds) : [],
     canReviewTeamIds: (pm || leadTeamIds.length) ? (pm ? teams.map((team) => team.id) : leadTeamIds) : [],
-    canEditCommunications: !locked && (pm || owner || sales),
-    canManageCustomerInputs: !locked && (pm || owner),
-    canUpdateCustomerInputs: !locked && (pm || owner || sales),
-    canSubmit: started && !locked && (pm || owner),
+    canEditCommunications: !locked && (pm || owner || studyTeamLead || sales),
+    canManageCustomerInputs: !locked && (pm || owner || studyTeamLead),
+    canUpdateCustomerInputs: !locked && (pm || owner || studyTeamLead || sales),
+    canSubmit: started && !locked && (pm || owner || studyTeamLead),
     canApprove: study.status === 'UNDER_REVIEW' && pm,
     canRequestChanges: study.status === 'UNDER_REVIEW' && pm,
     canReject: study.status === 'UNDER_REVIEW' && pm,
     canProceed: pm && ['FEASIBLE', 'FEASIBLE_WITH_CONDITIONS'].includes(study.status),
-    canUpload: started && !['NOT_FEASIBLE', 'REJECTED'].includes(study.status) && (pm || owner || memberTeamIds.length > 0),
-    canDeleteDocuments: pm || owner,
+    canUpload: started && !['NOT_FEASIBLE', 'REJECTED'].includes(study.status) && (pm || owner || studyTeamLead || memberTeamIds.length > 0),
+    canDeleteDocuments: pm || owner || studyTeamLead,
+    isOwner: owner,
+    isStudyTeamLead: studyTeamLead,
+    isAssignedMember: memberTeamIds.length > 0,
   };
 }
 

@@ -1,25 +1,30 @@
 import { useCallback, useEffect, useState } from 'react';
 import { PageContainer } from '../../components/layout/PageContainer';
+import { ProjectWorkspace } from '../../components/projects/ProjectWorkspace';
 import { Button } from '../../components/ui/Button';
 import { ErrorState } from '../../components/ui/ErrorState';
 import { useToast } from '../../context/ToastContext';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
-import { loadProjectHub } from '../../services/costing.service';
-import { TeamProjectHub } from './TeamProjectHub';
+import { listProjects } from '../../services/costing.service';
 import '../../styles/lead.css';
+import '../../styles/feasibility.css';
 import '../../styles/projects.css';
 
 export default function ActiveProjectsPage() {
   useDocumentTitle('Active Projects');
   const { push } = useToast();
-  const [teams, setTeams] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [managers, setManagers] = useState([]);
+  const [summary, setSummary] = useState(null);
   const [status, setStatus] = useState('loading');
 
   const load = useCallback(() => {
     setStatus('loading');
-    return loadProjectHub()
+    return listProjects('active')
       .then((payload) => {
-        setTeams(payload.data.teams || []);
+        setRows(payload.data.projects || []);
+        setManagers(payload.data.managers || []);
+        setSummary(payload.data.summary || null);
         setStatus('ready');
       })
       .catch((error) => {
@@ -34,7 +39,16 @@ export default function ActiveProjectsPage() {
     <PageContainer>
       {status === 'loading' ? <div className="lead-skeleton" aria-hidden="true" /> : null}
       {status === 'error' ? <ErrorState title="Active projects could not be loaded." action={<Button onClick={load}>Retry</Button>} /> : null}
-      {status === 'ready' ? <TeamProjectHub teams={teams} /> : null}
+      {status === 'ready' ? (
+        <ProjectWorkspace
+          projects={rows}
+          managers={managers}
+          summary={summary}
+          mode="active"
+          onChanged={load}
+          onError={(message) => push({ tone: 'danger', message })}
+        />
+      ) : null}
     </PageContainer>
   );
 }

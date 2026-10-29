@@ -144,6 +144,18 @@ const updateProjectStatus = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'Project status updated.', data: { project } });
 });
 
+const confirmPayment = asyncHandler(async (req, res) => {
+  if (!UUID.test(req.params.id || '')) throw new ApiError(400, 'Project id is not valid.');
+  const project = await costingService.confirmPayment(req.params.id, req.user, req.body || {});
+  sendSuccess(res, { message: 'Payment confirmation saved.', data: { project } });
+});
+
+const activateProject = asyncHandler(async (req, res) => {
+  if (!UUID.test(req.params.id || '')) throw new ApiError(400, 'Project id is not valid.');
+  const project = await costingService.activateProject(req.params.id, req.user);
+  sendSuccess(res, { message: 'Project activated for execution.', data: { project } });
+});
+
 const getProject = asyncHandler(async (req, res) => {
   if (!UUID.test(req.params.id || '')) throw new ApiError(400, 'Project id is not valid.');
   const project = await costingService.getProject(req.params.id, req.user);
@@ -174,4 +186,6 @@ module.exports = {
   updateProject,
   deleteProject,
   updateProjectStatus,
+  confirmPayment,
+  activateProject,
 };

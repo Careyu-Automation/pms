@@ -73,7 +73,9 @@ function summarize(tasks, milestones, project, baseline) {
   const active = tasks.filter((task) => task.status !== 'CANCELLED');
   const completed = active.filter((task) => task.status === 'COMPLETED').length;
   const overdue = active.filter((task) => task.overdue).length;
-  const progress = active.length
+  // Default progress = completed tasks / eligible tasks (cancelled excluded).
+  const progress = active.length ? Math.round((completed / active.length) * 100) : null;
+  const progressWeighted = active.length
     ? Math.round(active.reduce((sum, task) => sum + task.progress, 0) / active.length)
     : null;
   const milestoneDone = milestones.filter((item) => item.status === 'COMPLETED').length;
@@ -93,6 +95,7 @@ function summarize(tasks, milestones, project, baseline) {
   }
   return {
     progress,
+    progressWeighted,
     taskTotal: active.length,
     taskCompleted: completed,
     overdue,

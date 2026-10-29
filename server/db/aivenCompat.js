@@ -2486,6 +2486,23 @@ const STATEMENTS = [
   `DROP TRIGGER IF EXISTS forum_threads_write ON pms_app.forum_threads`,
   `CREATE TRIGGER forum_threads_write INSTEAD OF INSERT OR UPDATE OR DELETE ON pms_app.forum_threads
    FOR EACH ROW EXECUTE FUNCTION pms_app.forum_threads_write()`,
+  `CREATE SEQUENCE IF NOT EXISTS pms_app.order_code_seq START 1`,
+  `CREATE TABLE IF NOT EXISTS pms_app.project_orders (
+     project_id UUID PRIMARY KEY,
+     order_code VARCHAR(40) NOT NULL,
+     order_date DATE,
+     payment_status VARCHAR(40) NOT NULL DEFAULT 'AWAITING_PAYMENT',
+     payment_confirmed_at TIMESTAMPTZ,
+     payment_confirmed_by UUID,
+     payment_reference TEXT NOT NULL DEFAULT '',
+     payment_notes TEXT NOT NULL DEFAULT '',
+     activated_at TIMESTAMPTZ,
+     activated_by UUID,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS project_orders_code_uidx ON pms_app.project_orders (order_code)`,
+  `CREATE INDEX IF NOT EXISTS project_orders_activated_idx ON pms_app.project_orders (activated_at)`,
 ];
 
 async function install(connectionString) {

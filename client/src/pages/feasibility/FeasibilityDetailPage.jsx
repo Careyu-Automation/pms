@@ -80,8 +80,10 @@ export default function FeasibilityDetailPage() {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [changesNote, setChangesNote] = useState('');
   const [pendingDelete, setPendingDelete] = useState(null);
-  const [uploadType, setUploadType] = useState('Customer Requirement');
+  const [uploadType, setUploadType] = useState('Customer Requirements');
   const [uploadTeamId, setUploadTeamId] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [editSnapshot, setEditSnapshot] = useState(null);
 
   const apply = useCallback((next) => {
     setStudy(next);
@@ -117,8 +119,18 @@ export default function FeasibilityDetailPage() {
     );
   }
 
-  const view = { ...study, directory: users };
   const access = study.access || {};
+  const formAccess = {
+    ...access,
+    canEditStudy: Boolean(access.canEditStudy && editing),
+    canEditCore: Boolean(access.canEditCore && editing),
+    canEditTeams: Boolean(access.canEditTeams && editing),
+    canManageCustomerInputs: Boolean(access.canManageCustomerInputs && editing),
+    canUpdateCustomerInputs: Boolean(access.canUpdateCustomerInputs && editing),
+    canEditCommunications: Boolean(access.canEditCommunications && editing),
+    editableTeamIds: editing ? (access.editableTeamIds || []) : [],
+  };
+  const view = { ...study, directory: users, access: formAccess };
   const progress = calculateProgress(study);
   const counts = summarize(study);
   const statusInfo = statusMeta(FEASIBILITY_STATUSES, study.status);
@@ -127,12 +139,42 @@ export default function FeasibilityDetailPage() {
   const steps = workflowSteps(study);
   const lead = study.lead || {};
 
+  function beginEdit() {
+    setEditSnapshot(snapshot(study));
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    if (editSnapshot) {
+      try {
+        const restored = JSON.parse(editSnapshot);
+        setStudy((current) => ({
+          ...current,
+          ...restored,
+          access: current.access,
+          progress: current.progress,
+          summary: current.summary,
+          lead: current.lead,
+          activity: current.activity,
+          documents: current.documents,
+          directory: current.directory,
+        }));
+      } catch {
+        load();
+      }
+    }
+    setEditing(false);
+    setEditSnapshot(null);
+  }
+
   async function onSave() {
     setBusy('save');
     try {
       const result = await saveStudy(study.id, study);
       apply(result.data.study);
-      push({ tone: 'success', message: 'Draft saved.' });
+      setEditing(false);
+      setEditSnapshot(null);
+      push({ tone: 'success', message: 'Changes saved.' });
     } catch (error) {
       push({ tone: 'danger', message: error.message });
     } finally {
@@ -178,10 +220,16 @@ export default function FeasibilityDetailPage() {
 
   async function onSubmit() {
     if (busy === 'submit') return;
+    if (editing && dirty) {
+      push({ tone: 'warning', message: 'Save or cancel your edits before submitting for PM review.' });
+      return;
+    }
     setBusy('submit');
     try {
       const result = await submitStudy(study.id, study);
       apply(result.data.study);
+      setEditing(false);
+      setEditSnapshot(null);
       setSubmitOpen(false);
       push({ tone: 'success', message: study.submittedAt ? 'Feasibility resubmitted for PM review.' : 'Feasibility submitted for PM review.' });
       setTab('review');
@@ -351,11 +399,15 @@ export default function FeasibilityDetailPage() {
         statusInfo={statusInfo}
         dirty={dirty}
         access={access}
+        editing={editing}
         busy={busy}
         onBack={() => navigate('/feasibility-studies')}
         onStart={onStart}
+        onEdit={beginEdit}
+        onCancelEdit={cancelEdit}
         onSave={onSave}
         onSubmit={askSubmit}
+        onUploadTab={() => setTab('documents')}
         onApprove={() => onReview('approve')}
         onChanges={() => { setChangesNote(''); setChangesOpen(true); }}
         onReject={() => { setChangesNote(''); setRejectOpen(true); }}

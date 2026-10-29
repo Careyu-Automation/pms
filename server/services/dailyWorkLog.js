@@ -175,7 +175,7 @@ async function buildInput(user, body, current) {
     hours,
     minutes,
     dependencyType: normalizedDependency,
-    dependencyDetails: clean(body.dependencyDetails, 500),
+    dependencyDetails: clean(body.dependencyDetails, 1500),
     createdById: user.id,
     taskId,
     progress,

@@ -15,6 +15,7 @@ export default function ProjectListPage() {
   const { push } = useToast();
   const [rows, setRows] = useState([]);
   const [managers, setManagers] = useState([]);
+  const [summary, setSummary] = useState(null);
   const [status, setStatus] = useState('loading');
 
   const load = useCallback(() => {
@@ -23,6 +24,7 @@ export default function ProjectListPage() {
       .then((payload) => {
         setRows(payload.data.projects || []);
         setManagers(payload.data.managers || []);
+        setSummary(payload.data.summary || null);
         setStatus('ready');
       })
       .catch((error) => {
@@ -38,7 +40,15 @@ export default function ProjectListPage() {
       {status === 'loading' ? <div className="lead-skeleton" aria-hidden="true" /> : null}
       {status === 'error' ? <ErrorState title="Projects could not be loaded." action={<Button onClick={load}>Retry</Button>} /> : null}
       {status === 'ready' ? (
-        <ProjectWorkspace projects={rows} managers={managers} allowCreate onChanged={load} onError={(message) => push({ tone: 'danger', message })} />
+        <ProjectWorkspace
+          projects={rows}
+          managers={managers}
+          summary={summary}
+          mode="all"
+          allowCreate
+          onChanged={load}
+          onError={(message) => push({ tone: 'danger', message })}
+        />
       ) : null}
     </PageContainer>
   );

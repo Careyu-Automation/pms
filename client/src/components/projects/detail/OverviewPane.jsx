@@ -205,6 +205,7 @@ export function ProjectSidebar({ project, plan }) {
   const status = PROJECT_STATUS[project.status] || { label: project.status, tone: 'neutral' };
   const priority = PRIORITY[project.priority] || { label: project.priority, tone: 'neutral' };
   const progress = summary?.progress;
+  const paymentLabel = String(project.paymentStatus || '').replaceAll('_', ' ') || 'Not recorded';
 
   return (
     <aside className="pd-side">
@@ -217,13 +218,19 @@ export function ProjectSidebar({ project, plan }) {
           <div><dt>Department</dt><dd>{project.department || 'Not specified'}</dd></div>
           <div><dt>Priority</dt><dd><Badge tone={priority.tone}>{priority.label}</Badge></dd></div>
           <div><dt>Status</dt><dd><Badge tone={status.tone}>{status.label}</Badge></dd></div>
+          <div><dt>Current stage</dt><dd>{project.currentStage || status.label}</dd></div>
           {project.leadCode ? <div><dt>Source lead</dt><dd><Link to={`/lead-pipeline/${project.leadId}`}>{project.leadCode}</Link></dd></div> : null}
+          <div><dt>Order ID</dt><dd>{project.orderCode || 'Not converted'}</dd></div>
+          <div><dt>Payment status</dt><dd>{paymentLabel}</dd></div>
+          <div><dt>Activation</dt><dd>{project.isActivated ? `Active · ${formatDate(project.activatedAt)}` : 'Pending activation'}</dd></div>
+          {project.holdReason ? <div><dt>Hold reason</dt><dd>{project.holdReason}</dd></div> : null}
           <div><dt>Created by</dt><dd>{project.createdBy || 'Not recorded'}</dd></div>
         </dl>
       </section>
       <section>
         <h2>Dates</h2>
         <dl>
+          <div><dt>Order date</dt><dd>{formatDate(project.orderDate)}</dd></div>
           <div><dt>Start date</dt><dd>{formatDate(project.startDate)}</dd></div>
           <div><dt>End date</dt><dd>{formatDate(project.targetDate)}</dd></div>
           <div><dt>Created date</dt><dd>{formatDate(project.createdAt)}</dd></div>

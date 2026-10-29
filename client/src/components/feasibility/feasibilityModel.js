@@ -130,7 +130,9 @@ export const RISK_STATUSES = {
 
 export const COMMUNICATION_TYPES = ['Email', 'Call', 'Meeting', 'Site Visit', 'Teams Meeting', 'Other'];
 export const DOCUMENT_TYPES = [
-  'Customer Requirement', 'Technical Drawing', 'Specification', 'BOM', 'Quotation', 'POC Report', 'Other',
+  'Customer Requirements', 'Technical Drawing', 'Technical Specification', 'BOM', 'Proposed Solution',
+  'Cost Estimation', 'POC / Validation Report', 'Vendor Document', 'Other',
+  'Customer Requirement', 'Specification', 'Quotation', 'POC Report',
   'Customer Documents', 'Technical Documents', 'Drawings', 'POC Reports', 'Vendor Documents', 'Feasibility Reports',
   'Drawing', 'Report', 'POC Evidence', 'Photo', 'Presentation',
 ];

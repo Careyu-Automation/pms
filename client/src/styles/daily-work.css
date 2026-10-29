@@ -973,46 +973,295 @@
   height: var(--control-height);
 }
 
-.daily-page .daily-scroll {
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
-  position: relative;
-  overflow-x: auto;
-  overflow-y: auto;
-  max-height: calc(100vh - 320px);
-  margin: 0;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
-  scrollbar-gutter: stable;
-}
-
-.daily-page .daily-sheet {
-  width: max-content;
-  min-width: 1680px;
-  table-layout: auto;
-}
-
-.daily-page .daily-sheet th {
-  max-width: none;
-  white-space: nowrap;
-}
-
-.daily-page .daily-sheet td:last-child {
-  max-width: none;
-  white-space: nowrap;
-}
-
 .daily-page .daily-empty td {
   padding: 16px 12px;
   color: var(--text-secondary);
   text-align: center;
 }
 
+/* Compact Daily Work Updates sheet */
+.daily-page--sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.daily-head--sheet {
+  align-items: center;
+  margin: 0 0 4px;
+}
+
+.daily-head--sheet h1 {
+  font-size: 1.35rem;
+}
+
+.daily-head--sheet p {
+  font-size: 0.9rem;
+}
+
+.daily-unsaved {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.daily-export-link {
+  border: 0;
+  background: transparent;
+  color: var(--primary, #1d4f91);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px 6px;
+  text-decoration: underline;
+}
+
+.daily-meta-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: end;
+  margin: 0 0 6px;
+}
+
+.daily-meta-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.daily-meta-field > span {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.daily-meta-field .input {
+  width: 160px;
+  min-width: 0;
+  height: 34px;
+  padding: 4px 8px;
+}
+
+.daily-meta-field strong {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  line-height: 34px;
+}
+
+.daily-sheet-wrap--compact {
+  min-width: 0;
+  width: 100%;
+}
+
+.daily-scroll--fit {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: calc(100vh - 220px);
+  border: 1px solid var(--border-subtle, var(--border));
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.daily-sheet--compact {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.daily-sheet--compact col.col-person { width: 11%; }
+.daily-sheet--compact col.col-project { width: 12%; }
+.daily-sheet--compact col.col-task { width: 22%; }
+.daily-sheet--compact col.col-deps { width: 13%; }
+.daily-sheet--compact col.col-status { width: 10%; }
+.daily-sheet--compact col.col-date { width: 9%; }
+.daily-sheet--compact col.col-hours { width: 7%; }
+.daily-sheet--compact col.col-reason { width: 12%; }
+.daily-sheet--compact col.col-actions { width: 36px; }
+
+.daily-sheet--compact th,
+.daily-sheet--compact td {
+  padding: 4px 6px;
+  height: 38px;
+  max-width: none;
+  vertical-align: middle;
+  border: 1px solid color-mix(in srgb, var(--primary, #1d4f91) 18%, #d7e3f4);
+  background: #fff;
+  font-size: 0.78rem;
+  overflow: hidden;
+}
+
+.daily-sheet--compact th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: color-mix(in srgb, var(--primary, #1d4f91) 12%, #edf4fc);
+  color: #123a6b;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.daily-sheet--compact .daily-cell-input,
+.daily-sheet--compact .daily-status {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  height: 28px;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  font-size: 0.78rem;
+  box-sizing: border-box;
+}
+
+.daily-sheet--compact textarea.daily-cell-input {
+  min-height: 28px;
+  max-height: 56px;
+  height: auto;
+  resize: none;
+  line-height: 1.25;
+  field-sizing: content;
+}
+
+.daily-sheet--compact .daily-ellipsis {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.daily-sheet--compact .daily-actions {
+  text-align: center;
+  padding: 2px;
+}
+
+.daily-row-delete {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.daily-row-delete:hover {
+  color: #b42318;
+}
+
+.daily-dep {
+  position: relative;
+  min-width: 0;
+}
+
+.daily-dep__trigger {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.75rem;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.daily-dep__trigger:hover,
+.daily-dep.is-open .daily-dep__trigger,
+.daily-sheet--compact .daily-cell-input:focus,
+.daily-sheet--compact .daily-status:focus {
+  border-color: var(--primary, #1d4f91);
+  background: #fff;
+  outline: none;
+}
+
+.daily-dep__menu {
+  z-index: 80;
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--border-subtle, var(--border));
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(18, 58, 107, 0.12);
+}
+
+.daily-dep__search {
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--border-subtle, var(--border));
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.78rem;
+  box-sizing: border-box;
+}
+
+.daily-dep__list {
+  display: grid;
+  gap: 2px;
+}
+
+.daily-dep__option {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 3px 2px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.daily-dep__clear {
+  margin-top: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--primary, #1d4f91);
+  font: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.daily-sheet--compact tr.is-dirty td {
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--primary, #1d4f91) 55%, transparent);
+}
+
+.daily-sheet--compact td.is-invalid {
+  background: color-mix(in srgb, #b42318 8%, #fff);
+}
+
+.daily-sheet--compact .daily-draft td {
+  background: color-mix(in srgb, var(--primary, #1d4f91) 4%, #fff);
+}
+
+.daily-sheet--compact .daily-cell-error {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.65rem;
+  line-height: 1.1;
+  white-space: normal;
+}
+
 @media (max-width: 1100px) {
   .daily-page .daily-kpis--compact,
   .daily-page .daily-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .daily-scroll--fit {
+    overflow-x: auto;
   }
 }
 
@@ -1028,9 +1277,5 @@
 
   .daily-scroll {
     overflow-x: auto;
-  }
-
-  .daily-dep {
-    grid-template-columns: 1fr;
   }
 }

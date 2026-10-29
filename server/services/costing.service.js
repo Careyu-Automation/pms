@@ -415,9 +415,11 @@ function bomCsv(costing) {
 
 const PROJECT_TYPES = new Set(['Delivery', 'Automation', 'Robotics', 'Vision', 'Software', 'R&D', 'Internal', 'Implementation', 'Service']);
 const PROJECT_STATUSES = new Set(['NOT_STARTED', 'PLANNING', 'IN_PROGRESS', 'AT_RISK', 'ON_HOLD', 'COMPLETED', 'CANCELLED', 'READY_FOR_EXECUTION', 'ASSIGNED', 'TEAM_REVIEW', 'TASK_BREAKDOWN', 'COMPLETION_SUBMITTED', 'HANDOVER']);
-const ACTIVE_STATUSES = new Set(['NOT_STARTED', 'PLANNING', 'IN_PROGRESS', 'AT_RISK', 'ON_HOLD', 'READY_FOR_EXECUTION', 'ASSIGNED', 'TEAM_REVIEW', 'TASK_BREAKDOWN', 'COMPLETION_SUBMITTED', 'HANDOVER']);
 const PRIORITIES = new Set(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']);
 const TEAMS = new Set(['vision', 'robotics', 'software', 'procurement', 'execution']);
+const PAYMENT_STATUSES = new Set([
+  'AWAITING_PAYMENT', 'PARTIALLY_PAID', 'PAYMENT_CONFIRMED', 'PAYMENT_OVERDUE', 'CREDIT_APPROVED', 'WAIVED',
+]);
 const STATUS_LABEL = {
   NOT_STARTED: 'Not Started',
   PLANNING: 'Planning',
@@ -426,7 +428,34 @@ const STATUS_LABEL = {
   ON_HOLD: 'On Hold',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
+  READY_FOR_EXECUTION: 'Ready for Execution',
 };
+
+function isActiveProject(project) {
+  return Boolean(project.isActivated) && project.status !== 'CANCELLED';
+}
+
+function projectSummary(projects) {
+  const today = new Date().toISOString().slice(0, 10);
+  const open = projects.filter((project) => project.status !== 'CANCELLED');
+  const nearing = open.filter((project) => {
+    if (!project.targetDate || project.status === 'COMPLETED') return false;
+    const days = (new Date(`${project.targetDate}T00:00:00`) - new Date(`${today}T00:00:00`)) / 86400000;
+    return days >= 0 && days <= 14;
+  });
+  return {
+    total: open.length,
+    planning: open.filter((project) => project.status === 'PLANNING' || project.status === 'READY_FOR_EXECUTION').length,
+    notStarted: open.filter((project) => project.status === 'NOT_STARTED').length,
+    inProgress: open.filter((project) => ['IN_PROGRESS', 'ASSIGNED', 'TEAM_REVIEW', 'TASK_BREAKDOWN', 'AT_RISK'].includes(project.status)).length,
+    onHold: open.filter((project) => project.status === 'ON_HOLD').length,
+    completed: open.filter((project) => project.status === 'COMPLETED').length,
+    overdue: open.filter((project) => project.overdue).length,
+    nearingDeadline: nearing.length,
+    awaitingPayment: open.filter((project) => !project.isActivated && ['AWAITING_PAYMENT', 'PAYMENT_OVERDUE', ''].includes(project.paymentStatus || '')).length,
+    activated: open.filter((project) => project.isActivated).length,
+  };
+}
 
 function projectAccess(user) {
   const code = user?.role?.code || '';
@@ -493,7 +522,7 @@ async function projectHub() {
     repository.listProjects(),
     repository.projectDirectory(),
   ]);
-  const active = projects.filter((project) => ACTIVE_STATUSES.has(project.status));
+  const active = projects.filter((project) => isActiveProject(project));
   const chosen = new Map();
   directory.teams.forEach((team) => {
     const family = hubTeamFor(team);
@@ -563,11 +592,51 @@ async function listProjects(view) {
     roleName: person.role?.name || '',
   }));
   const activity = await repository.listRecentActivity(8);
+  const scoped = view === 'active'
+    ? projects.filter((project) => isActiveProject(project))
+    : projects.filter((project) => project.leadId || project.costingId || project.orderCode);
   return {
-    projects: view === 'active' ? projects.filter((project) => ACTIVE_STATUSES.has(project.status)) : projects,
+    projects: scoped,
     managers,
     activity,
+    summary: projectSummary(scoped),
+    view: view === 'active' ? 'active' : 'all',
   };
+}
+
+async function confirmPayment(id, user, body = {}) {
+  const project = await repository.findProject(id);
+  if (!project) throw new ApiError(404, 'Project not found.');
+  const access = roleAccess(user, 'APPROVED');
+  if (!access.canConvert) throw new ApiError(403, 'You cannot confirm payment for this project.');
+  if (!project.orderCode && !project.leadId) {
+    throw new ApiError(409, 'Convert the lead to an order before recording payment.');
+  }
+  const paymentStatus = PAYMENT_STATUSES.has(body.paymentStatus) ? body.paymentStatus : 'PAYMENT_CONFIRMED';
+  await repository.confirmPayment(id, user.id, {
+    paymentStatus,
+    paymentReference: body.paymentReference,
+    paymentNotes: body.paymentNotes,
+    orderCode: project.orderCode,
+  });
+  if (body.activate !== false && repository.ACTIVATION_PAYMENT.has(paymentStatus)) {
+    const activation = await repository.activateProject(id, user.id);
+    if (!activation.ok && !activation.alreadyActivated) {
+      // Payment saved; activation blocked only if status still ineligible.
+    }
+  }
+  return getProject(id, user);
+}
+
+async function activateProject(id, user) {
+  const project = await repository.findProject(id);
+  if (!project) throw new ApiError(404, 'Project not found.');
+  const access = roleAccess(user, 'APPROVED');
+  if (!access.canConvert) throw new ApiError(403, 'You cannot activate this project.');
+  if (project.isActivated) return getProject(id, user);
+  const result = await repository.activateProject(id, user.id);
+  if (!result.ok) throw new ApiError(409, result.reason || 'This project cannot be activated yet.');
+  return getProject(id, user);
 }
 
 async function getProject(id, user) {
@@ -701,5 +770,7 @@ module.exports = {
   eligibleOpportunities,
   updateProject,
   deleteProject,
+  confirmPayment,
+  activateProject,
   uploadDir,
 };
