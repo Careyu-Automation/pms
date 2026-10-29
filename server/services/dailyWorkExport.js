@@ -1,4 +1,5 @@
 const { STATUS_LABEL } = require('./dailyWork.service');
+const { dependencyText, statusLabel } = require('./emailReport.dailyFormat');
 
 const COLUMNS = [
   'PERSON', 'PROJECT', 'TASK DESCRIPTION', 'DEPENDENCIES', 'STATUS', 'START DATE', 'TASK DEADLINE',
@@ -21,8 +22,8 @@ function excel(rows) {
       row.employeeName,
       row.projectName || 'No project',
       row.description || row.workTitle,
-      row.dependencyDetails || 'None',
-      STATUS_LABEL[row.status] || row.status,
+      dependencyText(row),
+      statusLabel(row.status) || STATUS_LABEL[row.status] || row.status,
       row.startDate || '',
       row.deadline || '',
       `${Math.round((logged || 0) * 10) / 10} hrs`,
@@ -77,7 +78,8 @@ function pdf(report) {
     lines.push(`${row.currentDate}  ${row.employeeName}  ${row.workTypeName || ''}  ${row.workTitle || row.title || ''}`);
     lines.push(`Project: ${row.projectName || 'No project'}   Product: ${row.productName || '—'}   ${STATUS_LABEL[row.status] || row.status}`);
     wrap(row.description, 90).forEach((line) => lines.push(line));
-    if (row.dependencyText) lines.push(`Dependencies: ${row.dependencyText}`);
+    const deps = dependencyText(row);
+    if (deps && deps !== '—') lines.push(`Dependencies: ${deps}`);
     if (row.reasonForDelay) lines.push(`Reason: ${row.reasonForDelay}`);
     lines.push('');
   });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { PageContainer } from '../../components/layout/PageContainer';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
@@ -10,8 +10,9 @@ import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { usePageMeta } from '../../hooks/usePageMeta';
 import {
   deleteEmailReport, downloadEmailRun, downloadPreview, duplicateEmailReport, emailRun,
-  getEmailReport, loadEmailReports, previewEmailReport, retryEmailRun, saveEmailReport,
-  sendEmailReport, setEmailReportStatus, testEmailReport,
+  getEmailReport, loadEmailReports, loadEmailSettings, previewEmailReport, retryEmailRun,
+  saveEmailReport, saveEmailSettings, sendEmailReport, sendSmtpTestEmail, setEmailReportStatus,
+  testEmailConnection, testEmailReport,
 } from '../../services/emailReports.service';
 import '../../styles/lead.css';
 import '../../styles/email-reports.css';
@@ -21,7 +22,22 @@ const TABS = [
   ['schedules', 'Schedules'],
   ['templates', 'Templates'],
   ['history', 'Email History'],
+  ['settings', 'Email Configuration'],
 ];
+
+const EMPTY_SMTP = {
+  host: '',
+  port: 587,
+  username: '',
+  password: '',
+  fromEmail: 'aicareyuautomation@gmail.com',
+  fromName: 'CareYu Automation',
+  replyTo: '',
+  secure: false,
+  hasPassword: false,
+  configured: false,
+  source: 'none',
+};
 const DAYS = [['1', 'Monday'], ['2', 'Tuesday'], ['3', 'Wednesday'], ['4', 'Thursday'], ['5', 'Friday'], ['6', 'Saturday'], ['0', 'Sunday']];
 const ZONES = ['Asia/Kolkata', 'UTC', 'Europe/London', 'America/New_York'];
 const RECIPIENT_TYPES = [
@@ -116,34 +132,209 @@ function RecipientField({ people, selected, disabled, onChange }) {
   );
 }
 
-function DailyComposer({ data, push, onSent }) {
+const SmtpSettingsPanel = forwardRef(function SmtpSettingsPanel({ push, onSaved, sendLabel }, ref) {
+  const [form, setForm] = useState(EMPTY_SMTP);
+  const [status, setStatus] = useState('loading');
+  const [busy, setBusy] = useState('');
+  const [testTo, setTestTo] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  async function load() {
+    setStatus('loading');
+    try {
+      const result = await loadEmailSettings();
+      const next = { ...EMPTY_SMTP, ...result.data, password: '' };
+      if (!next.fromEmail) next.fromEmail = EMPTY_SMTP.fromEmail;
+      setForm(next);
+      setStatus('ready');
+    } catch (error) {
+      setStatus('error');
+      push({ tone: 'danger', message: error.message });
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function save({ quiet } = {}) {
+    if (!String(form.host || '').trim()) {
+      push({ tone: 'danger', message: 'Enter the SMTP host (for example smtp.gmail.com).' });
+      return null;
+    }
+    if (!String(form.fromEmail || '').trim()) {
+      push({ tone: 'danger', message: 'Enter the sender email address.' });
+      return null;
+    }
+    if (!String(form.password || '').trim() && !form.hasPassword) {
+      setPasswordError('Required: paste the Gmail app password here, then save.');
+      push({ tone: 'danger', message: 'SMTP password is empty. Paste the Gmail app password, click Save Configuration, then Send Report.' });
+      return null;
+    }
+    setPasswordError('');
+    setBusy('save');
+    try {
+      const result = await saveEmailSettings({
+        host: form.host,
+        port: Number(form.port) || 587,
+        username: form.username || form.fromEmail,
+        password: form.password,
+        fromEmail: form.fromEmail,
+        fromName: form.fromName,
+        replyTo: form.replyTo,
+        secure: Boolean(form.secure),
+      });
+      const next = { ...EMPTY_SMTP, ...result.data, password: '' };
+      setForm(next);
+      if (!quiet) push({ tone: 'success', message: 'SMTP configuration saved.' });
+      await onSaved?.(next);
+      return next;
+    } catch (error) {
+      push({ tone: 'danger', message: error.message });
+      return null;
+    } finally {
+      setBusy('');
+    }
+  }
+
+  useImperativeHandle(ref, () => ({
+    save: (options) => save(options),
+    isConfigured: () => Boolean(form.configured || form.hasPassword),
+  }));
+
+  async function testConnection() {
+    setBusy('connection');
+    try {
+      await testEmailConnection();
+      push({ tone: 'success', message: 'SMTP connection verified.' });
+    } catch (error) {
+      push({ tone: 'danger', message: error.message });
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function sendTest() {
+    setBusy('email');
+    try {
+      await sendSmtpTestEmail(testTo ? { to: testTo } : {});
+      push({ tone: 'success', message: 'Test email sent.' });
+    } catch (error) {
+      push({ tone: 'danger', message: error.message });
+    } finally {
+      setBusy('');
+    }
+  }
+
+  if (status === 'loading') return <p className="reports-note">Loading SMTP settings…</p>;
+  if (status === 'error') return <ErrorState title="Unable to load SMTP settings." action={<Button onClick={load}>Retry</Button>} />;
+
+  return (
+    <section className="report-composer smtp-settings">
+      <h2>Email Configuration</h2>
+      <p className="reports-note">
+        Status: {form.configured ? 'Configured' : 'Not configured'}
+        {form.source && form.source !== 'none' ? ` · source: ${form.source}` : ''}.
+        Host must be smtp.gmail.com. Password must be a Google App Password (16 characters), not your normal Gmail password.
+      </p>
+      <div className="report-composer__controls smtp-settings__grid">
+        <label>SMTP host<input className="input" value={form.host} onChange={(event) => setForm({ ...form, host: event.target.value })} placeholder="smtp.gmail.com" /></label>
+        <label>SMTP port<input className="input" type="number" min="1" max="65535" value={form.port} onChange={(event) => setForm({ ...form, port: Number(event.target.value) })} /></label>
+        <label>SMTP username<input className="input" value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} placeholder="aicareyuautomation@gmail.com" /></label>
+        <label className={passwordError ? 'is-invalid' : undefined}>
+          SMTP password
+          <input
+            className="input"
+            type="password"
+            autoComplete="new-password"
+            value={form.password}
+            onChange={(event) => {
+              setPasswordError('');
+              setForm({ ...form, password: event.target.value });
+            }}
+            placeholder={form.hasPassword ? 'Saved · enter to replace' : 'Paste Gmail app password'}
+          />
+          {passwordError ? <small className="reports-note reports-note--danger">{passwordError}</small> : null}
+          {!form.hasPassword && !form.password ? <small className="reports-note">Required for first-time setup. Google Account → Security → App passwords.</small> : null}
+        </label>
+        <label>Sender email<input className="input" type="email" value={form.fromEmail} onChange={(event) => setForm({ ...form, fromEmail: event.target.value })} placeholder="aicareyuautomation@gmail.com" /></label>
+        <label>Sender display name<input className="input" value={form.fromName} onChange={(event) => setForm({ ...form, fromName: event.target.value })} /></label>
+        <label>Reply-to (optional)<input className="input" type="email" value={form.replyTo || ''} onChange={(event) => setForm({ ...form, replyTo: event.target.value })} /></label>
+        <label className="smtp-settings__check">
+          <input type="checkbox" checked={Boolean(form.secure)} onChange={(event) => setForm({ ...form, secure: event.target.checked })} />
+          Secure connection (TLS/SSL)
+        </label>
+        <label>Test email recipient<input className="input" type="email" value={testTo} onChange={(event) => setTestTo(event.target.value)} placeholder="Defaults to your account email" /></label>
+      </div>
+      <div className="report-composer__actions">
+        <Button loading={busy === 'save'} onClick={() => save()}>{sendLabel || 'Save Configuration'}</Button>
+        <Button variant="secondary" loading={busy === 'connection'} onClick={testConnection} disabled={!form.configured && !form.host}>Test SMTP Connection</Button>
+        <Button variant="secondary" loading={busy === 'email'} onClick={sendTest} disabled={!form.configured}>Send Test Email</Button>
+      </div>
+    </section>
+  );
+});
+
+function defaultEveningPeriod() {
+  const hour = Number(new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date()));
+  return hour >= 14 ? 'EVENING' : 'EVENING';
+}
+
+function DailyComposer({ data, push, onSent, onNeedSmtp }) {
   const [date, setDate] = useState(kolkataToday());
-  const [period, setPeriod] = useState('MORNING');
+  const [period, setPeriod] = useState(defaultEveningPeriod());
   const [type, setType] = useState('DAILY_WORK');
-  const [recipients, setRecipients] = useState(data.defaultRecipientIds || []);
+  const [toRecipients, setToRecipients] = useState(data.defaultToRecipientIds || data.defaultRecipientIds || []);
+  const [ccRecipients, setCcRecipients] = useState(data.defaultCcRecipientIds || []);
   const [reportId, setReportId] = useState('');
   const [preview, setPreview] = useState(null);
   const [match, setMatch] = useState(null);
   const [frame, setFrame] = useState('desktop');
   const [busy, setBusy] = useState('');
+  const [sendingLock, setSendingLock] = useState(false);
+  const [showSmtp, setShowSmtp] = useState(!data.mail?.configured);
+  const [mailConfigured, setMailConfigured] = useState(Boolean(data.mail?.configured));
+  const smtpRef = useRef(null);
   const people = data.options?.people || [];
   const canConfigure = Boolean(data.access?.canSettings);
+  const canSend = Boolean(data.access?.canSend);
+  const mailReady = mailConfigured || Boolean(data.mail?.configured);
+  const emptyDaily = type === 'DAILY_WORK' && match?.count === 0;
+  // Keep Send clickable after preview so users can finish SMTP setup and send from the same screen.
+  const sendDisabled = !canSend || sendingLock || emptyDaily;
+  const testDisabled = !canSend || sendingLock || emptyDaily;
+
+  useEffect(() => {
+    setMailConfigured(Boolean(data.mail?.configured));
+    if (!data.mail?.configured) setShowSmtp(true);
+  }, [data.mail?.configured]);
+
+  useEffect(() => {
+    setToRecipients(data.defaultToRecipientIds || data.defaultRecipientIds || []);
+    setCcRecipients(data.defaultCcRecipientIds || []);
+  }, [data.defaultToRecipientIds, data.defaultCcRecipientIds, data.defaultRecipientIds]);
 
   function payload() {
+    const to = toRecipients.map((userId) => ({ kind: 'TO', recipientType: 'USER', userId, email: '', teamId: '', name: '' }));
+    const cc = ccRecipients
+      .filter((userId) => !toRecipients.includes(userId))
+      .map((userId) => ({ kind: 'CC', recipientType: 'USER', userId, email: '', teamId: '', name: '' }));
     return {
-      name: type === 'DAILY_WORK' ? 'Daily Work Update Report' : (data.types?.[type] || 'Report'),
+      name: type === 'DAILY_WORK' ? 'Daily Work Updates Report' : (data.types?.[type] || 'Report'),
       type,
-      description: '',
+      description: type === 'DAILY_WORK' ? `${period} report for ${date}` : '',
       scope: 'ORGANIZATION',
       frequency: 'MANUAL',
-      sendTime: period === 'EVENING' ? '18:00' : '09:00',
+      sendTime: period === 'EVENING' ? '18:00' : period === 'MORNING' ? '09:00' : '18:00',
       dayOfWeek: 1,
       dayOfMonth: 1,
       timezone: 'Asia/Kolkata',
       attachment: 'NONE',
-      subject: 'CareYu Automation — Daily Work Update Report',
+      subject: type === 'DAILY_WORK' ? `Daily Work Updates Report — ${date}` : 'CareYu Automation Report',
       configuration: { dateFrom: date, dateTo: date, period, sections: [] },
-      recipients: recipients.map((userId) => ({ kind: 'TO', recipientType: 'USER', userId, email: '', teamId: '', name: '' })),
+      recipients: [...to, ...cc],
     };
   }
 
@@ -169,6 +360,10 @@ function DailyComposer({ data, push, onSent }) {
     try {
       const result = await previewEmailReport(payload());
       setPreview(result.data);
+      setMatch({ count: Number(result.data.recordCount || 0), date, period });
+      if (type === 'DAILY_WORK' && Number(result.data.recordCount || 0) === 0) {
+        push({ tone: 'warning', message: 'No daily work updates found for the selected date and period. Review the date/period before sending.' });
+      }
     } catch (error) {
       push({ tone: 'danger', message: error.message });
     } finally {
@@ -187,30 +382,74 @@ function DailyComposer({ data, push, onSent }) {
     }
   }
 
+  async function ensureMailReady() {
+    if (mailConfigured || data.mail?.configured) return true;
+    try {
+      const latest = await loadEmailSettings();
+      if (latest.data?.configured) {
+        setMailConfigured(true);
+        return true;
+      }
+    } catch {
+      /* fall through and try saving the form */
+    }
+    if (canConfigure && smtpRef.current?.save) {
+      const saved = await smtpRef.current.save({ quiet: true });
+      if (saved?.configured) {
+        setMailConfigured(true);
+        setShowSmtp(false);
+        await onSent();
+        return true;
+      }
+      return false;
+    }
+    return false;
+  }
+
   async function runSend(test) {
-    if (!recipients.length) {
-      push({ tone: 'danger', message: 'Choose at least one recipient.' });
+    if (sendingLock) return;
+    setShowSmtp(true);
+    onNeedSmtp?.();
+    const ready = await ensureMailReady();
+    if (!ready) {
+      push({
+        tone: 'danger',
+        message: canConfigure
+          ? 'Mail was not sent. Paste the Gmail app password in SMTP password, click Save Configuration, then Send Report.'
+          : 'Email is not configured. An administrator needs to save the SMTP settings.',
+      });
+      return;
+    }
+    if (!toRecipients.length) {
+      push({ tone: 'danger', message: 'Choose at least one To recipient.' });
       return;
     }
     if (type === 'DAILY_WORK' && match && match.count === 0) {
-      push({ tone: 'danger', message: 'No daily work updates found for the selected date and period.' });
+      push({ tone: 'danger', message: 'No daily work updates found for the selected date and period. Change the date or period, then preview again.' });
       return;
     }
+    setSendingLock(true);
     setBusy(test ? 'test' : 'send');
     try {
-      const name = payload().name;
-      const existing = reportId || (data.reports || []).find((item) => item.type === type && item.name === name && item.frequency === 'MANUAL')?.id;
-      const saved = await saveEmailReport(payload(), existing || undefined);
+      const body = payload();
+      const existing = reportId || (data.reports || []).find((item) => item.type === type && item.name === body.name && item.frequency === 'MANUAL')?.id;
+      const saved = await saveEmailReport(body, existing || undefined);
       const id = saved.data.report.id;
       setReportId(id);
       if (test) await testEmailReport(id);
       else await sendEmailReport(id);
-      push({ tone: 'success', message: test ? 'Test email sent.' : 'Report sent.' });
+      push({
+        tone: 'success',
+        message: test
+          ? 'Test email sent to your account.'
+          : `Report sent for ${date} (${match?.count ?? 'all'} updates).`,
+      });
       await onSent();
     } catch (error) {
-      push({ tone: 'danger', message: error.message });
+      push({ tone: 'danger', message: error.message || 'The email could not be delivered.' });
     } finally {
       setBusy('');
+      setSendingLock(false);
     }
   }
 
@@ -220,9 +459,9 @@ function DailyComposer({ data, push, onSent }) {
         <label>Report Date<input className="input" type="date" value={date} onChange={(event) => { setDate(event.target.value); setPreview(null); }} /></label>
         <label>Period
           <select className="select" value={period} onChange={(event) => { setPeriod(event.target.value); setPreview(null); }}>
-            <option value="FULL">Full day</option>
-            <option value="MORNING">Morning</option>
             <option value="EVENING">Evening</option>
+            <option value="MORNING">Morning</option>
+            <option value="FULL">Full day</option>
           </select>
         </label>
         <label>Report Type
@@ -230,25 +469,70 @@ function DailyComposer({ data, push, onSent }) {
             {Object.entries(data.types || {}).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
-        <label>Recipients
-          <RecipientField people={people} selected={recipients} disabled={!canConfigure} onChange={setRecipients} />
+        <label>To
+          <RecipientField people={people} selected={toRecipients} disabled={!canConfigure} onChange={setToRecipients} />
+        </label>
+        <label>CC
+          <RecipientField people={people} selected={ccRecipients} disabled={!canConfigure} onChange={setCcRecipients} />
         </label>
       </div>
+      {type === 'DAILY_WORK' && match?.count != null ? (
+        <p className="reports-note">
+          {match.count === 0
+            ? `No saved ${period === 'EVENING' ? 'evening' : period === 'MORNING' ? 'morning' : 'daily'} updates for ${date}.`
+            : `${match.count} saved ${period === 'EVENING' ? 'evening' : period === 'MORNING' ? 'morning' : 'daily'} update${match.count === 1 ? '' : 's'} found for ${date}.`}
+        </p>
+      ) : null}
       <div className="report-composer__actions">
         <Button variant="secondary" loading={busy === 'preview'} onClick={runPreview}>Preview Report</Button>
         <Button variant="secondary" onClick={() => setFrame('desktop')} disabled={!preview}>Desktop Preview</Button>
         <Button variant="secondary" onClick={() => setFrame('mobile')} disabled={!preview}>Mobile Preview</Button>
         <Button variant="secondary" loading={busy === 'excel'} onClick={() => runDownload('excel')}>Download Excel</Button>
         <Button variant="secondary" loading={busy === 'pdf'} onClick={() => runDownload('pdf')}>Download PDF</Button>
-        <Button variant="secondary" loading={busy === 'test'} onClick={() => runSend(true)} disabled={!canConfigure}>Send Test Email</Button>
-        <Button loading={busy === 'send'} onClick={() => runSend(false)} disabled={!canConfigure || (type === 'DAILY_WORK' && match?.count === 0)}>Send Report</Button>
+        <Button variant="secondary" loading={busy === 'test'} onClick={() => runSend(true)} disabled={testDisabled}>Send Test Email</Button>
+        <Button variant="primary" loading={busy === 'send'} onClick={() => runSend(false)} disabled={sendDisabled}>Send Report</Button>
       </div>
+      {!mailReady && canConfigure && showSmtp ? (
+        <div id="email-smtp-setup" className="report-composer__smtp">
+          <p className="reports-note">
+            SMTP host must be <strong>smtp.gmail.com</strong> (server name). Password must be a Google <strong>App Password</strong>, not the normal Gmail login password.
+          </p>
+          <SmtpSettingsPanel
+            ref={smtpRef}
+            push={push}
+            sendLabel="Save Configuration"
+            onSaved={async (settings) => {
+              if (!settings?.configured) return;
+              setMailConfigured(true);
+              setShowSmtp(false);
+              await onSent();
+              if (preview) {
+                push({ tone: 'success', message: 'SMTP saved. Sending the report…' });
+                await runSend(false);
+              }
+            }}
+          />
+        </div>
+      ) : null}
+      {!mailReady && !canConfigure ? (
+        <p className="reports-note">Email is not configured. An administrator needs to save the SMTP settings.</p>
+      ) : null}
       {type === 'DAILY_WORK' && match?.count === 0 ? (
-        <p className="reports-note">No daily work updates found for the selected date and period.</p>
+        <p className="reports-note">No daily work updates found for the selected date and period. Review the date and period before sending.</p>
       ) : null}
       {preview ? (
         <div className="report-composer__preview">
-          <p className="reports-note">{preview.subject}</p>
+          <div className="report-composer__preview-head">
+            <p className="reports-note">{preview.subject}</p>
+            <div className="report-composer__preview-actions">
+              <Button variant="secondary" onClick={() => setFrame('desktop')}>Desktop</Button>
+              <Button variant="secondary" onClick={() => setFrame('mobile')}>Mobile</Button>
+              <Button variant="secondary" loading={busy === 'pdf'} onClick={() => runDownload('pdf')}>Download PDF</Button>
+              <Button variant="primary" loading={busy === 'send'} onClick={() => runSend(false)} disabled={sendDisabled}>
+                {mailReady ? 'Send Mail' : 'Save SMTP & Send Mail'}
+              </Button>
+            </div>
+          </div>
           <div className={frame === 'mobile' ? 'report-frame is-mobile' : 'report-frame'}>
             <iframe title="Report preview" sandbox="" srcDoc={preview.html || ''} />
           </div>
@@ -351,6 +635,8 @@ export default function EmailReportsPage() {
 
   const reports = data?.reports || [];
   const mailNote = data && !data.mail.configured;
+  const canSettings = Boolean(data?.access?.canSettings);
+  const visibleTabs = TABS.filter(([id]) => id !== 'settings' || canSettings);
 
   return (
     <PageContainer>
@@ -361,6 +647,7 @@ export default function EmailReportsPage() {
           <div className="reports-actions">
             <Button variant="secondary" onClick={() => setTab('templates')}>Templates</Button>
             <Button variant="secondary" onClick={() => setTab('history')}>Email History</Button>
+            {canSettings ? <Button variant="secondary" onClick={() => setTab('settings')}>Email Configuration</Button> : null}
             <Button onClick={() => openCreate()}>Create Report</Button>
           </div>
         )}
@@ -369,11 +656,29 @@ export default function EmailReportsPage() {
       {status === 'error' ? <ErrorState title="Unable to load email reports." action={<Button onClick={() => load()}>Retry</Button>} /> : null}
       {status === 'ready' ? (
         <>
-          {mailNote ? <p className="reports-note">Email delivery is not configured yet. Preview and download still work. An administrator can add SMTP settings before sending.</p> : null}
+          {mailNote ? (
+            <p className="reports-note">
+              Email is not configured. Preview and download still work.
+              {canSettings
+                ? ' Save SMTP in the form on this page (or Email Configuration), then use Send Mail on the preview.'
+                : ' An administrator needs to save the SMTP settings.'}
+            </p>
+          ) : null}
           <div className="reports-tabs" role="tablist">
-            {TABS.map(([id, label]) => <button key={id} type="button" className={tab === id ? 'is-active' : ''} onClick={() => setTab(id)}>{label}</button>)}
+            {visibleTabs.map(([id, label]) => <button key={id} type="button" className={tab === id ? 'is-active' : ''} onClick={() => setTab(id)}>{label}</button>)}
           </div>
-          {tab === 'reports' ? <DailyComposer data={data} push={push} onSent={() => load()} /> : null}
+          {tab === 'reports' ? (
+            <DailyComposer
+              data={data}
+              push={push}
+              onSent={() => load()}
+              onNeedSmtp={() => {
+                if (canSettings) {
+                  document.getElementById('email-smtp-setup')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }}
+            />
+          ) : null}
           {tab === 'reports' && data.configured ? (
             <>
               <div className="reports-toolbar">
@@ -445,6 +750,12 @@ export default function EmailReportsPage() {
                 </article>
               ))}
             </div>
+          ) : null}
+          {tab === 'settings' && canSettings ? (
+            <SmtpSettingsPanel
+              push={push}
+              onSaved={async () => { await load(); }}
+            />
           ) : null}
           {tab === 'history' ? (
             <div className="reports-scroll">
@@ -519,7 +830,26 @@ function Wizard({ open, state, setState, options, types, sections, busy, onClose
   }
 
   function readyForm() {
-    return { ...form, recipients: form.recipients.filter((row) => row.recipientType !== 'EMAIL' || row.email.trim()) };
+    const configuration = form.type === 'DAILY_WORK'
+      ? {
+        ...form.configuration,
+        teamId: '',
+        projectId: '',
+        employeeId: '',
+        workType: '',
+        productId: '',
+        status: '',
+        priority: '',
+        overdueOnly: false,
+        includeCompleted: true,
+      }
+      : form.configuration;
+    return {
+      ...form,
+      scope: form.type === 'DAILY_WORK' ? 'ORGANIZATION' : form.scope,
+      configuration,
+      recipients: form.recipients.filter((row) => row.recipientType !== 'EMAIL' || row.email.trim()),
+    };
   }
 
   async function showPreview() {
@@ -577,45 +907,44 @@ function Wizard({ open, state, setState, options, types, sections, busy, onClose
         <div className="reports-form">
           <label className="field is-wide"><span className="field__label">Report name *</span><input className="input" value={form.name} onChange={(event) => patch({ name: event.target.value })} /></label>
           <label className="field is-wide"><span className="field__label">Description</span><textarea className="textarea" rows={2} value={form.description} onChange={(event) => patch({ description: event.target.value })} /></label>
-          <label className="field"><span className="field__label">Scope</span>
-            <select className="select" value={form.scope} onChange={(event) => patch({ scope: event.target.value })}>
-              {['ORGANIZATION', 'TEAM', 'PROJECT', 'EMPLOYEE', 'CUSTOMER'].map((value) => <option key={value}>{value}</option>)}
-            </select>
-          </label>
-          <label className="field"><span className="field__label">Team</span>
-            <select className="select" value={form.configuration.teamId} onChange={(event) => config({ teamId: event.target.value })}><option value="">All visible teams</option>{(options?.teams || []).map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select>
-          </label>
-          <label className="field"><span className="field__label">Project</span>
-            <select className="select" value={form.configuration.projectId} onChange={(event) => config({ projectId: event.target.value })}><option value="">All visible projects</option>{(options?.projects || []).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>
-          </label>
-          <label className="field"><span className="field__label">Employee</span>
-            <select className="select" value={form.configuration.employeeId} onChange={(event) => config({ employeeId: event.target.value })}><option value="">All visible people</option>{(options?.people || []).map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select>
-          </label>
+          {form.type === 'DAILY_WORK' ? (
+            <p className="reports-note">Daily Work reports include all saved updates for the selected date and period. Use Report Date, Period, and Report Type on the Send tab for day-to-day delivery.</p>
+          ) : (
+            <>
+              <label className="field"><span className="field__label">Scope</span>
+                <select className="select" value={form.scope} onChange={(event) => patch({ scope: event.target.value })}>
+                  {['ORGANIZATION', 'TEAM', 'PROJECT', 'EMPLOYEE', 'CUSTOMER'].map((value) => <option key={value}>{value}</option>)}
+                </select>
+              </label>
+              <label className="field"><span className="field__label">Team</span>
+                <select className="select" value={form.configuration.teamId} onChange={(event) => config({ teamId: event.target.value })}><option value="">All visible teams</option>{(options?.teams || []).map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select>
+              </label>
+              <label className="field"><span className="field__label">Project</span>
+                <select className="select" value={form.configuration.projectId} onChange={(event) => config({ projectId: event.target.value })}><option value="">All visible projects</option>{(options?.projects || []).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>
+              </label>
+              <label className="field"><span className="field__label">Employee</span>
+                <select className="select" value={form.configuration.employeeId} onChange={(event) => config({ employeeId: event.target.value })}><option value="">All visible people</option>{(options?.people || []).map((person) => <option key={person.id} value={person.id}>{person.name}</option>)}</select>
+              </label>
+            </>
+          )}
         </div>
       ) : null}
       {step === 2 ? (
         <div className="reports-form">
-          <label className="field"><span className="field__label">Date from</span><input className="input" type="date" value={form.configuration.dateFrom} onChange={(event) => config({ dateFrom: event.target.value })} /></label>
-          <label className="field"><span className="field__label">Date to</span><input className="input" type="date" value={form.configuration.dateTo} onChange={(event) => config({ dateTo: event.target.value })} /></label>
           {form.type === 'DAILY_WORK' ? (
+            <p className="reports-note">Date and period are chosen when you preview or send the report. No extra filters are applied to Daily Work emails.</p>
+          ) : (
             <>
-              <label className="field"><span className="field__label">Work type</span>
-                <select className="select" value={form.configuration.workType || ''} onChange={(event) => config({ workType: event.target.value })}><option value="">Any work type</option>{(options?.workTypes || []).map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}</select>
+              <label className="field"><span className="field__label">Date from</span><input className="input" type="date" value={form.configuration.dateFrom} onChange={(event) => config({ dateFrom: event.target.value })} /></label>
+              <label className="field"><span className="field__label">Date to</span><input className="input" type="date" value={form.configuration.dateTo} onChange={(event) => config({ dateTo: event.target.value })} /></label>
+              <label className="field"><span className="field__label">Priority</span>
+                <select className="select" value={form.configuration.priority} onChange={(event) => config({ priority: event.target.value })}><option value="">Any</option>{['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((value) => <option key={value}>{value}</option>)}</select>
               </label>
-              <label className="field"><span className="field__label">Product</span>
-                <select className="select" value={form.configuration.productId || ''} onChange={(event) => config({ productId: event.target.value })}><option value="">Any product</option>{(options?.products || []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-              </label>
-              <label className="field"><span className="field__label">Status</span>
-                <select className="select" value={form.configuration.status || ''} onChange={(event) => config({ status: event.target.value })}><option value="">Any status</option>{['NOT_STARTED', 'IN_PROGRESS', 'BLOCKED', 'ON_HOLD', 'COMPLETED'].map((value) => <option key={value} value={value}>{value.replaceAll('_', ' ')}</option>)}</select>
+              <label className="field"><span className="field__label">Overdue only</span>
+                <select className="select" value={form.configuration.overdueOnly ? 'yes' : 'no'} onChange={(event) => config({ overdueOnly: event.target.value === 'yes' })}><option value="no">No</option><option value="yes">Yes</option></select>
               </label>
             </>
-          ) : null}
-          <label className="field"><span className="field__label">Priority</span>
-            <select className="select" value={form.configuration.priority} onChange={(event) => config({ priority: event.target.value })}><option value="">Any</option>{['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((value) => <option key={value}>{value}</option>)}</select>
-          </label>
-          <label className="field"><span className="field__label">Overdue only</span>
-            <select className="select" value={form.configuration.overdueOnly ? 'yes' : 'no'} onChange={(event) => config({ overdueOnly: event.target.value === 'yes' })}><option value="no">No</option><option value="yes">Yes</option></select>
-          </label>
+          )}
           {form.type === 'CUSTOM' ? (
             <div className="field is-wide">
               <span className="field__label">Sections</span>
@@ -714,7 +1043,20 @@ function Preview({ preview, onDownload }) {
           <h4>{section.title}</h4>
           <table className="data-table">
             <thead><tr>{(section.columns || []).map((column) => <th key={column}>{column}</th>)}</tr></thead>
-            <tbody>{(section.rows || []).slice(0, daily ? section.rows.length : 8).map((row, index) => <tr key={index} className={daily && index % 2 ? 'is-alt' : ''}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>)}</tbody>
+            <tbody>
+              {(section.rows || []).slice(0, daily ? section.rows.length : 8).map((row, index) => (
+                <tr key={index} className={daily && index % 2 ? 'is-alt' : ''}>
+                  {row.map((cell, cellIndex) => {
+                    if (daily && section.columns?.[cellIndex] === 'Status') {
+                      const label = String(cell || '—');
+                      const tone = /completed/i.test(label) ? 'is-completed' : /blocked/i.test(label) ? 'is-blocked' : '';
+                      return <td key={cellIndex}><span className={`status-badge ${tone}`.trim()}>{label}</span></td>;
+                    }
+                    return <td key={cellIndex}>{cell}</td>;
+                  })}
+                </tr>
+              ))}
+            </tbody>
           </table>
           {!(section.rows || []).length ? <p className="reports-muted">No records for this period.</p> : null}
         </div>

@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 const serverDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../server');
 const logDir = path.join(serverDir, 'logs');
 const logFile = path.join(logDir, 'dev-api.log');
+const pidFile = path.join(logDir, 'dev-api.pid');
 
 function healthy() {
   return new Promise((resolve) => {
@@ -40,9 +41,70 @@ async function waitUntilReady() {
   return false;
 }
 
+function stopTrackedApi() {
+  try {
+    if (!fs.existsSync(pidFile)) return;
+    const pid = Number(String(fs.readFileSync(pidFile, 'utf8')).trim());
+    if (Number.isInteger(pid) && pid > 0) {
+      try {
+        process.kill(pid);
+      } catch {
+        /* already gone */
+      }
+    }
+    fs.unlinkSync(pidFile);
+  } catch {
+    /* ignore */
+  }
+}
+
+function stopOrphanServerJs() {
+  if (process.platform !== 'win32') return;
+  try {
+    const raw = execSync(
+      'powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \\"Name=\'node.exe\'\\" | Where-Object { $_.CommandLine -match \'server\\.js\' } | ForEach-Object { $_.ProcessId }"',
+      { encoding: 'utf8', windowsHide: true },
+    );
+    for (const line of raw.split(/\r?\n/)) {
+      const pid = Number(line.trim());
+      if (!Number.isInteger(pid) || pid <= 0) continue;
+      try {
+        execSync(`taskkill /PID ${pid} /F`, { stdio: 'ignore', windowsHide: true });
+      } catch {
+        /* ignore */
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    const listeners = execSync(
+      'powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique"',
+      { encoding: 'utf8', windowsHide: true },
+    );
+    for (const line of listeners.split(/\r?\n/)) {
+      const pid = Number(line.trim());
+      if (!Number.isInteger(pid) || pid <= 0) continue;
+      try {
+        execSync(`taskkill /PID ${pid} /F`, { stdio: 'ignore', windowsHide: true });
+      } catch {
+        /* ignore */
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 let starting = null;
 
 async function startApi() {
+  // Avoid stacking detached API processes — each holds a DB pool and exhausts Aiven slots.
+  stopTrackedApi();
+  stopOrphanServerJs();
+  await wait(800);
+  if (await healthy()) return true;
+
   fs.mkdirSync(logDir, { recursive: true });
   const log = fs.openSync(logFile, 'a');
   const child = spawn(process.execPath, ['server.js'], {
@@ -51,6 +113,7 @@ async function startApi() {
     stdio: ['ignore', log, log],
     windowsHide: true,
   });
+  fs.writeFileSync(pidFile, String(child.pid));
   child.unref();
 
   const ready = await waitUntilReady();
@@ -79,6 +142,12 @@ export async function ensureApi() {
 
 const isDirect = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isDirect) {
+  const force = process.argv.includes('--restart');
+  if (force) {
+    stopTrackedApi();
+    stopOrphanServerJs();
+    await wait(800);
+  }
   const ready = await ensureApi();
   if (!ready) process.exit(1);
   console.log('CareYu API server running on:\nhttp://localhost:5000');

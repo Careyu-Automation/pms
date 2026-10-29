@@ -643,10 +643,11 @@ export function ConclusionSection({ study, onStudy }) {
 
 export function CostingSection({ study, onProceed }) {
   const lead = study.lead || {};
-  const canProceed = study.access?.canProceed && ['FEASIBLE', 'FEASIBLE_WITH_CONDITIONS'].includes(study.status);
+  const access = study.access || {};
+  const canProceed = access.canProceed && ['FEASIBLE', 'FEASIBLE_WITH_CONDITIONS'].includes(study.status);
   return (
     <div className="feas-stack">
-      <Section title="Solution and costing handoff" description="Approved feasibility carries the lead, team input, risks, conditions, and proof into costing. Nothing is typed again.">
+      <Section title="Solution and costing handoff" description="After feasibility and procurement are approved by the project manager, open solution costing with the carried-forward study data.">
         {study.decision === 'FEASIBLE_WITH_CONDITIONS' ? (
           <div className="lead-banner lead-banner--warning">
             <strong>Conditions</strong>
@@ -659,16 +660,24 @@ export function CostingSection({ study, onProceed }) {
             <p>{study.conditions || 'A reason has not been recorded.'}</p>
           </div>
         ) : null}
+        {access.procurementPending ? (
+          <div className="lead-banner lead-banner--warning">
+            <strong>Procurement required</strong>
+            <p>Record purchases (or mark no purchase required), submit to the project manager, and wait for approval before opening solution costing.</p>
+            <p><a href={access.procurementHref || '/procurement-requests'}>Open Procurement Requests</a></p>
+          </div>
+        ) : null}
         <dl className="lead-read">
           <ReadItem label="Lead ID" value={lead.leadCode} />
           <ReadItem label="Customer" value={lead.customerName} />
           <ReadItem label="Application" value={lead.useCase} />
+          <ReadItem label="Lead stage" value={lead.status} />
           <ReadItem label="Decision" value={statusMeta({ FEASIBLE: { label: 'Feasible' }, FEASIBLE_WITH_CONDITIONS: { label: 'Feasible with Conditions' }, NOT_FEASIBLE: { label: 'Not Feasible' }, MORE_INFORMATION_REQUIRED: { label: 'More Information Required' } }, study.decision).label} />
           <ReadItem label="Recommended next step" value={study.recommendedNextStep} />
         </dl>
         <div className="lead-actions">
           {canProceed ? <Button onClick={onProceed}>{study.solutionCostingId ? 'Open solution and costing' : 'Create Solution & Costing'}</Button> : null}
-          {!canProceed ? <p className="feas-note">Proceed after the project manager approves a feasible or conditional decision.</p> : null}
+          {!canProceed && !access.procurementPending ? <p className="feas-note">Proceed after the project manager approves a feasible or conditional decision.</p> : null}
         </div>
       </Section>
     </div>

@@ -8,7 +8,6 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const STATUSES = new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'BLOCKED', 'ON_HOLD']);
 const PRIORITIES = new Set(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']);
 const DEPENDENCIES = new Set(['', 'NONE', 'TEAM', 'EMPLOYEE', 'APPROVAL', 'CUSTOMER', 'VENDOR', 'PROCUREMENT', 'TECHNICAL', 'MATERIAL', 'SOFTWARE', 'HARDWARE', 'OTHER']);
-const ORG_DESIGNATIONS = new Set(['ceo', 'chief executive officer', 'business head', 'engineering director']);
 const STATUS_LABEL = {
   NOT_STARTED: 'Not Started',
   IN_PROGRESS: 'In Progress',
@@ -27,10 +26,8 @@ function cleanDate(value) {
 }
 
 function seesOrganization(user) {
-  const role = String(user?.role?.code || '').toLowerCase();
-  const designation = String(user?.designation || '').replace(/\s+/g, ' ').trim().toLowerCase();
-  if (role === 'admin' || role === 'super_admin' || role === 'project_manager') return true;
-  return ORG_DESIGNATIONS.has(designation);
+  const { seesOrganization: orgWide } = require('./workflow.roles');
+  return orgWide(user);
 }
 
 function canManage(user) {
@@ -201,11 +198,12 @@ async function list(user, filters = {}) {
   const window = rangeWindow(filters.range || 'today', anchor, cleanDate(filters.from), cleanDate(filters.to));
   if (window.from > window.to) throw new ApiError(400, 'The start date must be on or before the end date.');
   const scope = await audience(user);
-  const organization = scope.organization;
+  // Email reports and management digests can request organization-wide visibility.
+  const organization = filters.organization === true || scope.organization;
   const rows = await repository.logList({
     ...window,
     organization,
-    employeeIds: scope.employeeIds,
+    employeeIds: organization ? null : scope.employeeIds,
     period: clean(filters.period, 20).toUpperCase(),
     anchor: anchor,
     employeeId: UUID.test(filters.employeeId || '') ? filters.employeeId : '',

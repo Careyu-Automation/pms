@@ -14,6 +14,7 @@ import {
   RISK_CATEGORIES,
   RISK_LEVELS,
   RISK_STATUSES,
+  SOLUTION_DOCUMENT_TYPES,
   SPECIALTY,
   TEAMS,
   TEAM_STATUSES,
@@ -23,6 +24,7 @@ import {
   blankRisk,
   blankTest,
   emptyAssessment,
+  solutionStatusMeta,
   statusMeta,
   todayIso,
 } from './feasibilityModel';
@@ -47,8 +49,9 @@ export function StudyHeader({
   lead, study, statusInfo, dirty, access, editing, busy,
   onBack, onStart, onEdit, onCancelEdit, onSave, onSubmit, onApprove, onChanges, onReject, onProceed, onUploadTab,
 }) {
-  const submitLabel = study.submittedAt ? 'Resubmit for PM Review' : 'Submit for PM Review';
+  const submitLabel = study.submittedAt ? 'Resubmit to PM' : 'Submit to PM';
   const canAssess = Boolean(access.canEditAssessment || access.canEditStudy);
+  const solutionInfo = solutionStatusMeta(study);
   return (
     <header className="feas-top">
       <div>
@@ -61,6 +64,7 @@ export function StudyHeader({
         </p>
         <div className="feas-context feas-context--meta">
           <Badge tone={statusInfo.tone}>{statusInfo.label}</Badge>
+          <Badge tone={solutionInfo.tone}>Solution: {solutionInfo.label}</Badge>
           <span>Priority: {text(lead.priority)}</span>
           <span>Owner: {study.ownerName || lead.assignedPm || 'Not assigned'}</span>
           <span>Last updated: {formatDate(study.updatedAt)}</span>
@@ -81,6 +85,11 @@ export function StudyHeader({
         {access.canProceed ? (
           <Button onClick={onProceed} loading={busy === 'proceed'} disabled={Boolean(busy)}>
             {study.solutionCostingId ? 'Open Solution & Costing' : 'Move to Solution & Costing'}
+          </Button>
+        ) : null}
+        {access.procurementPending ? (
+          <Button variant="secondary" onClick={() => { window.location.href = access.procurementHref || '/procurement-requests'; }} disabled={Boolean(busy)}>
+            Open Procurement
           </Button>
         ) : null}
       </div>
@@ -524,79 +533,278 @@ export function RisksPanel({ study, users = [], onStudy }) {
   );
 }
 
-export function ConclusionPanel({ study, users, onStudy, onProceed }) {
+export function FeasibilitySolutionPanel({
+  study,
+  users,
+  onStudy,
+  onProceed,
+  onSave,
+  onSubmit,
+  onApprove,
+  onChanges,
+  onReject,
+  uploadType,
+  uploadTeamId,
+  onUploadType,
+  onUploadTeam,
+  onUpload,
+  onView,
+  onDownload,
+  onDelete,
+  currentUserId,
+  busy,
+  dirty,
+  editing,
+}) {
   const access = study.access || {};
   const lead = study.lead || {};
   const disabled = !access.canEditStudy && !access.canEditCore;
   const steps = NEXT_STEPS[study.decision] || [];
-  const teams = study.teams || [];
-  const completedTeams = teams.filter((team) => team.status === 'COMPLETED').length;
-  const pendingTeams = teams.filter((team) => team.status !== 'COMPLETED');
-  const underReview = study.status === 'UNDER_REVIEW';
+  const solutionInfo = solutionStatusMeta(study);
+  const documents = study.documents || [];
+  const submitLabel = study.submittedAt ? 'Resubmit to PM' : 'Submit to PM';
+
   return (
     <div className="feas-stack">
-      {underReview || study.submittedAt ? (
-        <Section title="PM review package" description="Submitted assessment, documents, and conclusion for project manager decision.">
-          <dl className="lead-read">
-            <div><dt>Lead</dt><dd>{lead.leadCode || '—'} · {text(lead.customerName)}</dd></div>
-            <div><dt>Project</dt><dd>{text(lead.title)}</dd></div>
-            <div><dt>Submitted by</dt><dd>{study.submittedByName || '—'}{study.submittedAt ? ` · ${formatDateTime(study.submittedAt)}` : ''}</dd></div>
-            <div><dt>Teams</dt><dd>{completedTeams}/{teams.length || 0} completed{pendingTeams.length ? ` · pending: ${pendingTeams.map((team) => team.teamName).join(', ')}` : ''}</dd></div>
-            <div><dt>Documents</dt><dd>{(study.documents || []).length}</dd></div>
-            <div><dt>Technical feasibility</dt><dd>{text(study.technicalFeasibility)}</dd></div>
-            <div><dt>Risks / dependencies</dt><dd>{text(study.majorRisks || study.majorConstraints)}</dd></div>
-            <div><dt>Timeline</dt><dd>{text(study.estimatedTimeline)}</dd></div>
-            <div><dt>Cost range</dt><dd>{text(study.commercialEstimate)}</dd></div>
-            <div><dt>Recommended next step</dt><dd>{text(study.recommendedNextStep)}</dd></div>
-            {study.reviewNote ? <div><dt>Latest review note</dt><dd>{study.reviewNote}</dd></div> : null}
-          </dl>
-          {(study.documents || []).length ? (
-            <ul className="feas-doc-list">
-              {(study.documents || []).map((document) => (
-                <li key={document.id}>{document.name} · {document.sourceLabel || document.documentType}</li>
-              ))}
-            </ul>
-          ) : null}
-        </Section>
-      ) : null}
-      <Section title="Feasibility conclusion">
-        <Choice id="decision" label="Decision" value={study.decision} disabled={disabled} options={[['', 'Not decided'], ...DECISIONS]} onChange={(decision) => onStudy((current) => ({ ...current, decision, recommendedNextStep: '' }))} />
+      <Section
+        title="Feasibility Solution"
+        description="Capture the proposed solution package, attach supporting files, and submit to the project manager for review."
+        actions={<Badge tone={solutionInfo.tone}>{solutionInfo.label}</Badge>}
+      >
+        <dl className="lead-read feas-solution-meta">
+          <div><dt>Lead</dt><dd>{lead.leadCode || '—'} · {text(lead.customerName)}</dd></div>
+          <div><dt>Project</dt><dd>{text(lead.title)}</dd></div>
+          <div><dt>Owner</dt><dd>{study.ownerName || 'Not assigned'}</dd></div>
+          <div><dt>Submitted</dt><dd>{study.submittedAt ? `${study.submittedByName || '—'} · ${formatDateTime(study.submittedAt)}` : 'Not submitted'}</dd></div>
+          {study.reviewedAt ? <div><dt>Last PM review</dt><dd>{study.reviewedByName || '—'} · {formatDateTime(study.reviewedAt)}</dd></div> : null}
+          {study.reviewNote ? <div><dt>PM comments</dt><dd>{study.reviewNote}</dd></div> : null}
+        </dl>
+      </Section>
+
+      <Section title="Basic information" description="Complete the solution summary for engineering and PM review.">
         <div className="feas-grid">
-          <TextArea id="conclusion" label="Overall conclusion" rows={3} value={study.overallConclusion} disabled={disabled} onChange={(overallConclusion) => onStudy((current) => ({ ...current, overallConclusion }))} />
-          <TextArea id="conditions" label="Key conditions" rows={3} value={study.conditions} disabled={disabled} onChange={(conditions) => onStudy((current) => ({ ...current, conditions }))} />
-          <TextArea id="dependencies" label="Major dependencies" rows={3} value={study.majorRisks} disabled={disabled} onChange={(majorRisks) => onStudy((current) => ({ ...current, majorRisks }))} />
+          <TextArea
+            id="solution-summary"
+            label="Feasibility summary"
+            rows={3}
+            value={study.overallConclusion}
+            disabled={disabled}
+            onChange={(overallConclusion) => onStudy((current) => ({ ...current, overallConclusion }))}
+          />
+          <TextArea
+            id="proposed-solution"
+            label="Proposed solution"
+            rows={3}
+            value={study.proposedSolution}
+            disabled={disabled}
+            onChange={(proposedSolution) => onStudy((current) => ({ ...current, proposedSolution }))}
+          />
+          <TextArea
+            id="technical-requirements"
+            label="Technical requirements"
+            rows={3}
+            value={study.technicalFeasibility}
+            disabled={disabled}
+            onChange={(technicalFeasibility) => onStudy((current) => ({ ...current, technicalFeasibility }))}
+          />
+          <TextArea
+            id="key-dependencies"
+            label="Key dependencies"
+            rows={3}
+            value={study.majorRisks}
+            disabled={disabled}
+            onChange={(majorRisks) => onStudy((current) => ({ ...current, majorRisks }))}
+          />
+          <label className="field">
+            <span className="field__label">Estimated timeline</span>
+            <input
+              className="input"
+              value={study.estimatedTimeline || ''}
+              disabled={disabled}
+              onChange={(event) => onStudy((current) => ({ ...current, estimatedTimeline: event.target.value }))}
+              placeholder="e.g. 12–16 weeks after PO"
+            />
+          </label>
+          <label className="field">
+            <span className="field__label">Estimated cost</span>
+            <input
+              className="input"
+              value={study.commercialEstimate || ''}
+              disabled={disabled}
+              onChange={(event) => onStudy((current) => ({ ...current, commercialEstimate: event.target.value }))}
+              placeholder="e.g. ₹45–55 L"
+            />
+          </label>
+          <TextArea
+            id="solution-risks"
+            label="Risks"
+            rows={3}
+            value={study.majorConstraints}
+            disabled={disabled}
+            onChange={(majorConstraints) => onStudy((current) => ({ ...current, majorConstraints }))}
+          />
+          <TextArea
+            id="solution-recommendations"
+            label="Recommendations"
+            rows={3}
+            value={study.pmRemarks}
+            disabled={disabled}
+            onChange={(pmRemarks) => onStudy((current) => ({ ...current, pmRemarks }))}
+          />
+          <Choice
+            id="solution-decision"
+            label="Feasibility decision"
+            value={study.decision}
+            disabled={disabled}
+            options={[['', 'Not decided'], ...DECISIONS]}
+            onChange={(decision) => onStudy((current) => ({ ...current, decision, recommendedNextStep: '' }))}
+          />
           <label className="field">
             <span className="field__label">Recommended next step</span>
-            <select className="select" value={study.recommendedNextStep} disabled={disabled} onChange={(event) => onStudy((current) => ({ ...current, recommendedNextStep: event.target.value }))}>
+            <select
+              className="select"
+              value={study.recommendedNextStep}
+              disabled={disabled}
+              onChange={(event) => onStudy((current) => ({ ...current, recommendedNextStep: event.target.value }))}
+            >
               <option value="">Select</option>
               {steps.map((step) => <option key={step}>{step}</option>)}
             </select>
           </label>
-          <label className="field">
-            <span className="field__label">Estimated solution timeline</span>
-            <input className="input" value={study.estimatedTimeline || ''} disabled={disabled} onChange={(event) => onStudy((current) => ({ ...current, estimatedTimeline: event.target.value }))} />
-          </label>
-          <label className="field">
-            <span className="field__label">Estimated cost range</span>
-            <input className="input" value={study.commercialEstimate || ''} disabled={disabled} onChange={(event) => onStudy((current) => ({ ...current, commercialEstimate: event.target.value }))} />
-          </label>
-          <PeopleSelect id="decision-owner" label="Prepared by" value={study.ownerId} users={users} disabled={!access.canEditCore} onChange={(ownerId) => onStudy((current) => ({ ...current, ownerId }))} />
+          <TextArea
+            id="solution-conditions"
+            label="Conditions / caveats"
+            rows={3}
+            value={study.conditions}
+            disabled={disabled}
+            onChange={(conditions) => onStudy((current) => ({ ...current, conditions }))}
+          />
+          <PeopleSelect
+            id="solution-owner"
+            label="Prepared by"
+            value={study.ownerId}
+            users={users}
+            disabled={!access.canEditCore}
+            onChange={(ownerId) => onStudy((current) => ({ ...current, ownerId }))}
+          />
           <label className="field">
             <span className="field__label">Decision date</span>
-            <input className="input" type="date" value={study.completionDate || ''} disabled={disabled} onChange={(event) => onStudy((current) => ({ ...current, completionDate: event.target.value }))} />
+            <input
+              className="input"
+              type="date"
+              value={study.completionDate || ''}
+              disabled={disabled}
+              onChange={(event) => onStudy((current) => ({ ...current, completionDate: event.target.value }))}
+            />
           </label>
-          <TextArea id="pm-remarks" label="Assessment remarks" rows={3} value={study.pmRemarks} disabled={disabled} onChange={(pmRemarks) => onStudy((current) => ({ ...current, pmRemarks }))} />
         </div>
-        <div className="feas-top__actions">
-          {access.canProceed && (study.decision === 'FEASIBLE' || study.decision === 'FEASIBLE_WITH_CONDITIONS') ? (
-            <Button onClick={onProceed}>{study.solutionCostingId ? 'Open Solution & Costing' : study.decision === 'FEASIBLE_WITH_CONDITIONS' ? 'Proceed with conditions' : 'Proceed to Solution & Costing'}</Button>
+      </Section>
+
+      <Section title="Solution documents" description="Upload feasibility reports, solution documents, drawings, and supporting files.">
+        {access.canUpload ? (
+          <form className="feas-upload" onSubmit={onUpload}>
+            <Choice
+              id="solution-document-type"
+              label="Document category"
+              value={uploadType}
+              options={SOLUTION_DOCUMENT_TYPES}
+              onChange={onUploadType}
+            />
+            <label className="field">
+              <span className="field__label">Team</span>
+              <select className="select" value={uploadTeamId} onChange={(event) => onUploadTeam(event.target.value)}>
+                <option value="">Study document</option>
+                {(study.teams || []).filter((team) => team.id).map((team) => (
+                  <option key={team.id} value={team.id}>{team.teamName}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span className="field__label">Files</span>
+              <input className="input" type="file" name="documents" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.jpg,.jpeg,.png,.webp,.dwg,.dxf" />
+            </label>
+            <Button type="submit" loading={busy === 'upload'}>Upload Document</Button>
+          </form>
+        ) : null}
+        <div className="lead-table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>File name</th>
+                <th>Category</th>
+                <th>Uploaded by</th>
+                <th>Uploaded</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {documents.length ? documents.map((document) => {
+                const canDelete = document.canDelete !== false && (access.canDeleteDocuments || document.uploadedById === currentUserId);
+                return (
+                  <tr key={document.id}>
+                    <td>{document.name}</td>
+                    <td>{document.documentType || 'Other'}</td>
+                    <td>{document.uploadedBy}</td>
+                    <td>{formatDateTime(document.createdAt)}</td>
+                    <td>
+                      <div className="lead-row-actions">
+                        <Button size="sm" variant="secondary" onClick={() => onView(document)}>View</Button>
+                        <Button size="sm" variant="secondary" onClick={() => onDownload(document)}>Download</Button>
+                        {canDelete ? <Button size="sm" variant="danger" onClick={() => onDelete(document)}>Delete</Button> : null}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }) : (
+                <tr><td colSpan={5}>No solution documents uploaded yet.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
+      <Section title="Actions" description="Save your work, submit to the project manager, or continue after approval.">
+        <div className="feas-solution-actions">
+          {access.canSave && editing ? (
+            <Button onClick={onSave} loading={busy === 'save'} disabled={Boolean(busy) || !dirty}>Save Solution</Button>
           ) : null}
-          {study.decision === 'MORE_INFORMATION_REQUIRED' ? <p className="feas-note">Request the missing customer inputs before this study can move forward.</p> : null}
-          {study.decision === 'NOT_FEASIBLE' ? <p className="feas-note">A reason is required. Solution and costing stays closed.</p> : null}
+          {access.canSubmit ? (
+            <Button className="feas-submit-pm" onClick={onSubmit} disabled={Boolean(busy) || (editing && dirty)} loading={busy === 'submit'}>
+              {submitLabel}
+            </Button>
+          ) : null}
+          {access.canRequestChanges ? (
+            <Button variant="secondary" onClick={onChanges} disabled={Boolean(busy)}>Request Rework</Button>
+          ) : null}
+          {access.canReject ? (
+            <Button variant="danger" onClick={onReject} disabled={Boolean(busy)}>Reject</Button>
+          ) : null}
+          {access.canApprove ? (
+            <Button onClick={onApprove} loading={busy === 'approve'} disabled={Boolean(busy)}>Approve Solution</Button>
+          ) : null}
+          {access.canProceed && (study.decision === 'FEASIBLE' || study.decision === 'FEASIBLE_WITH_CONDITIONS') ? (
+            <Button onClick={onProceed} loading={busy === 'proceed'}>
+              {study.solutionCostingId ? 'Open Solution & Costing' : study.decision === 'FEASIBLE_WITH_CONDITIONS' ? 'Proceed with conditions' : 'Proceed to Solution & Costing'}
+            </Button>
+          ) : null}
         </div>
+        {solutionInfo.key === 'REWORK' ? (
+          <p className="feas-note">PM requested rework. Update the solution and documents, then resubmit to PM.</p>
+        ) : null}
+        {study.status === 'UNDER_REVIEW' ? (
+          <p className="feas-note">This solution is locked for PM review. Project managers can approve or request changes with comments.</p>
+        ) : null}
+        {study.decision === 'NOT_FEASIBLE' ? (
+          <p className="feas-note">A reason is required. Solution and costing stays closed for Not Feasible decisions.</p>
+        ) : null}
       </Section>
     </div>
   );
+}
+
+/** @deprecated Prefer FeasibilitySolutionPanel */
+export function ConclusionPanel(props) {
+  return <FeasibilitySolutionPanel {...props} />;
 }
 
 export function ActivityPanel({ activity }) {

@@ -3,6 +3,13 @@ const { calculateQuote, money } = require('../services/costing.rules');
 
 let projectOrdersReady = false;
 
+const LIFECYCLE_STAGES = new Set([
+  'PROJECT_CREATED', 'LEAD_EVALUATION', 'FEASIBILITY_STUDY', 'TECHNICAL_ASSESSMENT',
+  'SOLUTION_DESIGN', 'TECHNICAL_VALIDATION', 'RISK_REVIEW', 'SOLUTION_COSTING',
+  'QUOTATION', 'CUSTOMER_APPROVAL', 'ORDER_CONVERSION', 'ACTIVE_PROJECT',
+  'COMPLETED', 'ON_HOLD', 'CANCELLED',
+]);
+
 async function ensureProjectOrders() {
   if (projectOrdersReady) return;
   await query(`
@@ -24,6 +31,33 @@ async function ensureProjectOrders() {
   await query('CREATE UNIQUE INDEX IF NOT EXISTS project_orders_code_uidx ON project_orders (order_code)');
   await query('CREATE INDEX IF NOT EXISTS project_orders_activated_idx ON project_orders (activated_at)');
   await query('CREATE SEQUENCE IF NOT EXISTS order_code_seq START 1');
+  await query('CREATE SEQUENCE IF NOT EXISTS project_code_seq START 1');
+  await query(`
+    CREATE TABLE IF NOT EXISTS project_profiles (
+      project_id UUID PRIMARY KEY,
+      lifecycle_stage VARCHAR(40) NOT NULL DEFAULT 'PROJECT_CREATED',
+      owner_id UUID,
+      enquiry_reference TEXT NOT NULL DEFAULT '',
+      customer_requirements TEXT NOT NULL DEFAULT '',
+      estimated_budget NUMERIC,
+      expected_order_value NUMERIC,
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await query('CREATE INDEX IF NOT EXISTS project_profiles_stage_idx ON project_profiles (lifecycle_stage)');
+  await query(`
+    CREATE TABLE IF NOT EXISTS project_dependencies (
+      id UUID PRIMARY KEY,
+      project_id UUID NOT NULL,
+      user_id UUID NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (project_id, user_id)
+    )
+  `);
+  await query('CREATE INDEX IF NOT EXISTS project_dependencies_project_idx ON project_dependencies (project_id)');
+  await query('CREATE INDEX IF NOT EXISTS project_dependencies_user_idx ON project_dependencies (user_id)');
   // Preserve existing converted projects in Active Projects (legacy rows treated as already activated).
   await query(`
     INSERT INTO project_orders (
@@ -40,6 +74,22 @@ async function ensureProjectOrders() {
     FROM projects p
     WHERE p.lead_id IS NOT NULL
       AND NOT EXISTS (SELECT 1 FROM project_orders o WHERE o.project_id = p.id)
+    ON CONFLICT (project_id) DO NOTHING
+  `);
+  await query(`
+    INSERT INTO project_profiles (project_id, lifecycle_stage, owner_id, created_at, updated_at)
+    SELECT p.id,
+      CASE
+        WHEN EXISTS (SELECT 1 FROM project_orders o WHERE o.project_id = p.id AND o.activated_at IS NOT NULL) THEN 'ACTIVE_PROJECT'
+        WHEN p.costing_id IS NOT NULL THEN 'ORDER_CONVERSION'
+        WHEN p.lead_id IS NOT NULL THEN 'LEAD_EVALUATION'
+        ELSE 'PROJECT_CREATED'
+      END,
+      p.project_manager_id,
+      COALESCE(p.created_at, NOW()),
+      NOW()
+    FROM projects p
+    WHERE NOT EXISTS (SELECT 1 FROM project_profiles pf WHERE pf.project_id = p.id)
     ON CONFLICT (project_id) DO NOTHING
   `);
   projectOrdersReady = true;
@@ -748,6 +798,119 @@ async function removeDocument(costingId, documentId) {
   return result.rows[0] || null;
 }
 
+async function attachOrderConversion(client, projectId, actorId, costing, input, options = {}) {
+  const orderExisting = await client.query(
+    'SELECT order_code, activated_at FROM project_orders WHERE project_id = $1',
+    [projectId],
+  );
+  if (orderExisting.rows[0]?.order_code) {
+    if (!orderExisting.rows[0].activated_at) {
+      await client.query(`
+        UPDATE project_orders
+        SET activated_at = NOW(), activated_by = $2,
+            payment_status = CASE
+              WHEN payment_status IN ('AWAITING_PAYMENT', '') OR payment_status IS NULL THEN 'ORDER_CONFIRMED'
+              ELSE payment_status
+            END,
+            updated_at = NOW()
+        WHERE project_id = $1 AND activated_at IS NULL
+      `, [projectId, actorId]);
+      await client.query(`
+        INSERT INTO project_profiles (project_id, lifecycle_stage, created_at, updated_at)
+        VALUES ($1, 'ACTIVE_PROJECT', NOW(), NOW())
+        ON CONFLICT (project_id) DO UPDATE SET lifecycle_stage = 'ACTIVE_PROJECT', updated_at = NOW()
+      `, [projectId]);
+      await client.query(
+        `UPDATE projects SET status = CASE WHEN status IN ('PLANNING', 'READY_FOR_EXECUTION', 'NOT_STARTED') THEN 'NOT_STARTED' ELSE status END WHERE id = $1`,
+        [projectId],
+      );
+    }
+    return {
+      orderCode: orderExisting.rows[0].order_code,
+      hadOrder: true,
+      activated: true,
+    };
+  }
+  const orderCode = await client.query(
+    `SELECT 'ORD-' || to_char(CURRENT_DATE, 'YYYY') || '-' || lpad(nextval('order_code_seq')::text, 4, '0') AS code`,
+  );
+  await client.query(
+    `UPDATE projects SET
+      title = COALESCE(NULLIF($2, ''), title),
+      customer_name = COALESCE(NULLIF($3, ''), customer_name),
+      lead_id = COALESCE(lead_id, $4),
+      feasibility_id = COALESCE(feasibility_id, $5),
+      costing_id = COALESCE(costing_id, $6),
+      costing_version_id = COALESCE(costing_version_id, $7),
+      priority = COALESCE($8, priority),
+      project_manager_id = COALESCE($9, project_manager_id),
+      start_date = COALESCE($10, start_date),
+      target_date = COALESCE($11, target_date),
+      description = CASE WHEN NULLIF($12, '') IS NULL THEN description ELSE $12 END,
+      site_location = CASE WHEN NULLIF($13, '') IS NULL THEN site_location ELSE $13 END,
+      customer_contact = CASE WHEN NULLIF($14, '') IS NULL THEN customer_contact ELSE $14 END,
+      approved_value = COALESCE($15, approved_value),
+      project_type = CASE WHEN NULLIF($16, '') IS NULL THEN project_type ELSE $16 END,
+      status = CASE WHEN status IN ('CANCELLED') THEN status ELSE 'PLANNING' END
+     WHERE id = $1`,
+    [
+      projectId,
+      input.title || '',
+      costing.lead.customerName || '',
+      costing.lead.id,
+      costing.feasibilityId,
+      costing.id,
+      costing.version.id,
+      input.priority || null,
+      input.projectManagerId || null,
+      input.startDate || null,
+      input.targetDate || null,
+      input.description || '',
+      input.siteLocation || '',
+      input.customerContact || '',
+      input.approvedValue ?? null,
+      input.projectType || '',
+    ],
+  );
+  await client.query(`
+    INSERT INTO project_orders (
+      project_id, order_code, order_date, payment_status, activated_at, activated_by, created_at, updated_at
+    ) VALUES ($1, $2, CURRENT_DATE, 'ORDER_CONFIRMED', NOW(), $3, NOW(), NOW())
+    ON CONFLICT (project_id) DO UPDATE SET
+      activated_at = COALESCE(project_orders.activated_at, NOW()),
+      activated_by = COALESCE(project_orders.activated_by, EXCLUDED.activated_by),
+      payment_status = CASE
+        WHEN project_orders.payment_status IN ('AWAITING_PAYMENT', '') OR project_orders.payment_status IS NULL
+          THEN 'ORDER_CONFIRMED'
+        ELSE project_orders.payment_status
+      END,
+      updated_at = NOW()
+  `, [projectId, orderCode.rows[0].code, actorId]);
+  await client.query(`
+    INSERT INTO project_profiles (
+      project_id, lifecycle_stage, owner_id, created_at, updated_at
+    ) VALUES ($1, 'ACTIVE_PROJECT', $2, NOW(), NOW())
+    ON CONFLICT (project_id) DO UPDATE SET
+      lifecycle_stage = 'ACTIVE_PROJECT',
+      updated_at = NOW()
+  `, [projectId, input.projectManagerId || actorId]);
+  await client.query(
+    `UPDATE projects SET status = CASE WHEN status IN ('PLANNING', 'READY_FOR_EXECUTION', 'NOT_STARTED', '') OR status IS NULL THEN 'NOT_STARTED' ELSE status END WHERE id = $1`,
+    [projectId],
+  );
+  await client.query(`UPDATE leads SET stage = 'Active Project' WHERE id = $1`, [costing.lead.id]);
+  await client.query(
+    `INSERT INTO project_activity (project_id, actor_id, action, comment) VALUES ($1,$2,$3,$4)`,
+    [
+      projectId,
+      actorId,
+      options.promoted ? 'Order linked to existing project' : 'Order converted',
+      `Order ${orderCode.rows[0].code} created from ${costing.costingCode || 'approved costing'} for lead ${costing.lead.leadCode || ''}. Moved to Active Projects.`,
+    ],
+  );
+  return { orderCode: orderCode.rows[0].code, hadOrder: false, activated: true };
+}
+
 async function convertProject(costing, actorId, input) {
   await ensureProjectOrders();
   return withTransaction(async (client) => {
@@ -756,10 +919,18 @@ async function convertProject(costing, actorId, input) {
       [costing.lead.id, costing.id],
     );
     if (existing.rows[0]) {
-      return { id: existing.rows[0].id, projectCode: existing.rows[0].project_code, alreadyExisted: true };
+      const linked = await attachOrderConversion(client, existing.rows[0].id, actorId, costing, input, { promoted: true });
+      return {
+        id: existing.rows[0].id,
+        projectCode: existing.rows[0].project_code,
+        orderCode: linked.orderCode,
+        alreadyExisted: true,
+        hadOrder: linked.hadOrder,
+        promoted: !linked.hadOrder,
+        activated: Boolean(linked.activated),
+      };
     }
     const code = await client.query(`SELECT 'PRJ-' || to_char(CURRENT_DATE, 'YYYY') || '-' || lpad(nextval('project_code_seq')::text, 4, '0') AS code`);
-    const orderCode = await client.query(`SELECT 'ORD-' || to_char(CURRENT_DATE, 'YYYY') || '-' || lpad(nextval('order_code_seq')::text, 4, '0') AS code`);
     const inserted = await client.query(
       `INSERT INTO projects (
         project_code, title, customer_name, lead_id, feasibility_id, costing_id, costing_version_id,
@@ -787,21 +958,15 @@ async function convertProject(costing, actorId, input) {
       ],
     );
     const project = inserted.rows[0];
-    await client.query(`
-      INSERT INTO project_orders (
-        project_id, order_code, order_date, payment_status, created_at, updated_at
-      ) VALUES ($1, $2, CURRENT_DATE, 'AWAITING_PAYMENT', NOW(), NOW())
-    `, [project.id, orderCode.rows[0].code]);
-    await client.query(`UPDATE leads SET stage = 'Project' WHERE id = $1`, [costing.lead.id]);
-    await client.query(
-      `INSERT INTO project_activity (project_id, actor_id, action, comment) VALUES ($1,$2,$3,$4)`,
-      [project.id, actorId, 'Order converted', `Order ${orderCode.rows[0].code} created from ${costing.costingCode || 'approved costing'} for lead ${costing.lead.leadCode || ''}. Awaiting payment confirmation before activation.`],
-    );
+    const linked = await attachOrderConversion(client, project.id, actorId, costing, input, { promoted: false });
     return {
       id: project.id,
       projectCode: project.project_code,
-      orderCode: orderCode.rows[0].code,
+      orderCode: linked.orderCode,
       alreadyExisted: false,
+      hadOrder: false,
+      promoted: false,
+      activated: Boolean(linked.activated),
     };
   });
 }
@@ -813,6 +978,8 @@ const PROJECT_FROM = `
   LEFT JOIN users manager ON manager.id = p.project_manager_id
   LEFT JOIN users creator ON creator.id = p.created_by
   LEFT JOIN project_orders po ON po.project_id = p.id
+  LEFT JOIN project_profiles pf ON pf.project_id = p.id
+  LEFT JOIN users owner ON owner.id = pf.owner_id
   LEFT JOIN users payer ON payer.id = po.payment_confirmed_by
   LEFT JOIN users activator ON activator.id = po.activated_by
 `;
@@ -822,6 +989,9 @@ const PROJECT_COLUMNS = `
     manager.full_name AS manager_name,
     manager.department AS manager_department,
     creator.full_name AS creator_name,
+    owner.full_name AS owner_name,
+    pf.lifecycle_stage, pf.owner_id, pf.enquiry_reference, pf.customer_requirements,
+    pf.estimated_budget, pf.expected_order_value, pf.notes AS profile_notes,
     po.order_code, po.order_date, po.payment_status, po.payment_confirmed_at, po.payment_reference,
     po.payment_notes, po.activated_at, po.activated_by, po.payment_confirmed_by,
     payer.full_name AS payment_confirmed_by_name,
@@ -846,7 +1016,26 @@ const PROJECT_COLUMNS = `
     ) AS task_progress_weighted
 `;
 
-function stageFor(status) {
+const STAGE_LABELS = {
+  PROJECT_CREATED: 'Project Created',
+  LEAD_EVALUATION: 'Lead Evaluation',
+  FEASIBILITY_STUDY: 'Feasibility Study',
+  TECHNICAL_ASSESSMENT: 'Technical Assessment',
+  SOLUTION_DESIGN: 'Solution Design',
+  TECHNICAL_VALIDATION: 'Technical Validation',
+  RISK_REVIEW: 'Risk Review',
+  SOLUTION_COSTING: 'Solution Costing',
+  QUOTATION: 'Quotation',
+  CUSTOMER_APPROVAL: 'Customer Approval',
+  ORDER_CONVERSION: 'Order Conversion',
+  ACTIVE_PROJECT: 'Active Project',
+  COMPLETED: 'Completed',
+  ON_HOLD: 'On Hold',
+  CANCELLED: 'Cancelled',
+};
+
+function stageFor(status, lifecycleStage) {
+  if (lifecycleStage && STAGE_LABELS[lifecycleStage]) return STAGE_LABELS[lifecycleStage];
   if (status === 'PLANNING' || status === 'READY_FOR_EXECUTION') return 'Planning';
   if (status === 'NOT_STARTED') return 'Not Started';
   if (status === 'IN_PROGRESS' || status === 'ASSIGNED' || status === 'TEAM_REVIEW' || status === 'TASK_BREAKDOWN') return 'In Progress';
@@ -889,10 +1078,13 @@ function mapProject(row) {
     feasibilityId: row.feasibility_id,
     costingId: row.costing_id,
     status: row.status,
-    currentStage: stageFor(row.status),
+    lifecycleStage: row.lifecycle_stage || 'PROJECT_CREATED',
+    currentStage: stageFor(row.status, row.lifecycle_stage),
     priority: row.priority,
     projectManagerId: row.project_manager_id,
     projectManager: row.manager_name || '',
+    ownerId: row.owner_id || null,
+    ownerName: row.owner_name || '',
     department: row.department || row.manager_department || '',
     teamCode: row.team_code || '',
     startDate: isoDate(row.start_date),
@@ -901,6 +1093,11 @@ function mapProject(row) {
     description: row.description || '',
     siteLocation: row.site_location || '',
     customerContact: row.customer_contact || '',
+    enquiryReference: row.enquiry_reference || '',
+    customerRequirements: row.customer_requirements || '',
+    estimatedBudget: row.estimated_budget == null ? null : Number(row.estimated_budget),
+    expectedOrderValue: row.expected_order_value == null ? null : Number(row.expected_order_value),
+    notes: row.profile_notes || '',
     holdReason: row.hold_reason || '',
     riskReason: row.risk_reason || '',
     completionRemarks: row.completion_remarks || '',
@@ -916,13 +1113,210 @@ function mapProject(row) {
     createdBy: row.creator_name || '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    dependencyIds: [],
+    dependencies: [],
   };
+}
+
+async function replaceProjectDependencies(clientOrNull, projectId, userIds = []) {
+  const crypto = require('crypto');
+  const run = clientOrNull
+    ? (sql, params) => clientOrNull.query(sql, params)
+    : (sql, params) => query(sql, params);
+  await run('DELETE FROM project_dependencies WHERE project_id = $1', [projectId]);
+  const unique = [...new Set((userIds || []).filter(Boolean))];
+  for (const userId of unique) {
+    await run(
+      `INSERT INTO project_dependencies (id, project_id, user_id) VALUES ($1,$2,$3)
+       ON CONFLICT (project_id, user_id) DO NOTHING`,
+      [crypto.randomUUID(), projectId, userId],
+    );
+  }
+}
+
+async function listProjectDependencies(projectIds) {
+  if (!projectIds?.length) return new Map();
+  await ensureProjectOrders();
+  const result = await query(
+    `SELECT d.project_id, d.user_id, u.full_name, u.email
+     FROM project_dependencies d
+     JOIN users u ON u.id = d.user_id
+     WHERE d.project_id = ANY($1::uuid[])
+     ORDER BY u.full_name`,
+    [projectIds],
+  );
+  const map = new Map();
+  for (const row of result.rows) {
+    const list = map.get(row.project_id) || [];
+    list.push({ id: row.user_id, fullName: row.full_name, email: row.email || '' });
+    map.set(row.project_id, list);
+  }
+  return map;
+}
+
+const DEPENDENCY_LABELS = [
+  { label: 'Mr. Arun', keys: ['arun'] },
+  { label: 'Mr. Arivan', keys: ['arivan'] },
+  { label: 'Mr. Akash', keys: ['akash', 'aakash'] },
+  { label: 'Mr. Abinash', keys: ['abinash'] },
+  { label: 'Mr. Sabarigiri', keys: ['sabarigiri'] },
+  { label: 'Mr. Raja', keys: ['raja'] },
+  { label: 'CEO', keys: ['ceo', 'bernard'] },
+  { label: 'Mrs. Shradha Patil', keys: ['shradha'] },
+  { label: 'Mrs. Kabitha', keys: ['kabitha'] },
+  { label: 'Mrs. Vanippriya', keys: ['vanippriya'] },
+];
+
+function normalizePersonName(value) {
+  return String(value || '').toLowerCase().replace(/^(mr\.?|mrs\.?|ms\.?)\s+/i, '').replace(/\s+/g, ' ').trim();
+}
+
+async function listDependencyOptions() {
+  const result = await query(`SELECT id, full_name, email, designation FROM users ORDER BY full_name`);
+  const seen = new Set();
+  const people = [];
+  for (const row of result.rows) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    people.push(row);
+  }
+  return DEPENDENCY_LABELS.map((item) => {
+    const match = people.find((person) => {
+      const full = normalizePersonName(person.full_name);
+      const designation = String(person.designation || '').toLowerCase();
+      return item.keys.some((key) => full === key || full.startsWith(`${key} `) || full.includes(key)
+        || (item.label === 'CEO' && (designation === 'ceo' || /\bceo\b/.test(designation))));
+    });
+    return {
+      label: item.label,
+      id: match?.id || '',
+      fullName: match?.full_name || item.label,
+      email: match?.email || '',
+      configured: Boolean(match?.id),
+    };
+  });
+}
+
+async function createManualProject(actorId, input) {
+  await ensureProjectOrders();
+  return withTransaction(async (client) => {
+    if (input.leadId) {
+      const existing = await client.query(
+        'SELECT id, project_code FROM projects WHERE lead_id = $1 ORDER BY created_at LIMIT 1',
+        [input.leadId],
+      );
+      if (existing.rows[0]) {
+        return { id: existing.rows[0].id, projectCode: existing.rows[0].project_code, alreadyExisted: true };
+      }
+    }
+    const code = await client.query(
+      `SELECT 'PRJ-' || to_char(CURRENT_DATE, 'YYYY') || '-' || lpad(nextval('project_code_seq')::text, 4, '0') AS code`,
+    );
+    const inserted = await client.query(
+      `INSERT INTO projects (
+        project_code, title, customer_name, lead_id, status, priority, project_manager_id,
+        start_date, target_date, description, site_location, customer_contact, project_type,
+        approved_value, created_by
+      ) VALUES ($1,$2,$3,$4,'PLANNING',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+      RETURNING id, project_code`,
+      [
+        code.rows[0].code,
+        input.title,
+        input.customerName || '',
+        input.leadId || null,
+        input.priority || 'MEDIUM',
+        input.projectManagerId || actorId,
+        input.startDate,
+        input.targetDate,
+        input.description || '',
+        input.siteLocation || '',
+        input.customerContact || '',
+        input.projectType || 'Internal',
+        input.expectedOrderValue ?? null,
+        actorId,
+      ],
+    );
+    const project = inserted.rows[0];
+    await client.query(
+      `INSERT INTO project_profiles (
+        project_id, lifecycle_stage, owner_id, enquiry_reference, customer_requirements,
+        estimated_budget, expected_order_value, notes, created_at, updated_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())
+      ON CONFLICT (project_id) DO UPDATE SET
+        lifecycle_stage = EXCLUDED.lifecycle_stage,
+        owner_id = COALESCE(EXCLUDED.owner_id, project_profiles.owner_id),
+        enquiry_reference = EXCLUDED.enquiry_reference,
+        customer_requirements = EXCLUDED.customer_requirements,
+        estimated_budget = COALESCE(EXCLUDED.estimated_budget, project_profiles.estimated_budget),
+        expected_order_value = COALESCE(EXCLUDED.expected_order_value, project_profiles.expected_order_value),
+        notes = EXCLUDED.notes,
+        updated_at = NOW()`,
+      [
+        project.id,
+        input.lifecycleStage || 'PROJECT_CREATED',
+        input.ownerId || input.projectManagerId || actorId,
+        input.enquiryReference || '',
+        input.customerRequirements || '',
+        input.estimatedBudget ?? null,
+        input.expectedOrderValue ?? null,
+        input.notes || '',
+      ],
+    );
+    await replaceProjectDependencies(client, project.id, input.dependencyIds || []);
+    await client.query(
+      `INSERT INTO project_activity (project_id, actor_id, action, comment) VALUES ($1,$2,$3,$4)`,
+      [project.id, actorId, 'Project created', 'Project created for daily work tracking.'],
+    );
+    return { id: project.id, projectCode: project.project_code, alreadyExisted: false };
+  });
+}
+
+async function upsertProjectProfile(projectId, patch = {}) {
+  await ensureProjectOrders();
+  const existing = await query('SELECT * FROM project_profiles WHERE project_id = $1', [projectId]);
+  const prev = existing.rows[0] || {};
+  const stage = patch.lifecycleStage && LIFECYCLE_STAGES.has(patch.lifecycleStage)
+    ? patch.lifecycleStage
+    : (prev.lifecycle_stage || 'PROJECT_CREATED');
+  await query(`
+    INSERT INTO project_profiles (
+      project_id, lifecycle_stage, owner_id, enquiry_reference, customer_requirements,
+      estimated_budget, expected_order_value, notes, created_at, updated_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())
+    ON CONFLICT (project_id) DO UPDATE SET
+      lifecycle_stage = EXCLUDED.lifecycle_stage,
+      owner_id = EXCLUDED.owner_id,
+      enquiry_reference = EXCLUDED.enquiry_reference,
+      customer_requirements = EXCLUDED.customer_requirements,
+      estimated_budget = EXCLUDED.estimated_budget,
+      expected_order_value = EXCLUDED.expected_order_value,
+      notes = EXCLUDED.notes,
+      updated_at = NOW()
+  `, [
+    projectId,
+    stage,
+    patch.ownerId !== undefined ? (patch.ownerId || null) : (prev.owner_id || null),
+    patch.enquiryReference !== undefined ? String(patch.enquiryReference || '') : (prev.enquiry_reference || ''),
+    patch.customerRequirements !== undefined ? String(patch.customerRequirements || '') : (prev.customer_requirements || ''),
+    patch.estimatedBudget !== undefined ? patch.estimatedBudget : (prev.estimated_budget ?? null),
+    patch.expectedOrderValue !== undefined ? patch.expectedOrderValue : (prev.expected_order_value ?? null),
+    patch.notes !== undefined ? String(patch.notes || '') : (prev.notes || ''),
+  ]);
 }
 
 async function listProjects() {
   await ensureProjectOrders();
   const result = await query(`${PROJECT_COLUMNS} ${PROJECT_FROM} ORDER BY p.updated_at DESC`);
-  return result.rows.map(mapProject);
+  const mapped = result.rows.map(mapProject);
+  const deps = await listProjectDependencies(mapped.map((row) => row.id));
+  return mapped.map((row) => {
+    const people = deps.get(row.id) || [];
+    return {
+      ...row,
+      dependencyIds: people.map((person) => person.id),
+      dependencies: people,
+    };
+  });
 }
 
 async function projectDirectory() {
@@ -966,10 +1360,18 @@ async function projectDirectory() {
 async function findProject(id) {
   await ensureProjectOrders();
   const result = await query(`${PROJECT_COLUMNS} ${PROJECT_FROM} WHERE p.id = $1`, [id]);
-  return result.rows[0] ? mapProject(result.rows[0]) : null;
+  if (!result.rows[0]) return null;
+  const project = mapProject(result.rows[0]);
+  const deps = await listProjectDependencies([id]);
+  const people = deps.get(id) || [];
+  return {
+    ...project,
+    dependencyIds: people.map((person) => person.id),
+    dependencies: people,
+  };
 }
 
-const ACTIVATION_PAYMENT = new Set(['PAYMENT_CONFIRMED', 'CREDIT_APPROVED', 'WAIVED', 'PARTIALLY_PAID']);
+const ACTIVATION_PAYMENT = new Set(['ORDER_CONFIRMED', 'PAYMENT_CONFIRMED', 'CREDIT_APPROVED', 'WAIVED', 'PARTIALLY_PAID']);
 
 async function confirmPayment(projectId, actorId, input = {}) {
   await ensureProjectOrders();
@@ -1031,6 +1433,11 @@ async function activateProject(projectId, actorId) {
     `UPDATE projects SET status = CASE WHEN status IN ('PLANNING', 'READY_FOR_EXECUTION', 'NOT_STARTED') THEN 'NOT_STARTED' ELSE status END WHERE id = $1`,
     [projectId],
   );
+  await query(`
+    INSERT INTO project_profiles (project_id, lifecycle_stage, created_at, updated_at)
+    VALUES ($1, 'ACTIVE_PROJECT', NOW(), NOW())
+    ON CONFLICT (project_id) DO UPDATE SET lifecycle_stage = 'ACTIVE_PROJECT', updated_at = NOW()
+  `, [projectId]);
   await query(
     `INSERT INTO project_activity (project_id, actor_id, action, comment) VALUES ($1,$2,$3,$4)`,
     [projectId, actorId, 'Project activated', `Order ${order.order_code} activated for execution.`],
@@ -1114,15 +1521,31 @@ async function updateProject(id, patch, actorId) {
       customer_name = $9,
       department = $10,
       team_code = $11,
-      project_code = $12
+      project_code = $12,
+      customer_contact = $13,
+      lead_id = COALESCE($14, lead_id)
      WHERE id = $1
      RETURNING id`,
     [
       id, patch.title, patch.description, patch.projectManagerId, patch.priority, patch.startDate, patch.targetDate, patch.projectType,
       patch.customerName, patch.department, patch.teamCode, patch.projectCode,
+      patch.customerContact ?? '',
+      patch.leadId || null,
     ],
   );
   if (!result.rows[0]) return null;
+  if (patch.lifecycleStage || patch.ownerId || patch.enquiryReference != null || patch.customerRequirements != null
+    || patch.estimatedBudget !== undefined || patch.expectedOrderValue !== undefined || patch.notes != null) {
+    await upsertProjectProfile(id, {
+      lifecycleStage: patch.lifecycleStage,
+      ownerId: patch.ownerId,
+      enquiryReference: patch.enquiryReference,
+      customerRequirements: patch.customerRequirements,
+      estimatedBudget: patch.estimatedBudget,
+      expectedOrderValue: patch.expectedOrderValue,
+      notes: patch.notes,
+    });
+  }
   await query(
     `INSERT INTO project_activity (project_id, actor_id, action, comment) VALUES ($1,$2,$3,$4)`,
     [id, actorId, 'Project updated', patch.title],
@@ -1131,6 +1554,9 @@ async function updateProject(id, patch, actorId) {
 }
 
 async function deleteProject(id) {
+  await ensureProjectOrders();
+  await query('DELETE FROM project_profiles WHERE project_id = $1', [id]);
+  await query('DELETE FROM project_orders WHERE project_id = $1', [id]);
   const result = await query(`DELETE FROM projects WHERE id = $1 RETURNING id`, [id]);
   return result.rows[0] || null;
 }
@@ -1174,6 +1600,14 @@ module.exports = {
   storedNameCount,
   removeDocument,
   convertProject,
+  createManualProject,
+  replaceProjectDependencies,
+  listProjectDependencies,
+  listDependencyOptions,
+  upsertProjectProfile,
+  LIFECYCLE_STAGES,
+  STAGE_LABELS,
+  DEPENDENCY_LABELS,
   listProjects,
   projectDirectory,
   findProject,

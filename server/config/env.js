@@ -29,8 +29,9 @@ if (jwtSecret.length < 32) {
 }
 
 function databaseConfig() {
-  const max = numberValue('DB_MAX_CONNECTIONS', 10);
-  const idleTimeoutMillis = numberValue('DB_IDLE_TIMEOUT_MS', 10000);
+  // Keep pool small on shared Aiven plans — orphaned local API processes exhaust slots quickly.
+  const max = numberValue('DB_MAX_CONNECTIONS', 5);
+  const idleTimeoutMillis = numberValue('DB_IDLE_TIMEOUT_MS', 8000);
   const connectionString = String(process.env.DATABASE_URL || '').trim();
   if (connectionString) {
     const url = new URL(connectionString);
@@ -57,6 +58,28 @@ function databaseConfig() {
   };
 }
 
+function booleanValue(name, fallback = false) {
+  const raw = String(process.env[name] ?? '').trim().toLowerCase();
+  if (!raw) return fallback;
+  if (['1', 'true', 'yes', 'on'].includes(raw)) return true;
+  if (['0', 'false', 'no', 'off'].includes(raw)) return false;
+  return fallback;
+}
+
+function smtpConfig() {
+  const portRaw = String(process.env.SMTP_PORT || '').trim();
+  const port = portRaw ? Number(portRaw) : 587;
+  return {
+    host: String(process.env.SMTP_HOST || '').trim(),
+    port: Number.isInteger(port) && port > 0 && port <= 65535 ? port : 587,
+    user: String(process.env.SMTP_USER || '').trim(),
+    pass: String(process.env.SMTP_PASS || ''),
+    fromEmail: String(process.env.SMTP_FROM_EMAIL || '').trim(),
+    fromName: String(process.env.SMTP_FROM_NAME || 'CareYu Automation').trim() || 'CareYu Automation',
+    secure: booleanValue('SMTP_SECURE', Number(portRaw) === 465),
+  };
+}
+
 const env = {
   nodeEnv,
   isProduction: nodeEnv === 'production',
@@ -72,6 +95,7 @@ const env = {
   cookieName: '__session',
   realtimePublicUrl: String(process.env.REALTIME_PUBLIC_URL || '').trim(),
   defaultRoleCode: 'employee',
+  smtp: smtpConfig(),
 };
 
 module.exports = env;

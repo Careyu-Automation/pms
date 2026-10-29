@@ -249,12 +249,12 @@ async function review(id, body, user) {
       approved_by: null,
       approved_at: null,
     });
-    await repository.addActivity(id, user.id, 'Changes Requested');
+    await repository.addActivity(id, user.id, 'Rework Required');
     const workflow = require('./workflow.service');
-    await workflow.markLead(current.leadId, 'FEASIBILITY_CHANGES_REQUESTED', 'Feasibility', user.id, 'Feasibility changes requested');
+    await workflow.markLead(current.leadId, 'FEASIBILITY_CHANGES_REQUESTED', 'Feasibility', user.id, 'Feasibility rework requested');
     const recipients = [...new Set([current.ownerId, ...(current.teams || []).flatMap((team) => [team.teamLeadId, ...(team.memberIds || [])])].filter(Boolean))];
     if (recipients.length) {
-      await workflow.notify(recipients, `Changes requested: ${current.lead?.title || 'Feasibility'}`, note, `/feasibility-studies/${id}`);
+      await workflow.notify(recipients, `Rework required: ${current.lead?.title || 'Feasibility'}`, note, `/feasibility-studies/${id}`);
     }
     return present(await getOrThrow(id), user);
   }
@@ -296,7 +296,16 @@ async function review(id, body, user) {
     });
     await repository.addActivity(id, user.id, 'Feasibility Approved');
     const workflow = require('./workflow.service');
-    await workflow.markLead(current.leadId, 'FEASIBILITY_APPROVED', 'Procurement & Costing', user.id, 'Feasibility approved');
+    await workflow.markLead(current.leadId, 'FEASIBILITY_APPROVED', 'Procurement', user.id, 'Feasibility approved');
+    const procurement = require('./procurement.service');
+    const seeded = await procurement.seedForLead(current.lead || { id: current.leadId, title: current.lead?.title, leadCode: current.lead?.leadCode }, id, user.id);
+    const procurementTeam = await workflow.usersByKind(['PM']);
+    await workflow.notify(
+      procurementTeam,
+      `Procurement ready: ${current.lead?.title || current.lead?.leadCode || 'Lead'}`,
+      'Feasibility is approved. Complete procurement details and submit to the project manager.',
+      seeded?.id ? `/procurement-requests` : '/procurement-requests',
+    );
     return present(await getOrThrow(id), user);
   }
   throw new ApiError(400, 'Choose team review, request changes, reject, or approve.');
@@ -306,10 +315,19 @@ async function proceed(id, user) {
   const current = await getOrThrow(id);
   const access = buildAccess(user, current);
   if (!access.canProceed) {
-    throw new ApiError(409, 'Solution and costing opens after the feasibility is feasible or feasible with conditions.');
+    throw new ApiError(409, access.procurementPending
+      ? 'Complete procurement and wait for PM approval before opening solution costing.'
+      : 'Solution and costing opens after the feasibility is feasible or feasible with conditions.');
   }
   if (current.decision === 'FEASIBLE_WITH_CONDITIONS' && !String(current.conditions || '').trim()) {
     throw new ApiError(422, 'Record the conditions before proceeding to solution and costing.');
+  }
+  if (!current.solutionCostingId) {
+    const procurement = require('./procurement.service');
+    const ready = await procurement.leadReadyForCosting(current.leadId);
+    if (!ready) {
+      throw new ApiError(409, 'Complete procurement and wait for PM approval before opening solution costing.');
+    }
   }
   const costingService = require('./costing.service');
   const costing = await costingService.create(id, user);

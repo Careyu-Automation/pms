@@ -16,6 +16,7 @@ export default function ProjectListPage() {
   const [rows, setRows] = useState([]);
   const [managers, setManagers] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [dependencyOptions, setDependencyOptions] = useState([]);
   const [status, setStatus] = useState('loading');
 
   const load = useCallback(() => {
@@ -25,6 +26,7 @@ export default function ProjectListPage() {
         setRows(payload.data.projects || []);
         setManagers(payload.data.managers || []);
         setSummary(payload.data.summary || null);
+        setDependencyOptions(payload.data.dependencyOptions || []);
         setStatus('ready');
       })
       .catch((error) => {
@@ -44,10 +46,12 @@ export default function ProjectListPage() {
           projects={rows}
           managers={managers}
           summary={summary}
+          dependencyOptions={dependencyOptions}
           mode="all"
           allowCreate
           onChanged={load}
           onError={(message) => push({ tone: 'danger', message })}
+          onSuccess={(message) => push({ tone: 'success', message })}
         />
       ) : null}
     </PageContainer>

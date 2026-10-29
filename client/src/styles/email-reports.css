@@ -119,6 +119,45 @@
   gap: 8px;
 }
 
+.reports-note--danger,
+label.is-invalid .reports-note {
+  color: #b42318;
+}
+
+label.is-invalid .input {
+  border-color: #f04438;
+}
+
+.report-composer__smtp {
+  margin: 1rem 0 1.25rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--color-border, #d7dce5) 100%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-surface, #fff) 92%, #e8f0fe);
+}
+
+.report-composer__smtp .smtp-settings {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.report-composer__preview-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.report-composer__preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .report-composer__preview {
   display: grid;
   gap: 8px;
@@ -405,10 +444,23 @@
 .reports-preview--daily .reports-scroll {
   border: 1px solid #d7e2ee;
   border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.reports-preview--daily .reports-scroll h4 {
+  margin: 0;
+  padding: 0.65rem 0.9rem;
+  background: #fff8e1;
+  border-bottom: 1px solid #f1c232;
+  color: #021e45;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
 .reports-preview--daily .data-table {
-  min-width: 960px;
+  min-width: 720px;
+  width: 100%;
+  table-layout: fixed;
 }
 
 .reports-preview--daily .data-table th,
@@ -422,21 +474,78 @@
 }
 
 .reports-preview--daily .data-table th {
-  background: #f4f7fb;
-  color: #16324f;
+  background: #0356c5;
+  color: #fff;
   white-space: nowrap;
 }
 
 .reports-preview--daily .data-table td {
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
-.reports-preview--daily .data-table td:nth-child(1),
-.reports-preview--daily .data-table td:nth-child(9),
-.reports-preview--daily .data-table td:nth-child(10),
-.reports-preview--daily .data-table td:nth-child(13) {
+.reports-preview--daily .data-table th:nth-child(1),
+.reports-preview--daily .data-table td:nth-child(1) {
+  width: 18%;
+}
+
+.reports-preview--daily .data-table th:nth-child(2),
+.reports-preview--daily .data-table td:nth-child(2) {
+  width: 34%;
+}
+
+.reports-preview--daily .data-table th:nth-child(3),
+.reports-preview--daily .data-table td:nth-child(3) {
+  width: 12%;
+  min-width: 110px;
   white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+
+.reports-preview--daily .data-table th:nth-child(4),
+.reports-preview--daily .data-table td:nth-child(4) {
+  width: 14%;
+}
+
+.reports-preview--daily .data-table th:nth-child(5),
+.reports-preview--daily .data-table td:nth-child(5) {
+  width: 9%;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: keep-all;
+}
+
+.reports-preview--daily .data-table th:nth-child(6),
+.reports-preview--daily .data-table td:nth-child(6) {
+  width: 13%;
+}
+
+.reports-preview--daily .data-table .status-badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+  border: 1px solid #b7d0f5;
+  background: #e8f1ff;
+  color: #0b4ea2;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+}
+
+.reports-preview--daily .data-table .status-badge.is-completed {
+  background: #e7f6ed;
+  color: #0f6b3a;
+  border-color: #b7e0c6;
+}
+
+.reports-preview--daily .data-table .status-badge.is-blocked {
+  background: #fff2cc;
+  color: #7a5b00;
+  border-color: #f1c232;
 }
 
 .reports-preview--daily .data-table tr.is-alt td {
@@ -467,11 +576,33 @@
   }
 }
 
+.smtp-settings h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--text-primary);
+}
+
+.smtp-settings__grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.smtp-settings__check {
+  display: flex !important;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 1.4rem;
+}
+
+.smtp-settings__check input {
+  width: auto;
+}
+
 @media (max-width: 720px) {
   .reports-kpis,
   .reports-templates,
   .reports-split,
-  .reports-form {
+  .reports-form,
+  .smtp-settings__grid {
     grid-template-columns: 1fr;
   }
 

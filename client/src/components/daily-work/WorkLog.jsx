@@ -5,15 +5,15 @@ const STATUSES = ['NOT_STARTED', 'IN_PROGRESS', 'BLOCKED', 'COMPLETED'];
 
 const STAKEHOLDER_NAMES = [
   'Mr. Arun',
-  'Arivan',
-  'Akash',
-  'Abinash',
-  'Sabarigiri',
+  'Mr. Arivan',
+  'Mr. Akash',
+  'Mr. Abinash',
+  'Mr. Sabarigiri',
+  'Mr. Raja',
   'CEO',
-  'Raja',
   'Mrs. Shradha Patil',
-  'Kabitha',
-  'Vanippriya',
+  'Mrs. Kabitha',
+  'Mrs. Vanippriya',
 ];
 
 function kolkataShift() {
@@ -123,7 +123,7 @@ function blankRow(user, lookups, today) {
     dependencyKeys: [],
     dependencyType: '',
     dependencyDetails: '',
-    status: 'IN_PROGRESS',
+    status: 'NOT_STARTED',
     startDate: today,
     deadline: '',
     loggedHours: '',
@@ -188,7 +188,7 @@ function rowHasContent(row) {
     || String(row.loggedHours || '').trim()
     || String(row.reasonForDelay || '').trim()
     || row.deadline
-    || (row.status && row.status !== 'IN_PROGRESS'),
+    || (row.status && row.status !== 'NOT_STARTED' && row.status !== 'IN_PROGRESS'),
   );
 }
 
@@ -503,36 +503,48 @@ export const WorkLog = forwardRef(function WorkLog({
       </td>
     );
 
+    let col = 0;
     return (
       <tr key={key} className={`${draft ? 'daily-draft' : ''} ${dirty[key] || (draft && rowHasContent(row)) ? 'is-dirty' : ''}`}>
-        {cell(0, 'employee', canAssign && !locked ? (
+        {canAssign ? cell(col++, 'employee', !locked ? (
           <select className="daily-status" aria-label="Employee" value={row.employeeId} onChange={(event) => chooseEmployee(key, event.target.value, draft)}>
             {lookups.people.map((person) => <option key={person.id} value={person.id}>{person.fullName}</option>)}
           </select>
-        ) : <span className="daily-ellipsis" title={row.employeeName || user?.fullName || 'You'}>{row.employeeName || user?.fullName || 'You'}</span>)}
-        {cell(1, 'project', (
+        ) : <span className="daily-ellipsis" title={row.employeeName || user?.fullName || 'You'}>{row.employeeName || user?.fullName || 'You'}</span>) : null}
+        {cell(col++, 'project', (
           <select
             className="daily-status"
             aria-label="Project"
             value={row.projectId || ''}
             disabled={locked}
-            onChange={(event) => patch(key, { projectId: event.target.value }, draft)}
+            onChange={(event) => patch(key, {
+              projectId: event.target.value,
+              workType: event.target.value ? 'PROJECT_WORK' : 'INTERNAL',
+            }, draft)}
           >
-            <option value="">No project</option>
-            {lookups.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+            <option value="">Select project</option>
+            {lookups.projects.map((project) => (
+              <option key={project.id} value={project.id}>{project.label || (project.code ? `${project.code} · ${project.name}` : project.name)}</option>
+            ))}
           </select>
         ))}
-        {cell(2, 'task', (
+        {cell(col++, 'task', (
           <textarea
             className="daily-cell-input"
-            rows={1}
-            aria-label="Task description"
+            rows={2}
+            aria-label="Work description"
+            placeholder="Describe the work performed"
             value={row.task}
             disabled={locked}
             onChange={(event) => patch(key, { task: event.target.value }, draft)}
           />
         ))}
-        {cell(3, 'dependency', (
+        {cell(col++, 'status', (
+          <select className="daily-status" aria-label="Status" value={row.status} disabled={locked} onChange={(event) => patch(key, { status: event.target.value }, draft)}>
+            {statusOptions.map((value) => <option key={value} value={value}>{WORK_STATUS[value] || value}</option>)}
+          </select>
+        ))}
+        {cell(col++, 'dependency', (
           <DependencySelect
             value={row.dependencyKeys || []}
             options={stakeholders}
@@ -540,24 +552,10 @@ export const WorkLog = forwardRef(function WorkLog({
             onChange={(dependencyKeys) => patch(key, { dependencyKeys }, draft)}
           />
         ))}
-        {cell(4, 'status', (
-          <select className="daily-status" aria-label="Status" value={row.status} disabled={locked} onChange={(event) => patch(key, { status: event.target.value }, draft)}>
-            {statusOptions.map((value) => <option key={value} value={value}>{WORK_STATUS[value] || value}</option>)}
-          </select>
+        {cell(col++, 'workDate', (
+          <input className="daily-cell-input" type="date" aria-label="Report date" value={row.workDate || ''} disabled={locked} onChange={(event) => patch(key, { workDate: event.target.value }, draft)} />
         ))}
-        {cell(5, 'startDate', (
-          <input className="daily-cell-input" type="date" aria-label="Start date" value={row.startDate || ''} disabled={locked} onChange={(event) => patch(key, { startDate: event.target.value }, draft)} />
-        ))}
-        {cell(6, 'deadline', (
-          <input className={`daily-cell-input${delayed(row) ? ' is-overdue' : ''}`} type="date" aria-label="Task deadline" value={row.deadline || ''} disabled={locked} onChange={(event) => patch(key, { deadline: event.target.value }, draft)} />
-        ))}
-        {cell(7, 'loggedHours', (
-          <input className="daily-cell-input" type="number" min="0" max="24" step="0.5" aria-label="Logged hours" value={row.loggedHours} disabled={locked} onChange={(event) => patch(key, { loggedHours: event.target.value }, draft)} />
-        ))}
-        {cell(8, 'reason', (
-          <input className="daily-cell-input" aria-label="Reason for delay" value={row.reasonForDelay} disabled={locked} onChange={(event) => patch(key, { reasonForDelay: event.target.value }, draft)} />
-        ))}
-        <td data-row={rowIndex} data-col={9} className="daily-actions">
+        <td data-row={rowIndex} data-col={col} className="daily-actions">
           {fieldErrors.form ? <small className="daily-cell-error">{fieldErrors.form}</small> : null}
           {confirmId === key ? (
             <div className="daily-inline-confirm">
@@ -597,34 +595,28 @@ export const WorkLog = forwardRef(function WorkLog({
       <div className="daily-scroll daily-scroll--fit" ref={scroller} onKeyDown={onKeyDown}>
         <table className="daily-sheet daily-sheet--compact">
           <colgroup>
-            <col className="col-person" />
+            {canAssign ? <col className="col-person" /> : null}
             <col className="col-project" />
             <col className="col-task" />
-            <col className="col-deps" />
             <col className="col-status" />
+            <col className="col-deps" />
             <col className="col-date" />
-            <col className="col-date" />
-            <col className="col-hours" />
-            <col className="col-reason" />
             <col className="col-actions" />
           </colgroup>
           <thead>
             <tr>
-              <th>Person</th>
+              {canAssign ? <th>Employee</th> : null}
               <th>Project</th>
-              <th>Task Description</th>
-              <th>Dependencies</th>
+              <th>Work Description</th>
               <th>Status</th>
-              <th>Start Date</th>
-              <th>Task Deadline</th>
-              <th>Logged Hours</th>
-              <th>Reason for Delay</th>
+              <th>Dependencies / Blockers</th>
+              <th>Report Date</th>
               <th aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
             {!sheetRows.length ? (
-              <tr className="daily-empty"><td colSpan={10}>{emptyLabel}</td></tr>
+              <tr className="daily-empty"><td colSpan={canAssign ? 7 : 6}>{emptyLabel}</td></tr>
             ) : sheetRows.map((row, index) => renderRow(row, index, !row.id && String(row.key || '').startsWith('new-')))}
           </tbody>
         </table>

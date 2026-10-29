@@ -64,6 +64,10 @@ export function listProjects(view) {
   return api(view ? `/projects?view=${encodeURIComponent(view)}` : '/projects');
 }
 
+export function createProject(body) {
+  return api('/projects', { method: 'POST', body });
+}
+
 export function loadProjectHub() {
   return api('/projects/hub');
 }

@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/Button';
 import { useToast } from '../../context/ToastContext';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { loadAdminSettings, saveAdminSettings } from '../../services/settings.service';
+import { sendSmtpTestEmail, testEmailConnection } from '../../services/emailReports.service';
 import { CheckInput, DAYS, Field, LANDING, SelectInput, setPath, SettingsFrame, TextInput, visible } from './settingsFields';
 import '../../styles/settings.css';
 
@@ -19,7 +20,19 @@ const TABS = [
   ['system', 'System Information'],
 ].map(([id, label]) => ({ id, label }));
 
-const EMPTY_SMTP = { host: '', port: 587, username: '', fromName: 'CareYu Automation', fromEmail: '', replyTo: '', secure: false, password: '', hasPassword: false, status: 'Not configured' };
+const EMPTY_SMTP = {
+  host: '',
+  port: 587,
+  username: '',
+  fromName: 'CareYu Automation',
+  fromEmail: 'aicareyuautomation@gmail.com',
+  replyTo: '',
+  secure: false,
+  password: '',
+  hasPassword: false,
+  configured: false,
+  status: 'Not configured',
+};
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -38,6 +51,7 @@ export default function AdminSettingsPage() {
   const [query, setQuery] = useState('');
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
+  const [smtpBusy, setSmtpBusy] = useState('');
 
   const load = () => {
     setStatus('loading');
@@ -45,8 +59,9 @@ export default function AdminSettingsPage() {
       setSaved(clone(payload.data.settings));
       setForm(clone(payload.data.settings));
       const nextSmtp = { ...EMPTY_SMTP, ...payload.data.integrations.smtp, password: '' };
+      if (!nextSmtp.fromEmail) nextSmtp.fromEmail = EMPTY_SMTP.fromEmail;
       setSmtp(nextSmtp);
-      setSavedSmtp(nextSmtp);
+      setSavedSmtp({ ...nextSmtp, password: '' });
       setMeta(payload.data);
       setErrors({});
       setStatus('ready');
@@ -72,8 +87,9 @@ export default function AdminSettingsPage() {
       setSaved(clone(payload.data.settings));
       setForm(clone(payload.data.settings));
       const nextSmtp = { ...EMPTY_SMTP, ...payload.data.integrations.smtp, password: '' };
+      if (!nextSmtp.fromEmail) nextSmtp.fromEmail = EMPTY_SMTP.fromEmail;
       setSmtp(nextSmtp);
-      setSavedSmtp(nextSmtp);
+      setSavedSmtp({ ...nextSmtp, password: '' });
       setMeta(payload.data);
       push({ tone: 'success', message: 'Admin settings saved.' });
     } catch (error) {
@@ -221,15 +237,54 @@ export default function AdminSettingsPage() {
           ) : null}
           {tab === 'integrations' ? (
             <div className="settings-grid">
-              <p className="settings-note settings-field--wide">SMTP status: {smtp.status}. Leave the password blank to keep the saved secret. The password is never shown again.</p>
-              {show('smtp host') ? <Field label="SMTP host" hint="Leave blank when email is not configured."><TextInput value={smtp.host} onChange={(value) => setSmtp({ ...smtp, host: value })} /></Field> : null}
+              <p className="settings-note settings-field--wide">SMTP status: {smtp.status}. Leave the password blank to keep the saved secret. The password is never shown again. Suggested sender: aicareyuautomation@gmail.com</p>
+              {show('smtp host') ? <Field label="SMTP host" hint="Example: smtp.gmail.com"><TextInput value={smtp.host} onChange={(value) => setSmtp({ ...smtp, host: value })} placeholder="smtp.gmail.com" /></Field> : null}
               {show('smtp port') ? <Field label="SMTP port"><TextInput type="number" value={smtp.port} onChange={(value) => setSmtp({ ...smtp, port: Number(value) })} /></Field> : null}
               {show('smtp username') ? <Field label="SMTP username"><TextInput value={smtp.username} onChange={(value) => setSmtp({ ...smtp, username: value })} /></Field> : null}
-              {show('smtp password') ? <Field label="SMTP password" hint={smtp.hasPassword ? 'A password is already saved.' : 'Not configured.'}><TextInput type="password" value={smtp.password} autoComplete="new-password" onChange={(value) => setSmtp({ ...smtp, password: value })} /></Field> : null}
+              {show('smtp password') ? <Field label="SMTP password" hint={smtp.hasPassword ? 'A password is already saved.' : 'Not configured.'} error={errors['smtp.password']}><TextInput type="password" value={smtp.password} autoComplete="new-password" onChange={(value) => setSmtp({ ...smtp, password: value })} /></Field> : null}
               {show('from email') ? <Field label="From email" error={errors['smtp.fromEmail']}><TextInput type="email" value={smtp.fromEmail} onChange={(value) => setSmtp({ ...smtp, fromEmail: value })} /></Field> : null}
               {show('from name') ? <Field label="From name"><TextInput value={smtp.fromName} onChange={(value) => setSmtp({ ...smtp, fromName: value })} /></Field> : null}
               {show('reply') ? <Field label="Reply-to" error={errors['smtp.replyTo']}><TextInput type="email" value={smtp.replyTo} onChange={(value) => setSmtp({ ...smtp, replyTo: value })} /></Field> : null}
               {show('secure') ? <CheckInput label="Use a secure SMTP connection" checked={smtp.secure} onChange={(value) => setSmtp({ ...smtp, secure: value })} /> : null}
+              <div className="settings-field settings-field--wide settings-smtp-actions">
+                <Button
+                  variant="secondary"
+                  loading={smtpBusy === 'connection'}
+                  disabled={smtpBusy !== '' || dirty}
+                  onClick={async () => {
+                    setSmtpBusy('connection');
+                    try {
+                      await testEmailConnection();
+                      push({ tone: 'success', message: 'SMTP connection verified.' });
+                    } catch (error) {
+                      push({ tone: 'danger', message: error.message });
+                    } finally {
+                      setSmtpBusy('');
+                    }
+                  }}
+                >
+                  Test SMTP Connection
+                </Button>
+                <Button
+                  variant="secondary"
+                  loading={smtpBusy === 'email'}
+                  disabled={smtpBusy !== '' || dirty || !smtp.configured}
+                  onClick={async () => {
+                    setSmtpBusy('email');
+                    try {
+                      await sendSmtpTestEmail({});
+                      push({ tone: 'success', message: 'Test email sent to your account.' });
+                    } catch (error) {
+                      push({ tone: 'danger', message: error.message });
+                    } finally {
+                      setSmtpBusy('');
+                    }
+                  }}
+                >
+                  Send Test Email
+                </Button>
+                {dirty ? <small>Save configuration before testing.</small> : null}
+              </div>
               {show('database') ? <Field label="Database"><TextInput value={meta?.integrations?.database?.status || 'Unavailable'} onChange={() => {}} readOnly /></Field> : null}
               {show('file storage') ? <Field label="File storage"><TextInput value={`${meta?.integrations?.storage?.kind || 'Local server storage'} · ${meta?.integrations?.storage?.status || 'Empty'}`} onChange={() => {}} readOnly /></Field> : null}
               {show('notification service') ? <Field label="Notification service"><TextInput value={meta?.integrations?.notifications?.status || 'Available'} onChange={() => {}} readOnly /></Field> : null}

@@ -23,4 +23,21 @@ const remove = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'Procurement request deleted.' });
 });
 
-module.exports = { home, create, update, status, remove };
+const uploadDocuments = asyncHandler(async (req, res) => {
+  const data = await requests.addDocuments(req.user, req.params.id, req.files || [], req.body?.documentType);
+  sendSuccess(res, { message: 'Documents uploaded.', data });
+});
+
+const downloadDocument = asyncHandler(async (req, res) => {
+  const file = await requests.openDocument(req.params.id, req.params.documentId);
+  res.download(file.filePath, file.name);
+});
+
+const deleteDocument = asyncHandler(async (req, res) => {
+  const data = await requests.removeDocument(req.user, req.params.id, req.params.documentId);
+  sendSuccess(res, { message: 'Document deleted.', data });
+});
+
+module.exports = {
+  home, create, update, status, remove, uploadDocuments, downloadDocument, deleteDocument,
+};

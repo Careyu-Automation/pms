@@ -1,5 +1,6 @@
 const { query } = require('../db');
 const workload = require('./workload.service');
+const dailyFormat = require('./emailReport.dailyFormat');
 
 const TYPES = {
   DAILY_WORK: 'Daily Work Report',
@@ -155,11 +156,7 @@ function taskText(row) {
 }
 
 function dependencyText(row) {
-  const kind = DAILY_DEPENDENCY[row.dependencyType] || '';
-  const detail = String(row.dependencyDetails || '').trim();
-  if (!kind && !detail) return 'None';
-  if (!detail || detail === kind) return kind || detail;
-  return kind ? `${kind}: ${detail}` : detail;
+  return dailyFormat.dependencyText(row);
 }
 
 function dailyLine(row, shift) {
@@ -168,7 +165,7 @@ function dailyLine(row, shift) {
     row.projectName || 'No project',
     taskText(row),
     dependencyText(row),
-    DAILY_STATUS[row.status] || row.status || '—',
+    dailyFormat.statusLabel(row.status),
     sheetDate(row.startDate),
     sheetDate(row.deadline),
     hoursText(row),
@@ -204,33 +201,50 @@ function reportStamp(iso) {
   return `${String(day).padStart(2, '0')}-${MONTHS[month - 1]}-${year}`;
 }
 
-function dailySubject(iso, shift) {
-  const label = shift === 'Evening' ? 'Evening' : shift === 'Morning' ? 'Morning' : 'Daily';
-  return `${label} Status Report - ${reportStamp(iso)}`;
+function dailySubject(iso) {
+  const [year, month, day] = String(iso || '').slice(0, 10).split('-').map(Number);
+  if (!year || !month || !day) return 'Daily Work Updates Report';
+  return `Daily Work Updates Report — ${String(day).padStart(2, '0')}-${String(month).padStart(2, '0')}-${year}`;
 }
 
 async function daily(config, actor, period) {
+  // Daily Work emails always include every saved update for the date/period — no team/employee/project filters.
   const dailyWork = require('./dailyWork.service');
   const data = await dailyWork.list(actor, {
     range: 'custom',
     date: period.from,
     from: period.from,
     to: period.to,
-    employeeId: config.employeeId || '',
-    teamId: config.teamId || '',
-    projectId: config.projectId || '',
-    productId: config.productId || '',
-    workType: config.workType || '',
-    status: config.status || '',
-    priority: config.priority || '',
+    employeeId: '',
+    teamId: '',
+    projectId: '',
+    productId: '',
+    workType: '',
+    status: '',
+    priority: '',
     period: config.period === 'EVENING' || config.period === 'MORNING' ? config.period : '',
     savedOnly: true,
+    organization: true,
   });
   const updates = (data.updates || []).filter((row) => row.id);
   const shift = shiftLabel(config.period);
-  const columns = shift === 'Morning' ? DAILY_COLUMNS : EVENING_COLUMNS;
-  const rows = updates.map((row) => dailyLine(row, shift));
-  const blockers = updates.map((row) => [row.dependencyDetails, DAILY_DEPENDENCY[row.dependencyType] || ''].filter((item) => item && item !== 'None').join(' — '));
+  const groups = dailyFormat.groupByEmployee(updates);
+  const reportColumns = dailyFormat.reportColumns();
+  const sections = groups.map((group) => table(
+    group.employeeName,
+    reportColumns,
+    group.rows.map((row) => dailyFormat.reportRowCells(row)),
+    500,
+  ));
+  if (!sections.length) {
+    sections.push(table(
+      shift === 'Evening' ? 'Evening Daily Work Updates' : shift === 'Morning' ? 'Morning Daily Work Updates' : 'Daily Work Updates',
+      reportColumns,
+      [],
+      500,
+    ));
+  }
+  const blockers = updates.map((row) => dependencyText(row));
   return {
     kpis: [
       { label: 'Total work entries', value: updates.length },
@@ -242,11 +256,11 @@ async function daily(config, actor, period) {
       { label: 'Outstanding blockers or dependencies', value: attentionText(blockers) },
       { label: 'Next actions requiring attention', value: attentionText(updates.map((row) => row.nextAction)) },
     ],
-    sections: [table(shift === 'Evening' ? 'Evening Status Report' : shift === 'Morning' ? 'Morning Status Report' : 'Daily Status Report', columns, rows, 500)],
+    sections,
     bars: [],
     shift,
     dailyRows: updates,
-    empty: rows.length === 0,
+    empty: updates.length === 0,
     recordCount: updates.length,
   };
 }

@@ -376,6 +376,12 @@ function buildAccess(user, study) {
   const studyTeamLead = teams.some((team) => team.teamLeadId === user.id);
   const assignedAssessor = owner || studyTeamLead;
   const core = !locked && (pm || assignedAssessor);
+  const feasible = ['FEASIBLE', 'FEASIBLE_WITH_CONDITIONS'].includes(study.status);
+  const leadStatus = study.lead?.status || '';
+  const procurementDone = Boolean(study.solutionCostingId)
+    || leadStatus === 'PROCUREMENT_APPROVED'
+    || ['COSTING', 'COSTING_SUBMITTED', 'COSTING_CHANGES_REQUESTED', 'COSTING_APPROVED', 'QUOTATION', 'QUOTATION_SENT', 'NEGOTIATION', 'WON', 'CONVERTED'].includes(leadStatus);
+  const procurementPending = feasible && !procurementDone && ['FEASIBILITY_APPROVED', 'PROCUREMENT_SUBMITTED', ''].includes(leadStatus);
 
   return {
     canStart: !started && (pm || teamLeadRole || owner || studyTeamLead),
@@ -393,7 +399,9 @@ function buildAccess(user, study) {
     canApprove: study.status === 'UNDER_REVIEW' && pm,
     canRequestChanges: study.status === 'UNDER_REVIEW' && pm,
     canReject: study.status === 'UNDER_REVIEW' && pm,
-    canProceed: pm && ['FEASIBLE', 'FEASIBLE_WITH_CONDITIONS'].includes(study.status),
+    canProceed: pm && feasible && procurementDone,
+    procurementPending: Boolean(procurementPending),
+    procurementHref: '/procurement-requests',
     canUpload: started && !['NOT_FEASIBLE', 'REJECTED'].includes(study.status) && (pm || owner || studyTeamLead || memberTeamIds.length > 0),
     canDeleteDocuments: pm || owner || studyTeamLead,
     isOwner: owner,

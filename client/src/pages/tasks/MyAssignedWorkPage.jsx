@@ -15,6 +15,7 @@ import { useToast } from '../../context/ToastContext';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { usePageMeta } from '../../hooks/usePageMeta';
 import { listProjects } from '../../services/costing.service';
+import { TEAMS as PLAN_TEAMS } from '../../components/planning/planningModel';
 import { createNamedTask, createProductTask, createTask, listMyTasks, updateListedTask } from '../../services/planning.service';
 import { listProducts } from '../../services/products.service';
 import { formatDate } from '../../utils/format';
@@ -105,6 +106,7 @@ export default function MyAssignedWorkPage() {
   const [query, setQuery] = useState('');
   const [projectId, setProjectId] = useState('');
   const [productId, setProductId] = useState('');
+  const [teamFilter, setTeamFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [dueFilter, setDueFilter] = useState(() => {
@@ -124,10 +126,11 @@ export default function MyAssignedWorkPage() {
     q: query,
     projectId,
     productId,
+    team: teamFilter,
     status: statusFilter,
     priority: priorityFilter,
     due: dueFilter,
-  }), [dueFilter, priorityFilter, productId, projectId, query, statusFilter]);
+  }), [dueFilter, priorityFilter, productId, projectId, query, statusFilter, teamFilter]);
 
   const hasData = useRef(false);
 
@@ -286,6 +289,10 @@ export default function MyAssignedWorkPage() {
 
           <div className="mywork-toolbar">
             <input className="input" placeholder="Search tasks..." value={search} onChange={(event) => setSearch(event.target.value)} />
+            <select className="select" aria-label="Team" value={teamFilter} onChange={(event) => setTeamFilter(event.target.value)}>
+              <option value="">Team</option>
+              {PLAN_TEAMS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
             <select className="select" aria-label="Project" value={projectId} onChange={(event) => setProjectId(event.target.value)}>
               <option value="">Project</option>
               {data.projects.map((project) => <option key={project.id} value={project.id}>{project.title || project.code}</option>)}

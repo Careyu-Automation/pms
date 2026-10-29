@@ -311,12 +311,13 @@ async function respondToAssignment(assignmentId, body, user) {
 }
 
 async function prepareQuotation(leadId, body, user) {
-  if (!isBusinessHead(user) && actorKind(user) !== 'ADMIN') {
+  const kind = actorKind(user);
+  if (!isBusinessHead(user) && kind !== 'ADMIN' && kind !== 'CEO') {
     throw new ApiError(403, 'Only the Business Head can prepare a quotation.');
   }
   const lead = await leads.findById(leadId);
   if (!lead) throw new ApiError(404, 'Lead not found.');
-  if (!['COSTING_APPROVED', 'QUOTATION', 'NEGOTIATION'].includes(lead.status)) {
+  if (!['COSTING_APPROVED', 'QUOTATION', 'QUOTATION_SENT', 'NEGOTIATION'].includes(lead.status)) {
     throw new ApiError(409, 'A quotation starts after the project manager approves costing.');
   }
   const version = await query(`SELECT COALESCE(MAX(version_no), 0)::int AS version FROM quotations WHERE lead_id = $1`, [leadId]);
@@ -341,19 +342,25 @@ async function prepareQuotation(leadId, body, user) {
 }
 
 async function sendQuotation(quotationId, user) {
-  if (!isBusinessHead(user) && actorKind(user) !== 'ADMIN') throw new ApiError(403, 'Only the Business Head can send a quotation.');
+  const kind = actorKind(user);
+  if (!isBusinessHead(user) && kind !== 'ADMIN' && kind !== 'CEO') {
+    throw new ApiError(403, 'Only the Business Head can send a quotation.');
+  }
   const row = await query(`SELECT * FROM quotations WHERE id = $1`, [quotationId]);
   if (!row.rows[0]) throw new ApiError(404, 'Quotation not found.');
   if (!['DRAFT', 'READY_TO_SEND', 'INTERNAL_REVIEW'].includes(row.rows[0].status)) {
     throw new ApiError(409, 'This quotation has already been sent.');
   }
   await query(`UPDATE quotations SET status = 'SENT', sent_by = $2, sent_at = NOW() WHERE id = $1`, [quotationId, user.id]);
-  await markLead(row.rows[0].lead_id, 'NEGOTIATION', 'Negotiation', user.id, `Quotation V${row.rows[0].version_no} sent`);
+  await markLead(row.rows[0].lead_id, 'QUOTATION_SENT', 'Quotation Sent to Customer', user.id, `Quotation V${row.rows[0].version_no} sent to customer`);
   return { id: quotationId, status: 'SENT' };
 }
 
 async function negotiate(quotationId, body, user) {
-  if (!isBusinessHead(user) && actorKind(user) !== 'ADMIN') throw new ApiError(403, 'Only the Business Head can record negotiation.');
+  const kind = actorKind(user);
+  if (!isBusinessHead(user) && kind !== 'ADMIN' && kind !== 'CEO') {
+    throw new ApiError(403, 'Only the Business Head can record negotiation.');
+  }
   const row = await query(`SELECT * FROM quotations WHERE id = $1`, [quotationId]);
   if (!row.rows[0]) throw new ApiError(404, 'Quotation not found.');
   const status = NEGOTIATION.has(body.status) ? body.status : 'ONGOING';

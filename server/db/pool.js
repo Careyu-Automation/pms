@@ -12,7 +12,7 @@ const pool = new Pool(env.db.connectionString
       connectionTimeoutMillis: 15000,
       ssl: { rejectUnauthorized: false },
       options: '-c search_path=pms_app,public',
-      allowExitOnIdle: false,
+      allowExitOnIdle: true,
     }
   : {
       host: env.db.host,
@@ -23,7 +23,7 @@ const pool = new Pool(env.db.connectionString
       max: env.db.max,
       idleTimeoutMillis: env.db.idleTimeoutMillis,
       connectionTimeoutMillis: 5000,
-      allowExitOnIdle: false,
+      allowExitOnIdle: true,
     });
 
 pool.on('error', (error) => {

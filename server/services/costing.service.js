@@ -104,8 +104,17 @@ async function create(feasibilityId, user) {
   const study = await feasibilityRepository.findById(feasibilityId);
   if (!study) throw new ApiError(404, 'Feasibility study not found.');
   const gate = buildAccess(user, study);
-  if (!gate.canProceed) {
-    throw new ApiError(409, 'Solution and costing opens after the feasibility is feasible or feasible with conditions.');
+  if (!study.solutionCostingId) {
+    const procurement = require('./procurement.service');
+    const ready = await procurement.leadReadyForCosting(study.leadId);
+    if (!ready) {
+      throw new ApiError(409, 'Complete procurement and wait for PM approval before opening solution costing.');
+    }
+  }
+  if (!gate.canProceed && !study.solutionCostingId) {
+    throw new ApiError(409, gate.procurementPending
+      ? 'Complete procurement and wait for PM approval before opening solution costing.'
+      : 'Solution and costing opens after the feasibility is feasible or feasible with conditions.');
   }
   if (study.decision === 'FEASIBLE_WITH_CONDITIONS' && !String(study.conditions || '').trim()) {
     throw new ApiError(422, 'Record the conditions before creating solution and costing.');
@@ -460,7 +469,8 @@ function projectSummary(projects) {
 function projectAccess(user) {
   const code = user?.role?.code || '';
   const manage = ['admin', 'super_admin', 'project_manager', 'management', 'employee'].includes(code);
-  return { canEdit: manage, canDelete: manage, canComplete: manage, canPlan: manage };
+  const create = manage || roleAccess(user, 'APPROVED').canConvert;
+  return { canEdit: manage, canDelete: manage, canComplete: manage, canPlan: manage, canCreate: create };
 }
 
 function cleanDate(value) {
@@ -495,13 +505,24 @@ async function convert(id, user, body = {}) {
     approvedValue: quote.finalQuote,
     projectType: PROJECT_TYPES.has(body.projectType) ? body.projectType : '',
   });
-  if (created.alreadyExisted) {
+  if (created.alreadyExisted && created.hadOrder) {
     throw new ApiError(409, `This lead has already been converted to Project ${created.projectCode}.`, { projectId: created.id, projectCode: created.projectCode });
   }
   await repository.addActivity(id, current.version.id, user.id, 'Converted to Project');
-  await workflow.markLead(current.lead?.id, 'CONVERTED', 'Project Execution', user.id, `Converted to ${created.projectCode}`);
+  await workflow.markLead(current.lead?.id, 'CONVERTED', 'Active Project', user.id, `Converted to ${created.projectCode}`);
   await workflow.record('project', created.id, 'LEAD_CONVERTED', user.id, created.projectCode);
-  return { projectId: created.id, projectCode: created.projectCode, costing: present(await getOrThrow(id), user) };
+  // Ensure Active Projects listing even if the order row already existed without activation.
+  if (!created.activated) {
+    await repository.activateProject(created.id, user.id).catch(() => null);
+  }
+  return {
+    projectId: created.id,
+    projectCode: created.projectCode,
+    orderCode: created.orderCode || null,
+    promoted: Boolean(created.promoted),
+    activated: true,
+    costing: present(await getOrThrow(id), user),
+  };
 }
 
 const HUB_TEAMS = [
@@ -584,7 +605,7 @@ async function projectHub() {
   };
 }
 
-async function listProjects(view) {
+async function listProjects(view, user) {
   const projects = await repository.listProjects();
   const managers = (await userRepository.listActive()).map(toPublicUser).map((person) => ({
     id: person.id,
@@ -592,16 +613,81 @@ async function listProjects(view) {
     roleName: person.role?.name || '',
   }));
   const activity = await repository.listRecentActivity(8);
+  // Active Projects: confirmed-order activation only. Projects: all pre-sales + planning (incl. manual).
   const scoped = view === 'active'
     ? projects.filter((project) => isActiveProject(project))
-    : projects.filter((project) => project.leadId || project.costingId || project.orderCode);
+    : projects.filter((project) => project.status !== 'CANCELLED' || Boolean(project.orderCode));
+  let dependencyOptions = [];
+  try {
+    dependencyOptions = await repository.listDependencyOptions();
+  } catch {
+    dependencyOptions = [];
+  }
   return {
     projects: scoped,
     managers,
     activity,
     summary: projectSummary(scoped),
     view: view === 'active' ? 'active' : 'all',
+    access: projectAccess(user),
+    lifecycleStages: Object.entries(repository.STAGE_LABELS || {}).map(([value, label]) => ({ value, label })),
+    dependencyOptions,
   };
+}
+
+async function createProject(user, body = {}) {
+  const access = projectAccess(user);
+  if (!access.canCreate && !roleAccess(user, 'APPROVED').canConvert) {
+    throw new ApiError(403, 'You cannot create projects.');
+  }
+  const title = String(body.title || body.projectName || '').trim();
+  const startDate = cleanDate(body.startDate || body.plannedStartDate);
+  const targetDate = cleanDate(body.targetDate || body.endDate || body.expectedCompletionDate);
+  if (!title) throw new ApiError(400, 'Project name is required.');
+  if (!startDate) throw new ApiError(400, 'Start date is required.');
+  if (!targetDate) throw new ApiError(400, 'End date is required.');
+  if (targetDate < startDate) throw new ApiError(400, 'End date must be on or after the start date.');
+
+  const rawDeps = Array.isArray(body.dependencyIds)
+    ? body.dependencyIds
+    : Array.isArray(body.dependencies)
+      ? body.dependencies
+      : [];
+  const dependencyIds = [...new Set(rawDeps.map((value) => String(value || '').trim()).filter((id) => /^[0-9a-f-]{36}$/i.test(id)))];
+  if (dependencyIds.length) {
+    const { query } = require('../db');
+    const found = await query('SELECT id FROM users WHERE id = ANY($1::uuid[])', [dependencyIds]);
+    if (found.rows.length !== dependencyIds.length) {
+      throw new ApiError(400, 'One or more selected dependencies are not valid employees.');
+    }
+  }
+
+  const created = await repository.createManualProject(user.id, {
+    title: title.slice(0, 200),
+    customerName: String(body.customerName || '').trim().slice(0, 200) || 'Internal',
+    description: String(body.description || '').trim().slice(0, 4000) || '',
+    ownerId: user.id,
+    projectManagerId: dependencyIds[0] || user.id,
+    projectType: PROJECT_TYPES.has(body.projectType) ? body.projectType : 'Internal',
+    lifecycleStage: 'PROJECT_CREATED',
+    priority: 'MEDIUM',
+    startDate,
+    targetDate,
+    dependencyIds,
+  });
+  if (created.alreadyExisted) {
+    throw new ApiError(409, `A project already exists for this lead (${created.projectCode}).`, {
+      projectId: created.id,
+      projectCode: created.projectCode,
+    });
+  }
+  return getProject(created.id, user);
+}
+
+async function queryLead(leadId) {
+  const { query } = require('../db');
+  const result = await query('SELECT id FROM leads WHERE id = $1', [leadId]);
+  return result.rows[0] || null;
 }
 
 async function confirmPayment(id, user, body = {}) {
@@ -659,8 +745,10 @@ async function eligibleOpportunities(user) {
 async function updateProject(id, user, body = {}) {
   const project = await repository.findProject(id);
   if (!project) throw new ApiError(404, 'Project not found.');
-  const access = roleAccess(user, 'APPROVED');
-  if (!access.canConvert) throw new ApiError(403, 'You cannot edit this project.');
+  const access = projectAccess(user);
+  if (!access.canEdit && !roleAccess(user, 'APPROVED').canConvert) {
+    throw new ApiError(403, 'You cannot edit this project.');
+  }
   const title = String(body.title || '').trim();
   const projectManagerId = String(body.projectManagerId || project.projectManagerId || '').trim();
   if (!title) throw new ApiError(400, 'Project name is required.');
@@ -671,6 +759,24 @@ async function updateProject(id, user, body = {}) {
   if (teamCode) await require('../services/team.service').assertTeamCode(teamCode);
   const projectCode = String(body.projectCode || project.projectCode || '').trim().slice(0, 20);
   if (!projectCode) throw new ApiError(400, 'Project code is required.');
+  const lifecycleStage = body.lifecycleStage != null
+    ? String(body.lifecycleStage).trim()
+    : project.lifecycleStage;
+  if (lifecycleStage && !repository.LIFECYCLE_STAGES.has(lifecycleStage)) {
+    throw new ApiError(400, 'Lifecycle stage is not valid.');
+  }
+  let leadId = body.leadId !== undefined ? String(body.leadId || '').trim() || null : undefined;
+  if (leadId) {
+    if (!/^[0-9a-f-]{36}$/i.test(leadId)) throw new ApiError(400, 'Lead ID is not valid.');
+    const lead = await queryLead(leadId);
+    if (!lead) throw new ApiError(404, 'Linked lead was not found.');
+  }
+  const ownerId = body.ownerId != null
+    ? String(body.ownerId || '').trim()
+    : project.ownerId;
+  if (ownerId && !/^[0-9a-f-]{36}$/i.test(ownerId)) {
+    throw new ApiError(400, 'Project owner is not valid.');
+  }
   let updated;
   try {
     updated = await repository.updateProject(id, {
@@ -685,6 +791,25 @@ async function updateProject(id, user, body = {}) {
       department: String(body.department ?? project.department ?? '').trim().slice(0, 100),
       teamCode,
       projectCode,
+      customerContact: String(body.customerContact ?? project.customerContact ?? '').trim().slice(0, 200),
+      leadId,
+      lifecycleStage,
+      ownerId: ownerId || null,
+      enquiryReference: body.enquiryReference !== undefined
+        ? String(body.enquiryReference || '').trim().slice(0, 200)
+        : project.enquiryReference,
+      customerRequirements: body.customerRequirements !== undefined
+        ? String(body.customerRequirements || '').trim().slice(0, 4000)
+        : project.customerRequirements,
+      estimatedBudget: body.estimatedBudget !== undefined
+        ? (body.estimatedBudget === '' || body.estimatedBudget == null ? null : Number(body.estimatedBudget))
+        : project.estimatedBudget,
+      expectedOrderValue: body.expectedOrderValue !== undefined
+        ? (body.expectedOrderValue === '' || body.expectedOrderValue == null ? null : Number(body.expectedOrderValue))
+        : project.expectedOrderValue,
+      notes: body.notes !== undefined
+        ? String(body.notes || '').trim().slice(0, 4000)
+        : project.notes,
     }, user.id);
   } catch (error) {
     if (error.code === '23505') throw new ApiError(409, 'That project code is already in use.');
@@ -696,8 +821,16 @@ async function updateProject(id, user, body = {}) {
 async function deleteProject(id, user) {
   const project = await repository.findProject(id);
   if (!project) throw new ApiError(404, 'Project not found.');
-  const access = roleAccess(user, 'APPROVED');
-  if (!access.canConvert) throw new ApiError(403, 'You cannot delete this project.');
+  const access = projectAccess(user);
+  if (!access.canDelete && !roleAccess(user, 'APPROVED').canConvert) {
+    throw new ApiError(403, 'You cannot delete this project.');
+  }
+  if (project.isActivated || project.orderCode) {
+    throw new ApiError(409, 'Activated or order-linked projects cannot be deleted. Cancel them instead.');
+  }
+  if (project.costingId) {
+    throw new ApiError(409, 'Projects linked to solution costing cannot be deleted.');
+  }
   const removed = await repository.deleteProject(id);
   if (!removed) throw new ApiError(409, 'This project could not be deleted.');
   return { id };
@@ -764,6 +897,7 @@ module.exports = {
   bomCsv,
   convert,
   listProjects,
+  createProject,
   projectHub,
   getProject,
   updateProjectStatus,

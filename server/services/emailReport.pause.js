@@ -1,6 +1,7 @@
 const ZONE = 'Asia/Kolkata';
-const RESUME_ON = '2026-11-02';
-const PAUSE_MESSAGE = 'Daily Work Update emails are paused until 2 November 2026. No message was sent.';
+// Pause window ended — daily work emails send on the configured schedule.
+const RESUME_ON = '2026-10-28';
+const PAUSE_MESSAGE = 'Daily Work Update emails are paused. No message was sent.';
 
 function kolkataDate(date = new Date()) {
   return new Intl.DateTimeFormat('en-CA', {

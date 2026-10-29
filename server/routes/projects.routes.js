@@ -49,6 +49,7 @@ const router = express.Router();
 
 router.use(requireAuth);
 router.get('/', solution.listProjects);
+router.post('/', solution.createProject);
 router.get('/hub', solution.projectHub);
 router.get('/eligible', solution.eligibleProjects);
 router.get('/:id/plan', planning.getPlan);

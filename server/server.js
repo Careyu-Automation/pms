@@ -48,6 +48,22 @@ async function start() {
   });
   require('./realtime/hub').attach(server);
   const emailReports = require('./services/emailReport.service');
+  require('./services/dailyWorkReport.bootstrap').ensureDailyWorkReport()
+    .then((result) => {
+      if (result.missing?.length) {
+        logger.warn('daily_work_report_recipients_missing', { missing: result.missing });
+      }
+      (result.reports || []).forEach((item) => {
+        logger.info('daily_work_report_ready', {
+          reportId: item.reportId,
+          period: item.period,
+          sendTime: item.sendTime,
+          nextRunAt: item.nextRunAt,
+          timezone: result.timezone,
+        });
+      });
+    })
+    .catch((error) => logger.error('daily_work_report_bootstrap', { message: error.message }));
   const timer = setInterval(() => {
     emailReports.tick().catch((error) => logger.error('email_report_tick', { message: error.message }));
   }, 60000);

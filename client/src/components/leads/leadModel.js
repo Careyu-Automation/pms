@@ -11,11 +11,15 @@ export const LEAD_STATUSES = {
   FEASIBILITY_SUBMITTED: { label: 'Feasibility with PM', tone: 'info' },
   FEASIBILITY_CHANGES_REQUESTED: { label: 'Feasibility changes', tone: 'warning' },
   FEASIBILITY_APPROVED: { label: 'Feasibility approved', tone: 'completed' },
-  COSTING: { label: 'Procurement & costing', tone: 'info' },
+  FEASIBILITY_REJECTED: { label: 'Feasibility rejected', tone: 'danger' },
+  PROCUREMENT_SUBMITTED: { label: 'Procurement with PM', tone: 'info' },
+  PROCUREMENT_APPROVED: { label: 'Procurement approved', tone: 'completed' },
+  COSTING: { label: 'Solution costing', tone: 'info' },
   COSTING_SUBMITTED: { label: 'Costing with PM', tone: 'info' },
   COSTING_CHANGES_REQUESTED: { label: 'Costing changes', tone: 'warning' },
   COSTING_APPROVED: { label: 'Costing approved', tone: 'completed' },
   QUOTATION: { label: 'Quotation', tone: 'info' },
+  QUOTATION_SENT: { label: 'Quotation Sent to Customer', tone: 'info' },
   NEGOTIATION: { label: 'Negotiation', tone: 'warning' },
   WON: { label: 'Won', tone: 'completed' },
   LOST: { label: 'Lost', tone: 'danger' },
@@ -27,9 +31,9 @@ export const WORKFLOW_STEPS = [
   'PM review',
   'Team assignment',
   'Feasibility',
+  'Procurement',
   'Costing',
   'Quotation',
-  'Negotiation',
   'Order',
 ];
 
@@ -134,9 +138,9 @@ export function workflowStep(status) {
   if (['SUBMITTED_TO_PM', 'PM_REVIEW', 'ON_HOLD', 'REJECTED'].includes(status)) return 1;
   if (['READY_FOR_TEAM_ASSIGNMENT', 'PM_APPROVED'].includes(status)) return 2;
   if (String(status || '').startsWith('FEASIBILITY')) return 3;
-  if (String(status || '').startsWith('COSTING')) return 4;
-  if (status === 'QUOTATION') return 5;
-  if (['NEGOTIATION', 'WON', 'LOST'].includes(status)) return 6;
+  if (String(status || '').startsWith('PROCUREMENT')) return 4;
+  if (String(status || '').startsWith('COSTING')) return 5;
+  if (status === 'QUOTATION' || status === 'QUOTATION_SENT' || ['NEGOTIATION', 'WON', 'LOST'].includes(status)) return 6;
   if (status === 'CONVERTED') return 7;
   return 0;
 }

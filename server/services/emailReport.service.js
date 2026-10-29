@@ -5,7 +5,7 @@ const repository = require('../db/emailReport.repository');
 const generate = require('./emailReport.generate');
 const files = require('./emailReport.export');
 const mail = require('./emailReport.mail');
-const { dailyWorkEmailsPaused, firstRunAfterPause, nextRunAt, PAUSE_MESSAGE } = require('./emailReport.pause');
+const { dailyWorkEmailsPaused, firstRunAfterPause, nextRunAt, PAUSE_MESSAGE, kolkataDate } = require('./emailReport.pause');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -112,6 +112,43 @@ function inputOf(body, current, schedule) {
   return draft;
 }
 
+function normalizePerson(value) {
+  return String(value || '').toLowerCase().replace(/^(mr\.?|mrs\.?|ms\.?)\s+/i, '').replace(/\s+/g, ' ').trim();
+}
+
+function matchDirectoryPeople(people, matchers) {
+  const found = [];
+  const seen = new Set();
+  for (const matcher of matchers) {
+    const person = (people || []).find((row) => {
+      const name = normalizePerson(row.name || row.fullName);
+      const email = String(row.email || '').toLowerCase();
+      const designation = String(row.designation || '').toLowerCase();
+      if (matcher.emailPrefix && email.startsWith(String(matcher.emailPrefix).toLowerCase())) return true;
+      if (matcher.designation && matcher.designation.test(designation)) return true;
+      return (matcher.keys || []).some((key) => name === key || name.startsWith(`${key} `) || name.includes(key));
+    });
+    if (person?.id && !seen.has(person.id)) {
+      seen.add(person.id);
+      found.push(person.id);
+    }
+  }
+  return found;
+}
+
+function dailyWorkRecipientDefaults(people) {
+  const toIds = matchDirectoryPeople(people, [
+    { keys: ['arivan'], emailPrefix: 'robotlead1@' },
+    { keys: ['sabarigiri'], emailPrefix: 'engg1.director@' },
+    { keys: ['bernard', 'ceo'], emailPrefix: 'ceo@', designation: /\bceo\b/i },
+  ]);
+  const ccIds = matchDirectoryPeople(people, [
+    { keys: ['raja'], emailPrefix: 'raja@' },
+    { keys: ['shradha'], emailPrefix: 'businesshead@' },
+  ]).filter((id) => !toIds.includes(id));
+  return { toIds, ccIds };
+}
+
 async function home(user, filters = {}) {
   const owner = ownerFilter(user);
   const clauses = [];
@@ -133,16 +170,16 @@ async function home(user, filters = {}) {
     clauses.push(`lower(r.name) LIKE $${params.length}`);
   }
   const where = `${owner.sql}${clauses.length ? `${owner.sql ? ' AND' : ' WHERE'} ${clauses.join(' AND ')}` : ''}`;
-  const [reports, configured, counts, upcoming, recent, templateRows, choices, settings] = await Promise.all([
-    repository.listReports(where, params),
-    repository.reportCount(owner.sql, owner.params),
-    repository.kpis(owner.sql, owner.params),
-    repository.upcoming(owner.sql, owner.params),
-    repository.recentRuns(owner.sql, owner.params),
-    repository.templates(),
-    repository.options(),
-    repository.settings(),
-  ]);
+  // Sequential reads keep pool usage low on shared Aiven plans (parallel home loads caused 53300).
+  const reports = await repository.listReports(where, params);
+  const configured = await repository.reportCount(owner.sql, owner.params);
+  const counts = await repository.kpis(owner.sql, owner.params);
+  const upcoming = await repository.upcoming(owner.sql, owner.params);
+  const recent = await repository.recentRuns(owner.sql, owner.params);
+  const templateRows = await repository.templates();
+  const choices = await repository.options();
+  const settings = await repository.settings();
+  const defaults = dailyWorkRecipientDefaults(choices.people || []);
   return {
     configured: configured > 0,
     kpis: counts,
@@ -153,7 +190,9 @@ async function home(user, filters = {}) {
     options: choices,
     types: generate.TYPES,
     sections: generate.CUSTOM_SECTIONS,
-    defaultRecipientIds: (choices.people || []).filter((person) => /^robotlead1@/i.test(person.email || '')).map((person) => person.id),
+    defaultRecipientIds: defaults.toIds,
+    defaultToRecipientIds: defaults.toIds,
+    defaultCcRecipientIds: defaults.ccIds,
     mail: mail.publicSettings(settings),
     access: { canCreate: true, canSettings: isAdmin(user), canSend: true },
   };
@@ -240,25 +279,30 @@ async function queueSend(user, id, { test = false, attemptOf = null } = {}) {
   assertOwner(user, report);
   const recipients = await repository.recipients(id);
   if (!test && !recipients.length) throw new ApiError(400, 'Add at least one recipient.');
+  const mailSettings = mail.publicSettings(await repository.settings());
+  if (!mailSettings.configured) {
+    throw new ApiError(400, 'Email is not configured. An administrator needs to save the SMTP settings.');
+  }
   const key = `${id}:${test ? 'test' : 'send'}`;
   if (queued.has(key)) throw new ApiError(409, 'This report is already being sent.');
   queued.add(key);
   try {
-  const runId = await repository.insertRun({
-    reportId: id,
-    reportName: report.name,
-    reportType: report.type,
-    attachment: test ? 'NONE' : report.attachment,
-    sentBy: user.id,
-    isTest: test,
-    attemptOf,
-    snapshot: {},
-  });
+    const runId = await repository.insertRun({
+      reportId: id,
+      reportName: report.name,
+      reportType: report.type,
+      attachment: test ? 'NONE' : report.attachment,
+      sentBy: user.id,
+      isTest: test,
+      attemptOf,
+      snapshot: {},
+    });
     await repository.activity(id, user.id, test ? 'Test email requested' : 'Report send requested');
     await processRun(runId);
     const finished = await repository.findRun(runId);
     if (!finished || finished.status === 'FAILED') throw new ApiError(400, finished?.error || 'The email could not be delivered.');
-    return { runId, status: finished.status };
+    if (finished.status !== 'SENT') throw new ApiError(400, 'The email provider did not accept the message.');
+    return { runId, status: finished.status, recordCount: Number(finished.recordCount || 0) };
   } finally {
     queued.delete(key);
   }
@@ -270,6 +314,17 @@ function enqueue(runId) {
   setImmediate(() => {
     processRun(runId).catch(() => {}).finally(() => queued.delete(runId));
   });
+}
+
+function withReportDate(report) {
+  const config = { ...(report.configuration || {}) };
+  if (report.type === 'DAILY_WORK') {
+    const today = kolkataDate();
+    if (!DATE.test(config.dateFrom || '')) config.dateFrom = today;
+    if (!DATE.test(config.dateTo || '')) config.dateTo = config.dateFrom || today;
+    if (!config.period) config.period = 'EVENING';
+  }
+  return { ...report, configuration: config };
 }
 
 async function processRun(runId) {
@@ -285,9 +340,27 @@ async function processRun(runId) {
     return;
   }
   const actorRow = await repository.userById(run.sentBy || report.ownerId);
-  const actor = actorRow ? toPublicUser(actorRow) : { id: report.ownerId, role: { code: 'employee' }, email: '' };
+  const actor = actorRow
+    ? toPublicUser(actorRow)
+    : { id: report.ownerId, role: { code: 'admin' }, email: '' };
+  // Org-wide digests must not be limited by the sender's personal task visibility.
+  if (report.type === 'DAILY_WORK' && report.scope === 'ORGANIZATION') {
+    actor.role = { ...(actor.role || {}), code: actor.role?.code || 'admin' };
+  }
   try {
-    const snapshot = await generate.build(report, actor);
+    const prepared = withReportDate(report);
+    if (!run.isTest && report.type === 'DAILY_WORK' && report.frequency === 'DAILY') {
+      const duplicateId = await repository.alreadySentToday(report.id, prepared.configuration.dateFrom);
+      if (duplicateId) {
+        await repository.finishRun(runId, {
+          status: 'FAILED',
+          error: 'A report for this date was already delivered. Duplicate send blocked.',
+          snapshot: {},
+        });
+        return;
+      }
+    }
+    const snapshot = await generate.build(prepared, actor);
     if (report.type === 'DAILY_WORK' && snapshot.empty) {
       throw new ApiError(400, 'No daily work updates found for the selected date.');
     }
@@ -299,7 +372,10 @@ async function processRun(runId) {
     const flat = [...resolved.to, ...resolved.cc, ...resolved.bcc];
     if (!flat.length) throw new ApiError(400, 'No valid recipients were found for this report.');
     const settings = await repository.settings();
-    await mail.sendMail(settings, {
+    if (!mail.resolveSettings(settings).configured) {
+      throw new ApiError(400, 'Email is not configured. An administrator needs to save the SMTP settings.');
+    }
+    const delivery = await mail.sendMail(settings, {
       to: resolved.to.map((item) => item.email),
       cc: resolved.cc.map((item) => item.email),
       bcc: resolved.bcc.map((item) => item.email),
@@ -310,17 +386,33 @@ async function processRun(runId) {
     for (const item of flat) {
       await repository.insertDelivery(runId, { ...item, status: 'SENT', sentAt: new Date() });
     }
+    const snapshotForHistory = {
+      ...snapshot,
+      recordCount: snapshot.recordCount || (snapshot.dailyRows || []).length,
+      configuration: prepared.configuration,
+    };
     await repository.finishRun(runId, {
-      status: 'SENT', subject, snapshot, recipientCount: flat.length,
+      status: 'SENT', subject, snapshot: snapshotForHistory, recipientCount: flat.length,
       fileName: attachment && !run.isTest && report.attachment !== 'NONE' ? attachment.name : '',
       fileBody: attachment && !run.isTest && report.attachment !== 'NONE' ? attachment.body : null,
     });
     if (!run.isTest) await repository.touchSent(report.id, new Date(), nextRunAt(report), report.status === 'FAILED' ? 'ACTIVE' : report.status);
+    await repository.activity(report.id, actor.id, run.isTest ? 'Test email sent' : 'Report sent');
+    return delivery;
   } catch (error) {
-    const message = error.statusCode ? error.message : 'The email could not be delivered.';
+    const message = error.statusCode ? error.message : (mail.classifySmtpError(error).message || 'The email could not be delivered.');
+    if (!error.statusCode) {
+      try {
+        const logger = require('../utils/logger');
+        logger.error('email_report_send_failed', { runId, code: error.code || '', message: error.message });
+      } catch {
+        /* optional logger */
+      }
+    }
     await repository.finishRun(runId, { status: 'FAILED', error: message, snapshot: {} });
     if (!run.isTest && report.frequency !== 'MANUAL') {
-      await repository.setStatus(report.id, 'FAILED', report.nextRunAt);
+      // Keep schedule active after a delivery failure so the next day still runs.
+      await repository.setNext(report.id, nextRunAt({ ...report, status: 'ACTIVE' }));
       await leaveRepository.notify([report.ownerId], `Report failed: ${report.name}`, message, '/email-reports');
     }
     await repository.activity(report.id, actor.id, 'Report failed');
@@ -455,25 +547,68 @@ async function readSettings(user) {
 
 async function writeSettings(user, body) {
   if (!isAdmin(user)) throw new ApiError(403, 'Only an administrator can change email settings.');
+  let host = clean(body.host, 200);
   const fromEmail = clean(body.fromEmail, 200).toLowerCase();
-  if (fromEmail && !EMAIL.test(fromEmail)) throw new ApiError(400, 'Enter a valid From email address.');
   const replyTo = clean(body.replyTo, 200).toLowerCase();
+  let port = Number(body.port);
+  let secure = Boolean(body.secure);
+  if (host && EMAIL.test(host)) {
+    throw new ApiError(400, 'SMTP host must be a server name like smtp.gmail.com, not an email address.');
+  }
+  if (/gmail\.com$/i.test(host) && !/^smtp\./i.test(host)) {
+    host = 'smtp.gmail.com';
+  }
+  if (host.toLowerCase() === 'smtp.gmail.com') {
+    if (!port || port === 25) port = secure ? 465 : 587;
+    if (port === 465) secure = true;
+    if (port === 587) secure = false;
+  }
+  if (host && !fromEmail) throw new ApiError(400, 'A from address is required when SMTP host is set.');
+  if (fromEmail && !EMAIL.test(fromEmail)) throw new ApiError(400, 'Enter a valid From email address.');
   if (replyTo && !EMAIL.test(replyTo)) throw new ApiError(400, 'Enter a valid reply-to address.');
-  const port = Number(body.port);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new ApiError(400, 'Enter a valid SMTP port.');
+  const current = await repository.settings();
+  const password = String(body.password || '');
+  if (host && !password && !current?.password_enc && !(require('../config/env').smtp.pass)) {
+    throw new ApiError(400, 'Enter the SMTP password (or app password) to complete configuration.');
+  }
   await repository.saveSettings({
     provider: 'SMTP',
-    host: clean(body.host, 200),
+    host,
     port,
-    username: clean(body.username, 200),
-    passwordEnc: body.password ? mail.encrypt(body.password) : '',
+    username: clean(body.username, 200) || fromEmail,
+    passwordEnc: password ? mail.encrypt(password) : '',
     fromName: clean(body.fromName, 120) || 'CareYu Automation',
     fromEmail,
     replyTo,
-    secure: Boolean(body.secure),
+    secure,
     updatedBy: user.id,
   });
   return mail.publicSettings(await repository.settings());
+}
+
+async function testSmtpConnection(user) {
+  if (!isAdmin(user)) throw new ApiError(403, 'Only an administrator can test email settings.');
+  return mail.verifyConnection(await repository.settings());
+}
+
+async function sendSmtpTestEmail(user, body = {}) {
+  if (!isAdmin(user)) throw new ApiError(403, 'Only an administrator can send a test email.');
+  const settings = await repository.settings();
+  const resolved = mail.resolveSettings(settings);
+  if (!resolved.configured) {
+    throw new ApiError(400, 'Email is not configured. An administrator needs to save the SMTP settings.');
+  }
+  const target = clean(body.to || user.email, 200).toLowerCase();
+  if (!EMAIL.test(target)) throw new ApiError(400, 'Enter a valid email address for the test message.');
+  const result = await mail.sendMail(resolved, {
+    to: [target],
+    cc: [],
+    bcc: [],
+    subject: 'CareYu SMTP test',
+    html: `<p>This is a test message from CareYu Automation Project Hub.</p><p>SMTP host: <strong>${resolved.host}</strong></p><p>If you received this email, delivery is working.</p>`,
+  });
+  return { ok: true, to: target, messageId: result.messageId || '' };
 }
 
 async function tick() {
@@ -481,6 +616,7 @@ async function tick() {
   ticking = true;
   try {
     const now = new Date();
+    const today = kolkataDate(now);
     const due = await repository.due(now);
     for (const report of due) {
       if (report.type === 'DAILY_WORK' && dailyWorkEmailsPaused(now)) {
@@ -489,6 +625,13 @@ async function tick() {
       }
       const next = nextRunAt({ ...report, status: 'ACTIVE' }, now);
       await repository.setNext(report.id, next);
+      if (report.type === 'DAILY_WORK') {
+        const already = await repository.alreadySentToday(report.id, today);
+        if (already) {
+          await repository.activity(report.id, report.ownerId, 'Duplicate scheduled send skipped');
+          continue;
+        }
+      }
       const runId = await repository.insertRun({
         reportId: report.id,
         reportName: report.name,
@@ -509,5 +652,6 @@ async function tick() {
 
 module.exports = {
   home, detail, save, duplicate, setReportStatus, remove, preview, previewFile,
-  queueSend, history, runDetail, downloadRun, retry, saveTemplate, readSettings, writeSettings, tick,
+  queueSend, history, runDetail, downloadRun, retry, saveTemplate, readSettings, writeSettings,
+  testSmtpConnection, sendSmtpTestEmail, tick,
 };

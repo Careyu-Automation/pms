@@ -1,3 +1,29 @@
+.project-board .form-error {
+  margin: 0;
+  color: var(--danger, #b42318);
+  font-size: 0.9rem;
+}
+
+.project-dep-field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.project-dep-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px 12px;
+  margin-top: 6px;
+}
+
+.project-dep-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.92rem;
+}
+
 .project-board__head {
   display: flex;
   justify-content: space-between;

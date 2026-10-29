@@ -35,7 +35,11 @@ const NEXT = {
 };
 const REVIEW = new Set(['UNDER_REVIEW', 'APPROVED', 'REJECTED', 'ORDERED', 'RECEIVED']);
 const LABEL = Object.fromEntries(STATUSES);
-const EMPTY = { title: '', description: '', priority: 'MEDIUM', projectId: '', teamId: '', vendorName: '', neededBy: '', justification: '', items: [{ description: '', quantity: 1, unit: '', estimatedCost: '' }] };
+const EMPTY = {
+  title: '', description: '', priority: 'MEDIUM', projectId: '', teamId: '', leadId: '',
+  vendorName: '', neededBy: '', justification: '', noPurchaseRequired: false,
+  items: [{ description: '', quantity: 1, unit: '', estimatedCost: '' }],
+};
 
 function money(value) {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(Number(value) || 0);
@@ -72,10 +76,13 @@ export default function ProcurementRequestsPage() {
       priority: row.priority,
       projectId: row.projectId || '',
       teamId: row.teamId || '',
+      leadId: row.leadId || '',
       vendorName: row.vendorName || '',
       neededBy: row.neededBy || '',
       justification: row.justification || '',
-      items: row.items.length ? row.items.map((item) => ({ ...item, estimatedCost: item.estimatedCost })) : EMPTY.items,
+      noPurchaseRequired: Boolean(row.noPurchaseRequired),
+      documents: row.documents || [],
+      items: row.items.length ? row.items.map((item) => ({ ...item, estimatedCost: item.estimatedCost })) : [{ ...EMPTY.items[0] }],
     });
   }
 
@@ -121,7 +128,7 @@ export default function ProcurementRequestsPage() {
     <PageContainer>
       <PageHeader
         title="Procurement Requests"
-        description="Request, review, and track items that need to be purchased."
+        description="After feasibility approval, record purchases or mark no purchase required, then submit to the project manager before solution costing."
         actions={<Button onClick={() => { setError(''); setForm({ ...EMPTY, items: [{ description: '', quantity: 1, unit: '', estimatedCost: '' }] }); }}>+ New Request</Button>}
       />
 
@@ -159,7 +166,7 @@ export default function ProcurementRequestsPage() {
               <table className="pr-table">
                 <thead>
                   <tr>
-                    <th>Request</th><th>Title</th><th>Project</th><th>Vendor</th><th>Requested by</th><th>Priority</th><th>Status</th><th>Needed by</th><th>Amount</th><th>Actions</th>
+                    <th>Request</th><th>Title</th><th>Lead</th><th>Project</th><th>Vendor</th><th>Requested by</th><th>Priority</th><th>Status</th><th>Needed by</th><th>Amount</th><th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -168,7 +175,8 @@ export default function ProcurementRequestsPage() {
                     return (
                       <tr key={row.id}>
                         <td>{row.number}</td>
-                        <td>{row.title}</td>
+                        <td>{row.title}{row.noPurchaseRequired ? ' · No purchase' : ''}</td>
+                        <td>{row.leadCode || '—'}</td>
                         <td>{row.projectTitle || '—'}</td>
                         <td>{row.vendorName || '—'}</td>
                         <td>{row.requestedByName}</td>
@@ -210,6 +218,12 @@ export default function ProcurementRequestsPage() {
                 </select>
               </label>
               <label><span>Needed by</span><input className="input" type="date" value={form.neededBy} onChange={(event) => setForm({ ...form, neededBy: event.target.value })} /></label>
+              <label><span>Lead</span>
+                <select className="select" value={form.leadId} onChange={(event) => setForm({ ...form, leadId: event.target.value })}>
+                  <option value="">No lead</option>
+                  {(options.leads || []).map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </select>
+              </label>
               <label><span>Project</span>
                 <select className="select" value={form.projectId} onChange={(event) => setForm({ ...form, projectId: event.target.value })}>
                   <option value="">No project</option>
@@ -225,19 +239,48 @@ export default function ProcurementRequestsPage() {
               <label><span>Vendor</span><input className="input" value={form.vendorName} onChange={(event) => setForm({ ...form, vendorName: event.target.value })} placeholder="Preferred vendor, if known" /></label>
             </div>
             <label><span>Description *</span><textarea className="input" rows={4} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="What needs to be bought, and why." /></label>
-            <label><span>Justification</span><textarea className="input" rows={2} value={form.justification} onChange={(event) => setForm({ ...form, justification: event.target.value })} /></label>
-            <div className="pr-lines">
-              <header><strong>Items</strong><button type="button" onClick={() => setForm({ ...form, items: [...form.items, { description: '', quantity: 1, unit: '', estimatedCost: '' }] })}>Add item</button></header>
-              {form.items.map((item, index) => (
-                <div key={index} className="pr-line">
-                  <input className="input" value={item.description} placeholder="Item" onChange={(event) => setItem(index, 'description', event.target.value)} />
-                  <input className="input" type="number" min="1" value={item.quantity} aria-label="Quantity" onChange={(event) => setItem(index, 'quantity', event.target.value)} />
-                  <input className="input" value={item.unit} placeholder="Unit" onChange={(event) => setItem(index, 'unit', event.target.value)} />
-                  <input className="input" type="number" min="0" value={item.estimatedCost} placeholder="Cost" aria-label="Estimated cost" onChange={(event) => setItem(index, 'estimatedCost', event.target.value)} />
-                  <button type="button" onClick={() => setForm({ ...form, items: form.items.filter((_, itemIndex) => itemIndex !== index) })}>Remove</button>
-                </div>
-              ))}
-            </div>
+            <label className="pr-check">
+              <input type="checkbox" checked={Boolean(form.noPurchaseRequired)} onChange={(event) => setForm({ ...form, noPurchaseRequired: event.target.checked })} />
+              <span>No purchase required for this lead</span>
+            </label>
+            <label><span>{form.noPurchaseRequired ? 'Justification *' : 'Justification'}</span><textarea className="input" rows={2} value={form.justification} onChange={(event) => setForm({ ...form, justification: event.target.value })} placeholder={form.noPurchaseRequired ? 'Explain why no purchase is needed.' : 'Optional purchase justification.'} /></label>
+            {!form.noPurchaseRequired ? (
+              <div className="pr-lines">
+                <header><strong>Items</strong><button type="button" onClick={() => setForm({ ...form, items: [...form.items, { description: '', quantity: 1, unit: '', estimatedCost: '' }] })}>Add item</button></header>
+                {form.items.map((item, index) => (
+                  <div key={index} className="pr-line">
+                    <input className="input" value={item.description} placeholder="Item" onChange={(event) => setItem(index, 'description', event.target.value)} />
+                    <input className="input" type="number" min="1" value={item.quantity} aria-label="Quantity" onChange={(event) => setItem(index, 'quantity', event.target.value)} />
+                    <input className="input" value={item.unit} placeholder="Unit" onChange={(event) => setItem(index, 'unit', event.target.value)} />
+                    <input className="input" type="number" min="0" value={item.estimatedCost} placeholder="Cost" aria-label="Estimated cost" onChange={(event) => setItem(index, 'estimatedCost', event.target.value)} />
+                    <button type="button" onClick={() => setForm({ ...form, items: form.items.filter((_, itemIndex) => itemIndex !== index) })}>Remove</button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {form.id ? (
+              <div className="pr-lines">
+                <header><strong>Supporting documents</strong></header>
+                {(form.documents || []).length ? (
+                  <ul className="pr-docs">{form.documents.map((doc) => <li key={doc.id}>{doc.originalName}</li>)}</ul>
+                ) : <p className="reports-note">Upload documents after saving, from a follow-up edit when files are ready.</p>}
+                <input type="file" multiple onChange={async (event) => {
+                  const files = Array.from(event.target.files || []);
+                  if (!files.length || !form.id) return;
+                  try {
+                    const { uploadProcurementDocuments } = await import('../../services/procurement.service');
+                    const payload = await uploadProcurementDocuments(form.id, files);
+                    setForm((current) => ({ ...current, documents: payload.data.documents || [] }));
+                    push({ tone: 'success', message: 'Documents uploaded.' });
+                    await load();
+                  } catch (err) {
+                    push({ tone: 'danger', message: err.message });
+                  } finally {
+                    event.target.value = '';
+                  }
+                }} />
+              </div>
+            ) : null}
           </div>
         ) : null}
       </Modal>

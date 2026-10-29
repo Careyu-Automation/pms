@@ -107,12 +107,24 @@ async function emailSettings() {
 
 async function saveEmailSettings(input) {
   await query(
-    `UPDATE email_settings
-     SET provider = 'SMTP', host = $1, port = $2, username = $3,
-         password_enc = CASE WHEN $4 = '' THEN password_enc ELSE $4 END,
-         from_name = $5, from_email = $6, reply_to = $7, secure = $8, updated_by = $9, updated_at = NOW()
-     WHERE id = 1`,
-    [input.host, input.port, input.username, input.passwordEnc, input.fromName, input.fromEmail, input.replyTo, input.secure, input.updatedBy],
+    `INSERT INTO email_settings (
+       id, provider, host, port, username, password_enc, from_name, from_email, reply_to, secure, updated_by, updated_at
+     ) VALUES (
+       1, 'SMTP', $1, $2, $3, NULLIF($4, ''), $5, $6, $7, $8, $9, NOW()
+     )
+     ON CONFLICT (id) DO UPDATE SET
+       provider = 'SMTP',
+       host = EXCLUDED.host,
+       port = EXCLUDED.port,
+       username = EXCLUDED.username,
+       password_enc = CASE WHEN EXCLUDED.password_enc IS NULL OR EXCLUDED.password_enc = '' THEN email_settings.password_enc ELSE EXCLUDED.password_enc END,
+       from_name = EXCLUDED.from_name,
+       from_email = EXCLUDED.from_email,
+       reply_to = EXCLUDED.reply_to,
+       secure = EXCLUDED.secure,
+       updated_by = EXCLUDED.updated_by,
+       updated_at = NOW()`,
+    [input.host, input.port, input.username, input.passwordEnc || '', input.fromName, input.fromEmail, input.replyTo, input.secure, input.updatedBy],
   );
 }
 

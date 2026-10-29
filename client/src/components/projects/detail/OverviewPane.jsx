@@ -212,17 +212,21 @@ export function ProjectSidebar({ project, plan }) {
       <section>
         <h2>Details</h2>
         <dl>
+          <div><dt>Project owner</dt><dd>{project.ownerName || 'Not assigned'}</dd></div>
           <div><dt>Project manager</dt><dd>{project.projectManager || 'Not assigned'}</dd></div>
           <div><dt>Team</dt><dd>{projectTeamName(project)}</dd></div>
           <div><dt>Customer</dt><dd>{project.customerName || 'Not specified'}</dd></div>
           <div><dt>Department</dt><dd>{project.department || 'Not specified'}</dd></div>
           <div><dt>Priority</dt><dd><Badge tone={priority.tone}>{priority.label}</Badge></dd></div>
           <div><dt>Status</dt><dd><Badge tone={status.tone}>{status.label}</Badge></dd></div>
-          <div><dt>Current stage</dt><dd>{project.currentStage || status.label}</dd></div>
-          {project.leadCode ? <div><dt>Source lead</dt><dd><Link to={`/lead-pipeline/${project.leadId}`}>{project.leadCode}</Link></dd></div> : null}
+          <div><dt>Lifecycle stage</dt><dd><Badge tone="info">{project.currentStage || status.label}</Badge></dd></div>
+          {project.leadCode ? <div><dt>Linked lead</dt><dd><Link to={`/lead-pipeline/${project.leadId}`}>{project.leadCode}</Link></dd></div> : null}
+          {project.feasibilityId ? <div><dt>Feasibility</dt><dd><Link to={`/feasibility-studies/${project.feasibilityId}`}>Open study</Link></dd></div> : null}
+          {project.costingId ? <div><dt>Solution costing</dt><dd><Link to={`/solution-costing/${project.costingId}`}>{project.costingCode || 'Open costing'}</Link></dd></div> : null}
           <div><dt>Order ID</dt><dd>{project.orderCode || 'Not converted'}</dd></div>
-          <div><dt>Payment status</dt><dd>{paymentLabel}</dd></div>
-          <div><dt>Activation</dt><dd>{project.isActivated ? `Active · ${formatDate(project.activatedAt)}` : 'Pending activation'}</dd></div>
+          {project.orderCode ? <div><dt>Payment status</dt><dd>{paymentLabel}</dd></div> : null}
+          <div><dt>Activation</dt><dd>{project.isActivated ? `Active · ${formatDate(project.activatedAt)}` : 'Not in Active Projects'}</dd></div>
+          {project.enquiryReference ? <div><dt>Enquiry ref</dt><dd>{project.enquiryReference}</dd></div> : null}
           {project.holdReason ? <div><dt>Hold reason</dt><dd>{project.holdReason}</dd></div> : null}
           <div><dt>Created by</dt><dd>{project.createdBy || 'Not recorded'}</dd></div>
         </dl>

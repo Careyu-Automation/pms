@@ -343,25 +343,38 @@ async function saveAdmin(user, body) {
 }
 
 async function saveSmtp(user, smtp) {
-  const host = text(smtp.host, 200);
+  let host = text(smtp.host, 200);
   const fromEmail = text(smtp.fromEmail, 200).toLowerCase();
-  const port = numberIn(smtp.port, 1, 65535, 587);
+  let port = numberIn(smtp.port, 1, 65535, 587);
+  let secure = bool(smtp.secure);
   const fields = {};
+  if (host && EMAIL.test(host)) {
+    fields['smtp.host'] = 'Use smtp.gmail.com here, not the email address.';
+  }
+  if (/gmail\.com$/i.test(host) && !/^smtp\./i.test(host)) host = 'smtp.gmail.com';
+  if (host.toLowerCase() === 'smtp.gmail.com') {
+    if (port === 465) secure = true;
+    if (port === 587) secure = false;
+  }
   if (host && !fromEmail) fields['smtp.fromEmail'] = 'A from address is required when SMTP host is set.';
   if (fromEmail && !EMAIL.test(fromEmail)) fields['smtp.fromEmail'] = 'Enter a valid from email.';
   const replyTo = text(smtp.replyTo, 200).toLowerCase();
   if (replyTo && !EMAIL.test(replyTo)) fields['smtp.replyTo'] = 'Enter a valid reply-to email.';
-  if (Object.keys(fields).length) throw fieldsError(fields);
   const password = String(smtp.password || '');
+  const current = await repository.emailSettings();
+  if (host && !password && !current?.password_enc && !env.smtp?.pass) {
+    fields['smtp.password'] = 'Enter the Gmail app password (not the normal login password).';
+  }
+  if (Object.keys(fields).length) throw fieldsError(fields);
   await repository.saveEmailSettings({
     host,
     port,
-    username: text(smtp.username, 200),
+    username: text(smtp.username, 200) || fromEmail,
     passwordEnc: password ? mail.encrypt(password) : '',
     fromName: text(smtp.fromName, 120) || 'CareYu Automation',
     fromEmail,
     replyTo,
-    secure: bool(smtp.secure),
+    secure,
     updatedBy: user.id,
   });
 }

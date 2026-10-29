@@ -84,6 +84,13 @@
 
 .settings-field--wide { grid-column: 1 / -1; }
 
+.settings-smtp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
 .settings-field small { color: var(--text-muted); }
 
 .settings-error { color: var(--danger, #b42318); font-weight: 600; }

@@ -13,7 +13,7 @@ import {
 } from '../../components/feasibility/FeasibilitySections';
 import {
   ActivityPanel,
-  ConclusionPanel,
+  FeasibilitySolutionPanel,
   OverviewPanel,
   ProgressTrack,
   RequirementsPanel,
@@ -25,6 +25,7 @@ import {
 } from '../../components/feasibility/FeasibilityWorkspace';
 import {
   FEASIBILITY_STATUSES,
+  SOLUTION_DOCUMENT_TYPES,
   TABS,
   TEST_STATUSES,
   calculateProgress,
@@ -81,6 +82,7 @@ export default function FeasibilityDetailPage() {
   const [changesNote, setChangesNote] = useState('');
   const [pendingDelete, setPendingDelete] = useState(null);
   const [uploadType, setUploadType] = useState('Customer Requirements');
+  const [solutionUploadType, setSolutionUploadType] = useState(SOLUTION_DOCUMENT_TYPES[0]);
   const [uploadTeamId, setUploadTeamId] = useState('');
   const [editing, setEditing] = useState(false);
   const [editSnapshot, setEditSnapshot] = useState(null);
@@ -212,7 +214,7 @@ export default function FeasibilityDetailPage() {
       else if (issues.documents) setTab('documents');
       else if (issues.validation || issues.technicalFeasibility || issues.estimatedTimeline) setTab('validation');
       else if (issues.risks || issues.customerInputs) setTab('risks');
-      else setTab('review');
+      else setTab('solution');
       return;
     }
     setSubmitOpen(true);
@@ -255,7 +257,7 @@ export default function FeasibilityDetailPage() {
       setChangesNote('');
       const messages = {
         approve: 'Feasibility approved.',
-        changes: 'Changes requested. The feasibility team can update and resubmit.',
+        changes: 'Rework requested. The feasibility team can update the solution and resubmit.',
         reject: 'Feasibility rejected.',
       };
       push({ tone: 'success', message: messages[action] || 'Review recorded.' });
@@ -325,7 +327,7 @@ export default function FeasibilityDetailPage() {
     }
   }
 
-  async function onUpload(event) {
+  async function uploadDocuments(event, documentType) {
     event.preventDefault();
     const input = event.currentTarget.querySelector('input[type="file"]');
     if (!input?.files?.length) {
@@ -333,7 +335,7 @@ export default function FeasibilityDetailPage() {
       return;
     }
     const formData = new FormData();
-    formData.append('documentType', uploadType);
+    formData.append('documentType', documentType || uploadType);
     if (uploadTeamId) formData.append('assignmentId', uploadTeamId);
     [...input.files].forEach((file) => formData.append('documents', file));
     setBusy('upload');
@@ -351,6 +353,14 @@ export default function FeasibilityDetailPage() {
     } finally {
       setBusy('');
     }
+  }
+
+  function onUpload(event) {
+    return uploadDocuments(event, uploadType);
+  }
+
+  function onSolutionUpload(event) {
+    return uploadDocuments(event, solutionUploadType);
   }
 
   async function onView(document) {
@@ -407,7 +417,7 @@ export default function FeasibilityDetailPage() {
         onCancelEdit={cancelEdit}
         onSave={onSave}
         onSubmit={askSubmit}
-        onUploadTab={() => setTab('documents')}
+        onUploadTab={() => setTab('solution')}
         onApprove={() => onReview('approve')}
         onChanges={() => { setChangesNote(''); setChangesOpen(true); }}
         onReject={() => { setChangesNote(''); setRejectOpen(true); }}
@@ -449,10 +459,34 @@ export default function FeasibilityDetailPage() {
         ) : null}
         {tab === 'communication' ? <CommunicationSection study={view} onStudy={setStudy} /> : null}
         {tab === 'activity' ? <ActivityPanel activity={study.activity} /> : null}
-        {tab === 'review' ? <ConclusionPanel study={view} users={users} onStudy={setStudy} onProceed={onProceed} /> : null}
+        {tab === 'solution' ? (
+          <FeasibilitySolutionPanel
+            study={view}
+            users={users}
+            onStudy={setStudy}
+            onProceed={onProceed}
+            onSave={onSave}
+            onSubmit={askSubmit}
+            onApprove={() => onReview('approve')}
+            onChanges={() => { setChangesNote(''); setChangesOpen(true); }}
+            onReject={() => { setChangesNote(''); setRejectOpen(true); }}
+            uploadType={solutionUploadType}
+            uploadTeamId={uploadTeamId}
+            onUploadType={setSolutionUploadType}
+            onUploadTeam={setUploadTeamId}
+            onUpload={onSolutionUpload}
+            onView={onView}
+            onDownload={onDownload}
+            onDelete={setPendingDelete}
+            currentUserId={user?.id}
+            busy={busy}
+            dirty={dirty}
+            editing={editing}
+          />
+        ) : null}
       </div>
 
-      <Modal open={submitOpen} title="Submit for PM Review?" onClose={() => setSubmitOpen(false)}>
+      <Modal open={submitOpen} title="Submit to PM?" onClose={() => setSubmitOpen(false)}>
         <div className="lead-confirm">
           <dl>
             <div><dt>Lead ID</dt><dd>{lead.leadCode || '—'}</dd></div>
@@ -461,7 +495,7 @@ export default function FeasibilityDetailPage() {
             <div><dt>Assigned teams</dt><dd>{(study.teams || []).map((team) => team.teamName).join(', ') || 'None'}</dd></div>
             <div><dt>Assessment completion</dt><dd>{counts.teamsComplete}/{counts.teamCount || 0} teams · {progress.teamInputs}%</dd></div>
             <div><dt>Documents</dt><dd>{counts.documentCount}</dd></div>
-            <div><dt>Feasibility conclusion</dt><dd>{statusMeta(FEASIBILITY_STATUSES, study.decision).label}</dd></div>
+            <div><dt>Feasibility decision</dt><dd>{statusMeta(FEASIBILITY_STATUSES, study.decision).label}</dd></div>
             <div><dt>Pending critical inputs</dt><dd>{counts.pendingCriticalInputs}</dd></div>
             <div><dt>Open critical risks</dt><dd>{counts.openCriticalRisks}</dd></div>
             <div><dt>POC / validation</dt><dd>{pocInfo.label}</dd></div>
@@ -469,10 +503,10 @@ export default function FeasibilityDetailPage() {
           {(counts.pendingCriticalInputs > 0 || counts.openCriticalRisks > 0) ? (
             <p className="feas-note">Outstanding items above will still be visible to the PM. Resolve critical blockers if this decision is Feasible.</p>
           ) : null}
-          <p>Submission locks the study for PM review, records activity, and notifies project managers.</p>
+          <p>Submission locks the feasibility solution for PM review, records history, and notifies project managers.</p>
           <div className="lead-confirm__actions">
             <Button variant="secondary" onClick={() => setSubmitOpen(false)}>Cancel</Button>
-            <Button onClick={onSubmit} loading={busy === 'submit'}>{study.submittedAt ? 'Resubmit for PM Review' : 'Submit for PM Review'}</Button>
+            <Button onClick={onSubmit} loading={busy === 'submit'}>{study.submittedAt ? 'Resubmit to PM' : 'Submit to PM'}</Button>
           </div>
         </div>
       </Modal>
@@ -488,15 +522,15 @@ export default function FeasibilityDetailPage() {
         </div>
       </Modal>
 
-      <Modal open={changesOpen} title="Request changes?" onClose={() => setChangesOpen(false)}>
+      <Modal open={changesOpen} title="Request rework?" onClose={() => setChangesOpen(false)}>
         <div className="lead-confirm">
           <label className="field" htmlFor="changes-note">
-            <span className="field__label">Changes required</span>
+            <span className="field__label">Rework comments</span>
             <textarea id="changes-note" className="textarea" rows={3} value={changesNote} onChange={(event) => setChangesNote(event.target.value)} />
           </label>
           <div className="lead-confirm__actions">
             <Button variant="secondary" onClick={() => setChangesOpen(false)}>Cancel</Button>
-            <Button onClick={() => onReview('changes')} loading={busy === 'changes'}>Request changes</Button>
+            <Button onClick={() => onReview('changes')} loading={busy === 'changes'}>Request rework</Button>
           </div>
         </div>
       </Modal>

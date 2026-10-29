@@ -92,6 +92,16 @@ const writeSettings = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'Email settings saved.', data });
 });
 
+const testConnection = asyncHandler(async (req, res) => {
+  const data = await reports.testSmtpConnection(req.user);
+  sendSuccess(res, { message: 'SMTP connection verified.', data });
+});
+
+const testSmtpEmail = asyncHandler(async (req, res) => {
+  const data = await reports.sendSmtpTestEmail(req.user, req.body || {});
+  sendSuccess(res, { message: 'Test email sent.', data });
+});
+
 function sendFile(res, file) {
   res.setHeader('Content-Type', file.type);
   res.setHeader('Content-Disposition', `attachment; filename="${file.name.replace(/"/g, '')}"`);
@@ -101,4 +111,5 @@ function sendFile(res, file) {
 module.exports = {
   home, detail, create, update, duplicate, status, remove, preview, previewFile,
   send, test, history, run, download, retry, saveTemplate, readSettings, writeSettings,
+  testConnection, testSmtpEmail,
 };

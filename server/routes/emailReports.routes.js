@@ -15,6 +15,8 @@ router.get('/runs/:id', reports.run);
 router.post('/runs/:id/retry', reports.retry);
 router.get('/settings', reports.readSettings);
 router.put('/settings', reports.writeSettings);
+router.post('/settings/test-connection', reports.testConnection);
+router.post('/settings/test-email', reports.testSmtpEmail);
 router.post('/templates', reports.saveTemplate);
 router.put('/templates/:id', reports.saveTemplate);
 router.post('/', reports.create);

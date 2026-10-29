@@ -24,3 +24,10 @@ export function setProcurementStatus(id, status) {
 export function deleteProcurementRequest(id) {
   return api(`/procurement-requests/${id}`, { method: 'DELETE' });
 }
+
+export function uploadProcurementDocuments(id, files, documentType = 'Supporting') {
+  const body = new FormData();
+  body.append('documentType', documentType);
+  (files || []).forEach((file) => body.append('documents', file));
+  return api(`/procurement-requests/${id}/documents`, { method: 'POST', body });
+}

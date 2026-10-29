@@ -283,10 +283,14 @@ function canTransition(from, to) {
 
 function roleAccess(user, versionStatus) {
   const code = user?.role?.code || '';
-  const { isPm, isTeamLead, isEngineeringDirector } = require('./workflow.roles');
+  const {
+    isPm, isTeamLead, isEngineeringDirector, isBusinessHead, canEditCostingCommercial, seesOrganization,
+  } = require('./workflow.roles');
   const pm = isPm(user);
-  const engineering = pm || isTeamLead(user) || isEngineeringDirector(user) || code === 'engineering' || code === 'design';
-  const procurement = pm || code === 'procurement' || isEngineeringDirector(user);
+  const businessHead = isBusinessHead(user);
+  const engineering = pm || isTeamLead(user) || isEngineeringDirector(user) || code === 'engineering' || code === 'design' || businessHead;
+  const procurement = pm || code === 'procurement' || isEngineeringDirector(user) || businessHead;
+  const commercial = canEditCostingCommercial(user);
   const sales = code === 'sales';
   const editable = EDITABLE.has(versionStatus);
   return {
@@ -294,16 +298,16 @@ function roleAccess(user, versionStatus) {
     canEditSolution: editable && engineering,
     canEditBom: editable && engineering,
     canEditProcurement: editable && procurement,
-    canEditCommercial: editable && pm,
-    canSave: editable && (engineering || procurement),
+    canEditCommercial: editable && commercial,
+    canSave: editable && (engineering || procurement || commercial),
     canReview: pm,
     canApprove: pm && versionStatus === 'SUBMITTED_FOR_APPROVAL',
-    canSubmitReview: pm && ['DRAFT', 'IN_PROGRESS', 'CHANGES_REQUESTED'].includes(versionStatus),
+    canSubmitReview: (pm || businessHead) && ['DRAFT', 'IN_PROGRESS', 'CHANGES_REQUESTED'].includes(versionStatus),
     canSubmitApproval: pm && versionStatus === 'INTERNAL_REVIEW',
     canDuplicate: engineering,
     canDelete: pm && ['DRAFT', 'IN_PROGRESS'].includes(versionStatus),
-    canConvert: pm && versionStatus === 'APPROVED',
-    salesOnly: sales && !pm && !engineering && !procurement,
+    canConvert: (pm || seesOrganization(user)) && versionStatus === 'APPROVED',
+    salesOnly: sales && !pm && !engineering && !procurement && !commercial,
   };
 }
 

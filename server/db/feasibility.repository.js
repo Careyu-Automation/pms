@@ -213,48 +213,62 @@ const STUDY_COLUMNS = `
 `;
 
 async function loadChildren(id) {
-  const [validation, assignments, members, assessments, requirements, risks, inputs, documents, leadDocuments, communications, activity] = await Promise.all([
-    query('SELECT * FROM feasibility_validations WHERE feasibility_id = $1', [id]),
-    query(`
+  // One pooled client for all child reads. Parallel pool.query() calls each take a
+  // slot and routinely exhaust shared Aiven plans (Postgres 53300) on detail pages.
+  const client = await pool.connect();
+  let validation;
+  let assignments;
+  let members;
+  let assessments;
+  let requirements;
+  let risks;
+  let inputs;
+  let documents;
+  let leadDocuments;
+  let communications;
+  let activity;
+  try {
+    validation = await client.query('SELECT * FROM feasibility_validations WHERE feasibility_id = $1', [id]);
+    assignments = await client.query(`
       SELECT a.*, team_lead_user.full_name AS team_lead_name
       FROM feasibility_team_assignments a
       LEFT JOIN users team_lead_user ON team_lead_user.id = a.team_lead_id
       WHERE a.feasibility_id = $1
       ORDER BY a.created_at
-    `, [id]),
-    query(`
+    `, [id]);
+    members = await client.query(`
       SELECT m.assignment_id, m.user_id, u.full_name
       FROM feasibility_team_members m
       JOIN feasibility_team_assignments a ON a.id = m.assignment_id
       JOIN users u ON u.id = m.user_id
       WHERE a.feasibility_id = $1
       ORDER BY u.full_name
-    `, [id]),
-    query(`
+    `, [id]);
+    assessments = await client.query(`
       SELECT s.*, reviewer.full_name AS reviewed_by_name
       FROM feasibility_assessments s
       JOIN feasibility_team_assignments a ON a.id = s.assignment_id
       LEFT JOIN users reviewer ON reviewer.id = s.reviewed_by
       WHERE a.feasibility_id = $1
-    `, [id]),
-    query('SELECT * FROM feasibility_requirements WHERE feasibility_id = $1 ORDER BY sort_order, parameter', [id]),
-    query(`
+    `, [id]);
+    requirements = await client.query('SELECT * FROM feasibility_requirements WHERE feasibility_id = $1 ORDER BY sort_order, parameter', [id]);
+    risks = await client.query(`
       SELECT r.*, u.full_name AS owner_name
       FROM feasibility_risks r
       LEFT JOIN users u ON u.id = r.owner_id
       WHERE r.feasibility_id = $1
       ORDER BY r.sort_order
-    `, [id]),
-    query('SELECT * FROM feasibility_customer_inputs WHERE feasibility_id = $1 ORDER BY sort_order', [id]),
-    query(`
+    `, [id]);
+    inputs = await client.query('SELECT * FROM feasibility_customer_inputs WHERE feasibility_id = $1 ORDER BY sort_order', [id]);
+    documents = await client.query(`
       SELECT d.*, u.full_name AS uploaded_by_name, a.team_code
       FROM feasibility_documents d
       LEFT JOIN users u ON u.id = d.uploaded_by
       LEFT JOIN feasibility_team_assignments a ON a.id = d.assignment_id
       WHERE d.feasibility_id = $1
       ORDER BY d.created_at DESC
-    `, [id]),
-    query(`
+    `, [id]);
+    leadDocuments = await client.query(`
       SELECT d.*, f.lead_id, creator.full_name AS uploaded_by_name
       FROM lead_documents d
       JOIN feasibility_studies f ON f.lead_id = d.lead_id
@@ -262,22 +276,24 @@ async function loadChildren(id) {
       LEFT JOIN users creator ON creator.id = l.created_by
       WHERE f.id = $1
       ORDER BY d.created_at DESC
-    `, [id]),
-    query(`
+    `, [id]);
+    communications = await client.query(`
       SELECT c.*, u.full_name AS created_by_name
       FROM feasibility_communications c
       LEFT JOIN users u ON u.id = c.created_by
       WHERE c.feasibility_id = $1
       ORDER BY c.occurred_on DESC NULLS LAST, c.created_at DESC
-    `, [id]),
-    query(`
+    `, [id]);
+    activity = await client.query(`
       SELECT a.*, u.full_name AS actor_name
       FROM feasibility_activity a
       LEFT JOIN users u ON u.id = a.actor_id
       WHERE a.feasibility_id = $1
       ORDER BY a.created_at
-    `, [id]),
-  ]);
+    `, [id]);
+  } finally {
+    client.release();
+  }
 
   const membersByAssignment = new Map();
   for (const row of members.rows) {

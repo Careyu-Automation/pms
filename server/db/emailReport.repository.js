@@ -1,4 +1,4 @@
-const { query } = require('./index');
+const { pool, query } = require('./index');
 
 function mapReport(row) {
   if (!row) return null;
@@ -156,34 +156,39 @@ async function reportCount(ownerClause, params) {
 }
 
 async function kpis(ownerClause, params) {
-  const active = await query(`SELECT COUNT(*)::int AS n FROM email_reports r ${ownerClause} ${ownerClause ? 'AND' : 'WHERE'} r.status = 'ACTIVE'`, params);
-  const today = await query(
-    `SELECT COUNT(*)::int AS n FROM email_reports r
-     ${ownerClause} ${ownerClause ? 'AND' : 'WHERE'} r.status = 'ACTIVE'
-     AND r.next_run_at IS NOT NULL
-     AND (r.next_run_at AT TIME ZONE 'Asia/Kolkata')::date = (NOW() AT TIME ZONE 'Asia/Kolkata')::date`,
-    params,
-  );
-  const sent = await query(
-    `SELECT COUNT(*)::int AS n FROM email_report_runs n
-     LEFT JOIN email_reports r ON r.id = n.report_id
-     WHERE n.status = 'SENT' AND n.started_at >= date_trunc('week', NOW())
-     ${ownerClause ? `AND (n.sent_by = $1 OR r.owner_id = $1)` : ''}`,
-    params,
-  );
-  const failed = await query(
-    `SELECT COUNT(*)::int AS n FROM email_report_runs n
-     LEFT JOIN email_reports r ON r.id = n.report_id
-     WHERE n.status IN ('FAILED', 'PARTIAL') AND n.started_at >= NOW() - INTERVAL '7 days'
-     ${ownerClause ? `AND (n.sent_by = $1 OR r.owner_id = $1)` : ''}`,
-    params,
-  );
-  return {
-    active: active.rows[0].n,
-    scheduledToday: today.rows[0].n,
-    sentThisWeek: sent.rows[0].n,
-    failed: failed.rows[0].n,
-  };
+  const client = await pool.connect();
+  try {
+    const active = await client.query(`SELECT COUNT(*)::int AS n FROM email_reports r ${ownerClause} ${ownerClause ? 'AND' : 'WHERE'} r.status = 'ACTIVE'`, params);
+    const today = await client.query(
+      `SELECT COUNT(*)::int AS n FROM email_reports r
+       ${ownerClause} ${ownerClause ? 'AND' : 'WHERE'} r.status = 'ACTIVE'
+       AND r.next_run_at IS NOT NULL
+       AND (r.next_run_at AT TIME ZONE 'Asia/Kolkata')::date = (NOW() AT TIME ZONE 'Asia/Kolkata')::date`,
+      params,
+    );
+    const sent = await client.query(
+      `SELECT COUNT(*)::int AS n FROM email_report_runs n
+       LEFT JOIN email_reports r ON r.id = n.report_id
+       WHERE n.status = 'SENT' AND n.started_at >= date_trunc('week', NOW())
+       ${ownerClause ? `AND (n.sent_by = $1 OR r.owner_id = $1)` : ''}`,
+      params,
+    );
+    const failed = await client.query(
+      `SELECT COUNT(*)::int AS n FROM email_report_runs n
+       LEFT JOIN email_reports r ON r.id = n.report_id
+       WHERE n.status IN ('FAILED', 'PARTIAL') AND n.started_at >= NOW() - INTERVAL '7 days'
+       ${ownerClause ? `AND (n.sent_by = $1 OR r.owner_id = $1)` : ''}`,
+      params,
+    );
+    return {
+      active: active.rows[0].n,
+      scheduledToday: today.rows[0].n,
+      sentThisWeek: sent.rows[0].n,
+      failed: failed.rows[0].n,
+    };
+  } finally {
+    client.release();
+  }
 }
 
 async function upcoming(ownerClause, params) {
@@ -304,6 +309,21 @@ async function insertDelivery(runId, row) {
   );
 }
 
+async function alreadySentToday(reportId, isoDate) {
+  const result = await query(
+    `SELECT id
+     FROM email_report_runs
+     WHERE report_id = $1
+       AND status = 'SENT'
+       AND COALESCE(is_test, FALSE) = FALSE
+       AND (started_at AT TIME ZONE 'Asia/Kolkata')::date = $2::date
+     ORDER BY started_at DESC
+     LIMIT 1`,
+    [reportId, isoDate],
+  );
+  return result.rows[0]?.id || null;
+}
+
 async function due(now) {
   const result = await query(
     `${REPORT_SELECT} WHERE r.status = 'ACTIVE' AND r.frequency <> 'MANUAL' AND r.next_run_at IS NOT NULL AND r.next_run_at <= $1
@@ -327,28 +347,45 @@ async function settings() {
 
 async function saveSettings(input) {
   await query(
-    `UPDATE email_settings SET provider=$1, host=$2, port=$3, username=$4, password_enc=CASE WHEN $5 = '' THEN password_enc ELSE $5 END,
-      from_name=$6, from_email=$7, reply_to=$8, secure=$9, updated_by=$10, updated_at=NOW()
-     WHERE id = 1`,
-    [input.provider, input.host, input.port, input.username, input.passwordEnc, input.fromName, input.fromEmail, input.replyTo, input.secure, input.updatedBy],
+    `INSERT INTO email_settings (
+       id, provider, host, port, username, password_enc, from_name, from_email, reply_to, secure, updated_by, updated_at
+     ) VALUES (
+       1, $1, $2, $3, $4, NULLIF($5, ''), $6, $7, $8, $9, $10, NOW()
+     )
+     ON CONFLICT (id) DO UPDATE SET
+       provider = EXCLUDED.provider,
+       host = EXCLUDED.host,
+       port = EXCLUDED.port,
+       username = EXCLUDED.username,
+       password_enc = CASE WHEN EXCLUDED.password_enc IS NULL OR EXCLUDED.password_enc = '' THEN email_settings.password_enc ELSE EXCLUDED.password_enc END,
+       from_name = EXCLUDED.from_name,
+       from_email = EXCLUDED.from_email,
+       reply_to = EXCLUDED.reply_to,
+       secure = EXCLUDED.secure,
+       updated_by = EXCLUDED.updated_by,
+       updated_at = NOW()`,
+    [input.provider, input.host, input.port, input.username, input.passwordEnc || '', input.fromName, input.fromEmail, input.replyTo, input.secure, input.updatedBy],
   );
 }
 
 async function options() {
-  const [teams, projects, people, products, workTypes] = await Promise.all([
-    query(`SELECT id, name FROM teams WHERE status = 'ACTIVE' ORDER BY name`),
-    query(`SELECT id, title, project_code FROM projects WHERE status <> 'CANCELLED' ORDER BY title LIMIT 200`),
-    query(`SELECT id, full_name, email FROM users WHERE is_active = TRUE ORDER BY full_name`),
-    query(`SELECT id, name FROM products ORDER BY name LIMIT 200`),
-    query(`SELECT code, name FROM daily_work_types WHERE is_active = TRUE ORDER BY sort_order`),
-  ]);
-  return {
-    teams: teams.rows.map((row) => ({ id: row.id, name: row.name })),
-    projects: projects.rows.map((row) => ({ id: row.id, name: row.title, code: row.project_code })),
-    people: people.rows.map((row) => ({ id: row.id, name: row.full_name, email: row.email })),
-    products: products.rows.map((row) => ({ id: row.id, name: row.name })),
-    workTypes: workTypes.rows.map((row) => ({ code: row.code, name: row.name })),
-  };
+  const client = await pool.connect();
+  try {
+    const teams = await client.query(`SELECT id, name FROM teams WHERE status = 'ACTIVE' ORDER BY name`);
+    const projects = await client.query(`SELECT id, title, project_code FROM projects WHERE status <> 'CANCELLED' ORDER BY title LIMIT 200`);
+    const people = await client.query(`SELECT id, full_name, email FROM users WHERE is_active = TRUE ORDER BY full_name`);
+    const products = await client.query(`SELECT id, name FROM products ORDER BY name LIMIT 200`);
+    const workTypes = await client.query(`SELECT code, name FROM daily_work_types WHERE is_active = TRUE ORDER BY sort_order`);
+    return {
+      teams: teams.rows.map((row) => ({ id: row.id, name: row.name })),
+      projects: projects.rows.map((row) => ({ id: row.id, name: row.title, code: row.project_code })),
+      people: people.rows.map((row) => ({ id: row.id, name: row.full_name, email: row.email })),
+      products: products.rows.map((row) => ({ id: row.id, name: row.name })),
+      workTypes: workTypes.rows.map((row) => ({ code: row.code, name: row.name })),
+    };
+  } finally {
+    client.release();
+  }
 }
 
 async function userById(id) {
@@ -388,6 +425,6 @@ async function roleEmails(code) {
 module.exports = {
   listReports, findReport, recipients, insertReport, updateReport, setStatus, setNext, touchSent, removeReport, reportCount,
   replaceRecipients, templates, findTemplate, insertTemplate, updateTemplate, kpis, upcoming, recentRuns,
-  insertRun, finishRun, findRun, deliveries, insertDelivery, due, activity, settings, saveSettings, options,
+  insertRun, finishRun, findRun, deliveries, insertDelivery, alreadySentToday, due, activity, settings, saveSettings, options,
   userById, emailsForUsers, emailsForTeam, roleEmails,
 };

@@ -59,3 +59,19 @@ export function downloadEmailRun(id, filename) {
 export function saveEmailTemplate(body, id) {
   return api(id ? `/email-reports/templates/${id}` : '/email-reports/templates', { method: id ? 'PUT' : 'POST', body });
 }
+
+export function loadEmailSettings() {
+  return api('/email-reports/settings');
+}
+
+export function saveEmailSettings(body) {
+  return api('/email-reports/settings', { method: 'PUT', body });
+}
+
+export function testEmailConnection() {
+  return api('/email-reports/settings/test-connection', { method: 'POST', body: {} });
+}
+
+export function sendSmtpTestEmail(body = {}) {
+  return api('/email-reports/settings/test-email', { method: 'POST', body });
+}

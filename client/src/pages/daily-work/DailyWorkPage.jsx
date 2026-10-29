@@ -17,6 +17,10 @@ export default function DailyWorkPage() {
   const { user } = useAuth();
   const { push } = useToast();
   const [date, setDate] = useState(isoToday());
+  const [teamId, setTeamId] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const [workStatus, setWorkStatus] = useState('');
   const [status, setStatus] = useState('loading');
   const [payload, setPayload] = useState(null);
   const [dirtyCount, setDirtyCount] = useState(0);
@@ -25,7 +29,16 @@ export default function DailyWorkPage() {
 
   const load = useCallback((quiet) => {
     if (!quiet) setStatus('loading');
-    return listDailyWork({ range: 'today', date, from: date, to: date })
+    return listDailyWork({
+      range: 'today',
+      date,
+      from: date,
+      to: date,
+      teamId: teamId || undefined,
+      employeeId: employeeId || undefined,
+      projectId: projectId || undefined,
+      status: workStatus || undefined,
+    })
       .then((result) => {
         setPayload(result.data);
         setStatus('ready');
@@ -34,7 +47,7 @@ export default function DailyWorkPage() {
         if (!quiet) setStatus('error');
         push({ tone: 'danger', message: error.message });
       });
-  }, [date, push]);
+  }, [date, employeeId, projectId, push, teamId, workStatus]);
 
   useEffect(() => { load(Boolean(payload)); }, [load]);
 
@@ -80,10 +93,21 @@ export default function DailyWorkPage() {
   }
 
   function exportFile(kind) {
-    const query = { range: 'today', date, from: date, to: date };
+    const query = {
+      range: 'today',
+      date,
+      from: date,
+      to: date,
+      teamId: teamId || undefined,
+      employeeId: employeeId || undefined,
+      projectId: projectId || undefined,
+      status: workStatus || undefined,
+    };
     const run = kind === 'pdf' ? exportDailyPdf : exportDailyExcel;
     run(query).catch((error) => push({ tone: 'danger', message: error.message }));
   }
+
+  const canFilterPeople = Boolean(payload?.access?.canAssignEmployee);
 
   return (
     <PageContainer>
@@ -103,7 +127,7 @@ export default function DailyWorkPage() {
           </div>
         </header>
 
-        <div className="daily-meta-bar">
+        <div className="daily-meta-bar daily-filters">
           <label className="daily-meta-field">
             <span>Report date</span>
             <input
@@ -114,10 +138,47 @@ export default function DailyWorkPage() {
               onChange={(event) => setDate(event.target.value || isoToday())}
             />
           </label>
-          <div className="daily-meta-field">
-            <span>Employee</span>
-            <strong>{user?.fullName || 'You'}</strong>
-          </div>
+          {canFilterPeople ? (
+            <label className="daily-meta-field">
+              <span>Team</span>
+              <select className="select" aria-label="Team" value={teamId} onChange={(event) => setTeamId(event.target.value)}>
+                <option value="">All teams</option>
+                {(lookups.teams || []).map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+              </select>
+            </label>
+          ) : null}
+          {canFilterPeople ? (
+            <label className="daily-meta-field">
+              <span>Employee</span>
+              <select className="select" aria-label="Employee" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}>
+                <option value="">All employees</option>
+                {(lookups.people || []).map((person) => <option key={person.id} value={person.id}>{person.fullName}</option>)}
+              </select>
+            </label>
+          ) : (
+            <div className="daily-meta-field">
+              <span>Employee</span>
+              <strong>{user?.fullName || 'You'}</strong>
+            </div>
+          )}
+          <label className="daily-meta-field">
+            <span>Project</span>
+            <select className="select" aria-label="Project" value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+              <option value="">All projects</option>
+              {(lookups.projects || []).map((project) => <option key={project.id} value={project.id}>{project.name || project.title}</option>)}
+            </select>
+          </label>
+          <label className="daily-meta-field">
+            <span>Status</span>
+            <select className="select" aria-label="Status" value={workStatus} onChange={(event) => setWorkStatus(event.target.value)}>
+              <option value="">All statuses</option>
+              <option value="NOT_STARTED">Not started</option>
+              <option value="IN_PROGRESS">In progress</option>
+              <option value="BLOCKED">Blocked</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="ON_HOLD">On hold</option>
+            </select>
+          </label>
         </div>
 
         {status === 'error' ? (

@@ -184,6 +184,7 @@ function matchesAssigned(task, query) {
   if (query.priority && PRIORITIES.has(query.priority) && task.priority !== query.priority) return false;
   if (query.projectId && task.projectId !== query.projectId) return false;
   if (query.productId && task.productId !== query.productId) return false;
+  if (query.team && TEAMS.has(query.team) && task.teamCode !== query.team) return false;
   const search = String(query.q || '').trim().toLowerCase();
   if (search) {
     const haystack = `${task.title} ${task.taskCode} ${task.projectTitle} ${task.productName} ${task.projectCode} ${task.productCode}`.toLowerCase();
@@ -258,9 +259,26 @@ async function listTasks(user, query = {}) {
   if (query.productId && id.test(query.productId)) filters.productId = query.productId;
   if (query.assigneeId && id.test(query.assigneeId)) filters.assigneeId = query.assigneeId;
   if (query.team && TEAMS.has(query.team)) filters.teamCode = query.team;
-  const tasks = await repository.listTasks(filters);
-  if (query.scope === 'team') return tasks.filter((task) => task.teamCode);
-  return tasks;
+  let tasks = await repository.listTasks(filters);
+  if (query.scope === 'team') tasks = tasks.filter((task) => task.teamCode);
+  if (query.status && TASK_STATUSES.has(query.status)) {
+    tasks = tasks.filter((task) => task.status === query.status);
+  }
+  return {
+    tasks,
+    ...sourceOptions(tasks),
+    people: await people(),
+  };
+}
+
+async function notifyAssignee(assigneeId, title, body, link) {
+  if (!assigneeId) return;
+  try {
+    const leaveRepository = require('../db/leave.repository');
+    await leaveRepository.notify([assigneeId], title, body, link);
+  } catch {
+    // Notification failure should not block task assignment.
+  }
 }
 
 function outsideParent(start, end, parentStart, parentEnd) {
@@ -393,6 +411,14 @@ async function createTask(projectId, user, body) {
     name ? `${name} was assigned to ${input.title}` : 'Task added',
     input.title,
   );
+  if (input.assigneeId && input.assigneeId !== user.id) {
+    await notifyAssignee(
+      input.assigneeId,
+      `New task assigned: ${input.title}`,
+      `${user.fullName || 'A teammate'} assigned you a task.`,
+      '/my-assigned-work',
+    );
+  }
   const plan = await getPlan(projectId);
   return { ...plan, createdId: id };
 }
@@ -426,6 +452,14 @@ async function logTaskChanges(owner, user, current, input) {
   if ((input.assigneeId || null) !== (current.assigneeId || null)) {
     const name = await assigneeName(input.assigneeId);
     notes.push(name ? `${name} was assigned to ${input.title}` : 'Assignee removed');
+    if (input.assigneeId && input.assigneeId !== user.id) {
+      await notifyAssignee(
+        input.assigneeId,
+        `Task assigned: ${input.title}`,
+        `${user.fullName || 'A teammate'} assigned you a task.`,
+        '/my-assigned-work',
+      );
+    }
   }
   if (!notes.length) notes.push('Task updated');
   await notes.reduce((chain, action) => chain.then(() => repository.addActivity(owner.projectId, user.id, action, input.title, owner.productId)), Promise.resolve());
@@ -446,6 +480,14 @@ async function createProductTask(productId, user, body) {
     input.title,
     productId,
   );
+  if (input.assigneeId && input.assigneeId !== user.id) {
+    await notifyAssignee(
+      input.assigneeId,
+      `New task assigned: ${input.title}`,
+      `${user.fullName || 'A teammate'} assigned you a task.`,
+      '/my-assigned-work',
+    );
+  }
   return repository.findTask(id);
 }
 

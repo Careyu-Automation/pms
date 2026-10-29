@@ -67,16 +67,46 @@ export const SPECIALTY = {
 };
 
 export const FEASIBILITY_STATUSES = {
-  NOT_STARTED: { label: 'Not Started', tone: 'neutral' },
+  NOT_STARTED: { label: 'Draft', tone: 'neutral' },
   IN_PROGRESS: { label: 'In Progress', tone: 'progress' },
-  PENDING_TEAM_INPUT: { label: 'Pending Assessment', tone: 'pending' },
-  UNDER_REVIEW: { label: 'Pending PM Review', tone: 'review' },
-  FEASIBLE: { label: 'Approved · Feasible', tone: 'completed' },
-  FEASIBLE_WITH_CONDITIONS: { label: 'Approved · Feasible with Conditions', tone: 'warning' },
+  PENDING_TEAM_INPUT: { label: 'In Progress', tone: 'pending' },
+  UNDER_REVIEW: { label: 'Submitted to PM', tone: 'review' },
+  FEASIBLE: { label: 'Approved', tone: 'completed' },
+  FEASIBLE_WITH_CONDITIONS: { label: 'Approved', tone: 'warning' },
   NOT_FEASIBLE: { label: 'Approved · Not Feasible', tone: 'danger' },
-  MORE_INFORMATION_REQUIRED: { label: 'Requires Further Investigation', tone: 'hold' },
+  MORE_INFORMATION_REQUIRED: { label: 'Rework Required', tone: 'hold' },
   REJECTED: { label: 'Rejected', tone: 'danger' },
 };
+
+export const SOLUTION_DOCUMENT_TYPES = [
+  'Feasibility Report',
+  'Solution Document',
+  'Drawing',
+  'Supporting File',
+  'Technical Specification',
+  'Cost Estimation',
+  'Other',
+];
+
+export function solutionStatusMeta(study) {
+  if (!study) return { key: 'DRAFT', label: 'Draft', tone: 'neutral' };
+  if (study.approvedAt || ['FEASIBLE', 'FEASIBLE_WITH_CONDITIONS', 'NOT_FEASIBLE'].includes(study.status)) {
+    return { key: 'APPROVED', label: 'Approved', tone: 'completed' };
+  }
+  if (study.status === 'UNDER_REVIEW') {
+    return { key: 'SUBMITTED', label: 'Submitted to PM', tone: 'review' };
+  }
+  if (study.status === 'REJECTED') {
+    return { key: 'REJECTED', label: 'Rejected', tone: 'danger' };
+  }
+  if (study.reviewNote && (study.status === 'IN_PROGRESS' || study.status === 'PENDING_TEAM_INPUT' || study.status === 'MORE_INFORMATION_REQUIRED')) {
+    return { key: 'REWORK', label: 'Rework Required', tone: 'hold' };
+  }
+  if (study.status === 'NOT_STARTED') {
+    return { key: 'DRAFT', label: 'Draft', tone: 'neutral' };
+  }
+  return { key: 'IN_PROGRESS', label: 'In Progress', tone: 'progress' };
+}
 
 export const TEAM_STATUSES = {
   NOT_STARTED: { label: 'Pending', tone: 'pending' },
@@ -162,7 +192,7 @@ export const TABS = [
   ['documents', 'Documents'],
   ['communication', 'Communication'],
   ['activity', 'Activity'],
-  ['review', 'PM Review'],
+  ['solution', 'Feasibility Solution'],
 ];
 
 const POC_PROGRESS = {
@@ -330,8 +360,13 @@ export function workflowSteps(study) {
     { label: 'Assessment Completed', done: teams.length > 0 && teams.every((team) => team.status === 'COMPLETED') },
     { label: 'Validation', done: pocDone },
     { label: 'Risk Review', done: riskDone && openRisks.filter((risk) => risk.riskLevel === 'CRITICAL').length === 0 },
-    { label: 'Pending PM Review', done: submitted },
+    { label: 'Submitted to PM', done: submitted },
     { label: 'PM Decision', done: reviewed },
+    {
+      label: 'Procurement',
+      done: Boolean(study.solutionCostingId)
+        || ['PROCUREMENT_APPROVED', 'COSTING', 'COSTING_SUBMITTED', 'COSTING_APPROVED', 'QUOTATION', 'QUOTATION_SENT', 'NEGOTIATION', 'WON', 'CONVERTED'].includes(study.lead?.status),
+    },
     { label: 'Solution & Costing', done: Boolean(study.solutionCostingId) },
   ];
   const current = steps.findIndex((step) => !step.done);

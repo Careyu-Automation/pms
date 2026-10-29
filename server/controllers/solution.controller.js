@@ -134,8 +134,17 @@ const projectHub = asyncHandler(async (req, res) => {
 });
 
 const listProjects = asyncHandler(async (req, res) => {
-  const data = await costingService.listProjects(req.query.view);
+  const data = await costingService.listProjects(req.query.view, req.user);
   sendSuccess(res, { message: 'Projects loaded.', data });
+});
+
+const createProject = asyncHandler(async (req, res) => {
+  const project = await costingService.createProject(req.user, req.body || {});
+  sendSuccess(res, {
+    status: 201,
+    message: `Project ${project.projectCode} created successfully.`,
+    data: { project },
+  });
 });
 
 const updateProjectStatus = asyncHandler(async (req, res) => {
@@ -180,6 +189,7 @@ module.exports = {
   exportBom,
   convert,
   listProjects,
+  createProject,
   projectHub,
   eligibleProjects,
   getProject,

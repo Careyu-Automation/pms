@@ -778,7 +778,7 @@ async function catalog() {
   const [people, teams, projects, products, types, memberships] = await Promise.all([
     query(`SELECT id, full_name FROM users WHERE is_active = TRUE AND account_status = 'ACTIVE' ORDER BY full_name`),
     query(`SELECT id, name FROM teams WHERE status = 'ACTIVE' ORDER BY name`),
-    query(`SELECT id, title FROM projects WHERE status <> 'CANCELLED' ORDER BY title LIMIT 300`),
+    query(`SELECT id, title, project_code FROM projects WHERE status <> 'CANCELLED' ORDER BY updated_at DESC NULLS LAST, title LIMIT 500`),
     query(`SELECT id, name FROM products ORDER BY name LIMIT 300`),
     query(`SELECT code, name FROM daily_work_types WHERE is_active = TRUE ORDER BY sort_order, name`),
     query(
@@ -791,7 +791,12 @@ async function catalog() {
   return {
     people: people.rows.map((row) => ({ id: row.id, fullName: row.full_name })),
     teams: teams.rows.map((row) => ({ id: row.id, name: row.name })),
-    projects: projects.rows.map((row) => ({ id: row.id, name: row.title })),
+    projects: projects.rows.map((row) => ({
+      id: row.id,
+      name: row.title,
+      code: row.project_code || '',
+      label: row.project_code ? `${row.project_code} · ${row.title}` : row.title,
+    })),
     products: products.rows.map((row) => ({ id: row.id, name: row.name })),
     workTypes: types.rows.map((row) => ({ code: row.code, name: row.name })),
     memberships: memberships.rows.map((row) => ({
