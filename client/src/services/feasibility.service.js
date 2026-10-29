@@ -36,16 +36,20 @@ export function uploadStudyDocuments(id, formData) {
   return apiForm(`/feasibility/${id}/documents`, formData);
 }
 
+function documentPath(id, documentId) {
+  return `/feasibility/${id}/documents/${encodeURIComponent(documentId)}`;
+}
+
 export function downloadStudyDocument(id, document) {
-  return apiDownload(`/feasibility/${id}/documents/${document.id}`, document.name);
+  return apiDownload(documentPath(id, document.id), document.name);
 }
 
 export function viewStudyDocument(id, document) {
-  return apiBlob(`/feasibility/${id}/documents/${document.id}?inline=1`);
+  return apiBlob(`${documentPath(id, document.id)}?inline=1`);
 }
 
 export function deleteStudyDocument(id, documentId) {
-  return api(`/feasibility/${id}/documents/${documentId}`, { method: 'DELETE' });
+  return api(documentPath(id, documentId), { method: 'DELETE' });
 }
 
 export function listCostings() {

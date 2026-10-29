@@ -9,6 +9,7 @@ import { Modal } from '../../components/ui/Modal';
 import {
   CommunicationSection,
   DocumentsSection,
+  TechnicalAssessmentSection,
 } from '../../components/feasibility/FeasibilitySections';
 import {
   ActivityPanel,
@@ -76,9 +77,10 @@ export default function FeasibilityDetailPage() {
   const [submitOpen, setSubmitOpen] = useState(false);
   const [proceedOpen, setProceedOpen] = useState(false);
   const [changesOpen, setChangesOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
   const [changesNote, setChangesNote] = useState('');
   const [pendingDelete, setPendingDelete] = useState(null);
-  const [uploadType, setUploadType] = useState('Other');
+  const [uploadType, setUploadType] = useState('Customer Requirement');
   const [uploadTeamId, setUploadTeamId] = useState('');
 
   const apply = useCallback((next) => {
@@ -161,22 +163,28 @@ export default function FeasibilityDetailPage() {
 
   function askSubmit() {
     const issues = submitIssues(study);
-    const message = Object.values(issues)[0];
-    if (message) {
-      push({ tone: 'warning', message });
-      setTab(issues.teams ? 'teams' : issues.customerInputs ? 'risks' : 'review');
+    const missing = Object.values(issues);
+    if (missing.length) {
+      push({ tone: 'warning', message: missing[0] });
+      if (issues.teams) setTab('teams');
+      else if (issues.documents) setTab('documents');
+      else if (issues.validation || issues.technicalFeasibility || issues.estimatedTimeline) setTab('validation');
+      else if (issues.risks || issues.customerInputs) setTab('risks');
+      else setTab('review');
       return;
     }
     setSubmitOpen(true);
   }
 
   async function onSubmit() {
+    if (busy === 'submit') return;
     setBusy('submit');
     try {
       const result = await submitStudy(study.id, study);
       apply(result.data.study);
       setSubmitOpen(false);
-      push({ tone: 'success', message: 'Feasibility submitted to the project manager.' });
+      push({ tone: 'success', message: study.submittedAt ? 'Feasibility resubmitted for PM review.' : 'Feasibility submitted for PM review.' });
+      setTab('review');
     } catch (error) {
       push({ tone: 'danger', message: error.message });
     } finally {
@@ -185,12 +193,24 @@ export default function FeasibilityDetailPage() {
   }
 
   async function onReview(action) {
+    if (busy === action) return;
+    if ((action === 'changes' || action === 'reject') && String(changesNote || '').trim().length < 2) {
+      push({ tone: 'warning', message: action === 'reject' ? 'A rejection reason is required.' : 'Describe the changes needed.' });
+      return;
+    }
     setBusy(action);
     try {
       const result = await reviewStudy(study.id, { action, note: changesNote });
       apply(result.data.study);
       setChangesOpen(false);
-      push({ tone: 'success', message: action === 'approve' ? 'Feasibility approved.' : 'Changes requested.' });
+      setRejectOpen(false);
+      setChangesNote('');
+      const messages = {
+        approve: 'Feasibility approved.',
+        changes: 'Changes requested. The feasibility team can update and resubmit.',
+        reject: 'Feasibility rejected.',
+      };
+      push({ tone: 'success', message: messages[action] || 'Review recorded.' });
     } catch (error) {
       push({ tone: 'danger', message: error.message });
     } finally {
@@ -337,7 +357,8 @@ export default function FeasibilityDetailPage() {
         onSave={onSave}
         onSubmit={askSubmit}
         onApprove={() => onReview('approve')}
-        onChanges={() => setChangesOpen(true)}
+        onChanges={() => { setChangesNote(''); setChangesOpen(true); }}
+        onReject={() => { setChangesNote(''); setRejectOpen(true); }}
         onProceed={onProceed}
       />
       <SummaryStrip statusInfo={statusInfo} counts={counts} pocLabel={pocInfo.label} />
@@ -353,7 +374,12 @@ export default function FeasibilityDetailPage() {
         {tab === 'overview' ? <OverviewPanel study={view} counts={counts} pocLabel={pocInfo.label} /> : null}
         {tab === 'requirements' ? <RequirementsPanel study={view} onStudy={setStudy} /> : null}
         {tab === 'teams' ? <TeamsWorkspace study={view} users={users} onStudy={setStudy} onSaveTeam={onSaveTeam} onReviewTeam={onReviewTeam} /> : null}
-        {tab === 'validation' ? <ValidationPanel study={view} onStudy={setStudy} /> : null}
+        {tab === 'validation' ? (
+          <div className="feas-stack">
+            <TechnicalAssessmentSection study={view} onStudy={setStudy} />
+            <ValidationPanel study={view} onStudy={setStudy} />
+          </div>
+        ) : null}
         {tab === 'risks' ? <RisksPanel study={view} users={users} onStudy={setStudy} /> : null}
         {tab === 'documents' ? (
           <DocumentsSection
@@ -374,20 +400,27 @@ export default function FeasibilityDetailPage() {
         {tab === 'review' ? <ConclusionPanel study={view} users={users} onStudy={setStudy} onProceed={onProceed} /> : null}
       </div>
 
-      <Modal open={submitOpen} title="Submit feasibility to project manager?" onClose={() => setSubmitOpen(false)}>
+      <Modal open={submitOpen} title="Submit for PM Review?" onClose={() => setSubmitOpen(false)}>
         <div className="lead-confirm">
           <dl>
-            <div><dt>Status</dt><dd>{statusInfo.label}</dd></div>
-            <div><dt>Team inputs</dt><dd>{progress.teamInputs}%</dd></div>
+            <div><dt>Lead ID</dt><dd>{lead.leadCode || '—'}</dd></div>
+            <div><dt>Customer</dt><dd>{lead.customerName || '—'}</dd></div>
+            <div><dt>Project</dt><dd>{lead.title || '—'}</dd></div>
+            <div><dt>Assigned teams</dt><dd>{(study.teams || []).map((team) => team.teamName).join(', ') || 'None'}</dd></div>
+            <div><dt>Assessment completion</dt><dd>{counts.teamsComplete}/{counts.teamCount || 0} teams · {progress.teamInputs}%</dd></div>
+            <div><dt>Documents</dt><dd>{counts.documentCount}</dd></div>
+            <div><dt>Feasibility conclusion</dt><dd>{statusMeta(FEASIBILITY_STATUSES, study.decision).label}</dd></div>
             <div><dt>Pending critical inputs</dt><dd>{counts.pendingCriticalInputs}</dd></div>
             <div><dt>Open critical risks</dt><dd>{counts.openCriticalRisks}</dd></div>
-            <div><dt>POC</dt><dd>{pocInfo.label}</dd></div>
-            <div><dt>Decision</dt><dd>{statusMeta(FEASIBILITY_STATUSES, study.decision).label}</dd></div>
+            <div><dt>POC / validation</dt><dd>{pocInfo.label}</dd></div>
           </dl>
-          <p>Once submitted, this feasibility study will be sent to the project manager for review.</p>
+          {(counts.pendingCriticalInputs > 0 || counts.openCriticalRisks > 0) ? (
+            <p className="feas-note">Outstanding items above will still be visible to the PM. Resolve critical blockers if this decision is Feasible.</p>
+          ) : null}
+          <p>Submission locks the study for PM review, records activity, and notifies project managers.</p>
           <div className="lead-confirm__actions">
             <Button variant="secondary" onClick={() => setSubmitOpen(false)}>Cancel</Button>
-            <Button onClick={onSubmit} loading={busy === 'submit'}>Submit to PM</Button>
+            <Button onClick={onSubmit} loading={busy === 'submit'}>{study.submittedAt ? 'Resubmit for PM Review' : 'Submit for PM Review'}</Button>
           </div>
         </div>
       </Modal>
@@ -406,12 +439,25 @@ export default function FeasibilityDetailPage() {
       <Modal open={changesOpen} title="Request changes?" onClose={() => setChangesOpen(false)}>
         <div className="lead-confirm">
           <label className="field" htmlFor="changes-note">
-            <span className="field__label">Note</span>
+            <span className="field__label">Changes required</span>
             <textarea id="changes-note" className="textarea" rows={3} value={changesNote} onChange={(event) => setChangesNote(event.target.value)} />
           </label>
           <div className="lead-confirm__actions">
             <Button variant="secondary" onClick={() => setChangesOpen(false)}>Cancel</Button>
             <Button onClick={() => onReview('changes')} loading={busy === 'changes'}>Request changes</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={rejectOpen} title="Reject feasibility study?" onClose={() => setRejectOpen(false)}>
+        <div className="lead-confirm">
+          <label className="field" htmlFor="reject-note">
+            <span className="field__label">Rejection reason</span>
+            <textarea id="reject-note" className="textarea" rows={3} value={changesNote} onChange={(event) => setChangesNote(event.target.value)} />
+          </label>
+          <div className="lead-confirm__actions">
+            <Button variant="secondary" onClick={() => setRejectOpen(false)}>Cancel</Button>
+            <Button variant="danger" onClick={() => onReview('reject')} loading={busy === 'reject'}>Reject</Button>
           </div>
         </div>
       </Modal>

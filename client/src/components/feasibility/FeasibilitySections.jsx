@@ -257,29 +257,36 @@ export function RequirementSection({ study, onStudy }) {
   );
 }
 
-export function TechnicalSection({ study, onStudy }) {
+export function TechnicalAssessmentSection({ study, onStudy }) {
   const disabled = !study.access?.canEditStudy;
-  const validation = study.validation || {};
   function setField(key, value) {
     onStudy((current) => ({ ...current, [key]: value }));
   }
+  return (
+    <Section title="Technical assessment" description="The engineering view of the lead. Save a draft at any time.">
+      <div className="feas-grid">
+        <TextArea id="technical-feasibility" label="Technical feasibility" value={study.technicalFeasibility} disabled={disabled} onChange={(value) => setField('technicalFeasibility', value)} />
+        <TextArea id="required-resources" label="Required resources" value={study.requiredResources} disabled={disabled} onChange={(value) => setField('requiredResources', value)} />
+        <TextArea id="proposed-solution" label="Proposed solution" value={study.proposedSolution} disabled={disabled} onChange={(value) => setField('proposedSolution', value)} />
+        <TextArea id="major-constraints" label="Major constraints" value={study.majorConstraints} disabled={disabled} onChange={(value) => setField('majorConstraints', value)} />
+        <TextArea id="estimated-timeline" label="Estimated timeline" value={study.estimatedTimeline} disabled={disabled} onChange={(value) => setField('estimatedTimeline', value)} />
+        <TextArea id="required-equipment" label="Required equipment / components" value={study.requiredEquipment} disabled={disabled} onChange={(value) => setField('requiredEquipment', value)} />
+        <TextArea id="technical-assumptions" label="Technical assumptions" value={study.technicalAssumptions} disabled={disabled} onChange={(value) => setField('technicalAssumptions', value)} />
+        <TextArea id="team-remarks" label="Team remarks" value={study.teamRemarks} disabled={disabled} onChange={(value) => setField('teamRemarks', value)} />
+      </div>
+    </Section>
+  );
+}
+
+export function TechnicalSection({ study, onStudy }) {
+  const disabled = !study.access?.canEditStudy;
+  const validation = study.validation || {};
   function setValidation(partial) {
     onStudy((current) => ({ ...current, validation: { ...current.validation, ...partial } }));
   }
   return (
     <div className="feas-stack">
-      <Section title="Technical assessment" description="The engineering view of the lead. Save a draft at any time.">
-        <div className="feas-grid">
-          <TextArea id="technical-feasibility" label="Technical feasibility" value={study.technicalFeasibility} disabled={disabled} onChange={(value) => setField('technicalFeasibility', value)} />
-          <TextArea id="required-resources" label="Required resources" value={study.requiredResources} disabled={disabled} onChange={(value) => setField('requiredResources', value)} />
-          <TextArea id="proposed-solution" label="Proposed solution" value={study.proposedSolution} disabled={disabled} onChange={(value) => setField('proposedSolution', value)} />
-          <TextArea id="major-constraints" label="Major constraints" value={study.majorConstraints} disabled={disabled} onChange={(value) => setField('majorConstraints', value)} />
-          <TextArea id="estimated-timeline" label="Estimated timeline" value={study.estimatedTimeline} disabled={disabled} onChange={(value) => setField('estimatedTimeline', value)} />
-          <TextArea id="required-equipment" label="Required equipment / components" value={study.requiredEquipment} disabled={disabled} onChange={(value) => setField('requiredEquipment', value)} />
-          <TextArea id="technical-assumptions" label="Technical assumptions" value={study.technicalAssumptions} disabled={disabled} onChange={(value) => setField('technicalAssumptions', value)} />
-          <TextArea id="team-remarks" label="Team remarks" value={study.teamRemarks} disabled={disabled} onChange={(value) => setField('teamRemarks', value)} />
-        </div>
-      </Section>
+      <TechnicalAssessmentSection study={study} onStudy={onStudy} />
 
       <Section title="Validation / POC" description="Use this for vision, robotics, measurement, automation, and cycle-time checks.">
         <div className="feas-grid">
@@ -670,11 +677,12 @@ export function CostingSection({ study, onProceed }) {
 
 export function DocumentsSection({ study, uploadType, uploadTeamId, onUploadType, onUploadTeam, onUpload, onView, onDownload, onDelete, currentUserId }) {
   const access = study.access || {};
+  const documents = study.documents || [];
   return (
-    <Section title="Feasibility documents" description="PDF, Office, spreadsheet, presentation, CSV, text, and image files. Each file stays with this feasibility study.">
+    <Section title="Documents" description="Lead creation files and feasibility uploads stay linked to this study. Preview and download go through the API — storage paths are never exposed.">
       {access.canUpload ? (
         <form className="feas-upload" onSubmit={onUpload}>
-          <Choice id="document-type" label="Document type" value={uploadType} options={DOCUMENT_TYPES} onChange={onUploadType} />
+          <Choice id="document-type" label="Document category" value={uploadType} options={DOCUMENT_TYPES} onChange={onUploadType} />
           <label className="field">
             <span className="field__label">Team</span>
             <select className="select" value={uploadTeamId} onChange={(event) => onUploadTeam(event.target.value)}>
@@ -694,33 +702,38 @@ export function DocumentsSection({ study, uploadType, uploadTeamId, onUploadType
           <thead>
             <tr>
               <th>File name</th>
+              <th>Document category</th>
               <th>Uploaded by</th>
               <th>Uploaded date</th>
-              <th>Document type</th>
-              <th>Size</th>
+              <th>Document source</th>
+              <th>Version</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {(study.documents || []).length ? study.documents.map((document) => (
-              <tr key={document.id}>
-                <td>{document.name}</td>
-                <td>{document.uploadedBy}</td>
-                <td>{formatDateTime(document.createdAt)}</td>
-                <td>{document.documentType}</td>
-                <td>{formatBytes(document.sizeBytes)}</td>
-                <td>
-                  <div className="lead-row-actions">
-                    <Button size="sm" variant="secondary" onClick={() => onView(document)}>View</Button>
-                    <Button size="sm" variant="secondary" onClick={() => onDownload(document)}>Download</Button>
-                    {access.canDeleteDocuments || document.uploadedById === currentUserId ? (
-                      <Button size="sm" variant="danger" onClick={() => onDelete(document)}>Delete</Button>
-                    ) : null}
-                  </div>
-                </td>
-              </tr>
-            )) : (
-              <tr><td colSpan={6}>No technical documents uploaded yet. Upload drawings, specifications, POC reports, or vendor documents.</td></tr>
+            {documents.length ? documents.map((document) => {
+              const canDelete = document.canDelete !== false && (access.canDeleteDocuments || document.uploadedById === currentUserId);
+              return (
+                <tr key={document.id}>
+                  <td>{document.name}</td>
+                  <td>{document.documentType || 'Other'}</td>
+                  <td>{document.uploadedBy}</td>
+                  <td>{formatDateTime(document.createdAt)}</td>
+                  <td>{document.sourceLabel || (document.source === 'LEAD' ? 'Lead Creation' : 'Feasibility Study')}</td>
+                  <td>{document.version || 1}</td>
+                  <td>
+                    <div className="lead-row-actions">
+                      <Button size="sm" variant="secondary" onClick={() => onView(document)}>View</Button>
+                      <Button size="sm" variant="secondary" onClick={() => onDownload(document)}>Download</Button>
+                      {canDelete ? (
+                        <Button size="sm" variant="danger" onClick={() => onDelete(document)}>Delete</Button>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              );
+            }) : (
+              <tr><td colSpan={7}>No documents yet. Files uploaded with the lead appear here automatically; you can also upload feasibility-specific drawings, specifications, or POC reports.</td></tr>
             )}
           </tbody>
         </table>

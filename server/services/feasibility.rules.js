@@ -20,10 +20,10 @@ const SPECIALTY_KEYS = {
 
 const STUDY_STATUSES = new Set([
   'NOT_STARTED', 'IN_PROGRESS', 'PENDING_TEAM_INPUT', 'UNDER_REVIEW',
-  'FEASIBLE', 'FEASIBLE_WITH_CONDITIONS', 'NOT_FEASIBLE', 'MORE_INFORMATION_REQUIRED',
+  'FEASIBLE', 'FEASIBLE_WITH_CONDITIONS', 'NOT_FEASIBLE', 'MORE_INFORMATION_REQUIRED', 'REJECTED',
 ]);
 
-const LOCKED_STATUSES = new Set(['UNDER_REVIEW', 'FEASIBLE', 'FEASIBLE_WITH_CONDITIONS', 'NOT_FEASIBLE']);
+const LOCKED_STATUSES = new Set(['UNDER_REVIEW', 'FEASIBLE', 'FEASIBLE_WITH_CONDITIONS', 'NOT_FEASIBLE', 'REJECTED']);
 const TEAM_STATUSES = new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'BLOCKED']);
 const REQUIREMENT_STATUSES = new Set(['FEASIBLE', 'CONDITIONAL', 'NOT_FEASIBLE', 'PENDING_VALIDATION']);
 const TEST_STATUSES = new Set(['NOT_REQUIRED', 'PLANNED', 'IN_PROGRESS', 'COMPLETED', 'FAILED']);
@@ -33,8 +33,9 @@ const RISK_STATUSES = new Set(['OPEN', 'MITIGATING', 'MITIGATED', 'ACCEPTED']);
 const INPUT_STATUSES = new Set(['PENDING', 'RECEIVED', 'NOT_REQUIRED']);
 const COMMUNICATION_TYPES = new Set(['Email', 'Call', 'Meeting', 'Site Visit', 'Teams Meeting', 'Other']);
 const DOCUMENT_TYPES = new Set([
+  'Customer Requirement', 'Technical Drawing', 'Specification', 'BOM', 'Quotation', 'POC Report', 'Other',
   'Customer Documents', 'Technical Documents', 'Drawings', 'POC Reports', 'Vendor Documents', 'Feasibility Reports',
-  'Drawing', 'Report', 'POC Evidence', 'Specification', 'Quotation', 'Photo', 'Presentation', 'Other',
+  'Drawing', 'Report', 'POC Evidence', 'Photo', 'Presentation',
 ]);
 const DECISIONS = new Set(['FEASIBLE', 'FEASIBLE_WITH_CONDITIONS', 'NOT_FEASIBLE', 'MORE_INFORMATION_REQUIRED']);
 const SAMPLE_AVAILABLE = new Set(['No', 'Yes', 'Partial']);
@@ -285,11 +286,25 @@ function workingStatus(study) {
 
 function submitErrors(study) {
   const fields = {};
+  const teams = study.teams || [];
+  const validation = study.validation || {};
+  const feasibleDecision = study.decision === 'FEASIBLE' || study.decision === 'FEASIBLE_WITH_CONDITIONS';
+
   if (!study.startedAt) fields.started = 'Start the feasibility study before submitting it.';
   if (!study.ownerId) fields.owner = 'Assign a feasibility owner before submitting.';
+  if (!teams.length) fields.teams = 'Assign at least one assessment team before submitting.';
   if (!study.decision) fields.decision = 'Record a feasibility decision before submitting.';
   if (!String(study.overallConclusion || '').trim()) {
     fields.overallConclusion = 'Overall technical conclusion is required.';
+  }
+  if (!String(study.technicalFeasibility || '').trim()) {
+    fields.technicalFeasibility = 'Record the technical feasibility assessment before submitting.';
+  }
+  if (!(study.risks || []).length && !String(study.majorRisks || '').trim() && !String(study.majorConstraints || '').trim()) {
+    fields.risks = 'Record risks, dependencies, or major constraints before submitting.';
+  }
+  if (!(study.documents || []).length) {
+    fields.documents = 'Upload or retain at least one supporting document before submitting.';
   }
   if (study.decision === 'FEASIBLE_WITH_CONDITIONS' && !String(study.conditions || '').trim()) {
     fields.conditions = 'Record the conditions before submitting a conditional feasibility.';
@@ -301,15 +316,31 @@ function submitErrors(study) {
     const pending = (study.customerInputs || []).some((item) => item.status === 'PENDING' && String(item.informationRequired || '').trim());
     if (!pending) fields.customerInputs = 'List the pending customer information before submitting.';
   }
+  const criticalPending = (study.customerInputs || []).some((item) => item.critical && item.status === 'PENDING');
+  if (feasibleDecision && criticalPending) {
+    fields.customerInputs = 'Resolve or mark critical customer inputs before submitting a feasible decision.';
+  }
   const allowed = NEXT_STEPS[study.decision] || [];
   if (!study.recommendedNextStep || !allowed.includes(study.recommendedNextStep)) {
     fields.recommendedNextStep = 'Choose a recommended next step that matches the decision.';
   }
-  if (study.decision === 'FEASIBLE' || study.decision === 'FEASIBLE_WITH_CONDITIONS') {
-    const open = (study.teams || []).filter((team) => team.status !== 'COMPLETED');
-    if ((study.teams || []).length && open.length) {
+  if (feasibleDecision) {
+    const open = teams.filter((team) => team.status !== 'COMPLETED');
+    if (open.length) {
       fields.teams = 'Complete every assigned team assessment before submitting a feasible decision.';
     }
+    if (!String(study.estimatedTimeline || '').trim()) {
+      fields.estimatedTimeline = 'Provide an estimated solution timeline before submitting.';
+    }
+    if (!String(study.commercialEstimate || '').trim()) {
+      fields.commercialEstimate = 'Provide an estimated cost range before submitting.';
+    }
+  } else if (teams.length && teams.some((team) => team.status !== 'COMPLETED' && team.status !== 'BLOCKED')) {
+    fields.teams = 'Finish or block every assigned team assessment before submitting.';
+  }
+  const pocStatus = validation.testStatus || 'NOT_REQUIRED';
+  if (pocStatus !== 'NOT_REQUIRED' && pocStatus !== 'COMPLETED' && pocStatus !== 'FAILED') {
+    fields.validation = 'Complete POC / technical validation, or mark it as Not Required.';
   }
   return fields;
 }
@@ -354,9 +385,10 @@ function buildAccess(user, study) {
     canUpdateCustomerInputs: !locked && (pm || owner || sales),
     canSubmit: started && !locked && (pm || owner),
     canApprove: study.status === 'UNDER_REVIEW' && pm,
-    canRequestChanges: pm && isLocked(study),
+    canRequestChanges: study.status === 'UNDER_REVIEW' && pm,
+    canReject: study.status === 'UNDER_REVIEW' && pm,
     canProceed: pm && ['FEASIBLE', 'FEASIBLE_WITH_CONDITIONS'].includes(study.status),
-    canUpload: started && !['NOT_FEASIBLE'].includes(study.status) && (pm || owner || memberTeamIds.length > 0),
+    canUpload: started && !['NOT_FEASIBLE', 'REJECTED'].includes(study.status) && (pm || owner || memberTeamIds.length > 0),
     canDeleteDocuments: pm || owner,
   };
 }

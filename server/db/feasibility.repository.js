@@ -213,7 +213,7 @@ const STUDY_COLUMNS = `
 `;
 
 async function loadChildren(id) {
-  const [validation, assignments, members, assessments, requirements, risks, inputs, documents, communications, activity] = await Promise.all([
+  const [validation, assignments, members, assessments, requirements, risks, inputs, documents, leadDocuments, communications, activity] = await Promise.all([
     query('SELECT * FROM feasibility_validations WHERE feasibility_id = $1', [id]),
     query(`
       SELECT a.*, team_lead_user.full_name AS team_lead_name
@@ -252,6 +252,15 @@ async function loadChildren(id) {
       LEFT JOIN users u ON u.id = d.uploaded_by
       LEFT JOIN feasibility_team_assignments a ON a.id = d.assignment_id
       WHERE d.feasibility_id = $1
+      ORDER BY d.created_at DESC
+    `, [id]),
+    query(`
+      SELECT d.*, f.lead_id, creator.full_name AS uploaded_by_name
+      FROM lead_documents d
+      JOIN feasibility_studies f ON f.lead_id = d.lead_id
+      LEFT JOIN leads l ON l.id = d.lead_id
+      LEFT JOIN users creator ON creator.id = l.created_by
+      WHERE f.id = $1
       ORDER BY d.created_at DESC
     `, [id]),
     query(`
@@ -344,18 +353,44 @@ async function loadChildren(id) {
       remarks: row.remarks,
       critical: row.critical,
     })),
-    documents: documents.rows.map((row) => ({
-      id: row.id,
-      name: row.original_name,
-      mimeType: row.mime_type,
-      sizeBytes: row.size_bytes,
-      documentType: row.document_type,
-      uploadedBy: row.uploaded_by_name || 'Workspace',
-      uploadedById: row.uploaded_by,
-      assignmentId: row.assignment_id,
-      teamCode: row.team_code || '',
-      createdAt: row.created_at,
-    })),
+    documents: [
+      ...leadDocuments.rows.map((row) => ({
+        id: `lead:${row.id}`,
+        sourceId: row.id,
+        leadId: row.lead_id,
+        name: row.original_name,
+        mimeType: row.mime_type,
+        sizeBytes: row.size_bytes,
+        documentType: 'Customer Requirement',
+        source: 'LEAD',
+        sourceLabel: 'Lead Creation',
+        version: 1,
+        uploadedBy: row.uploaded_by_name || 'Lead owner',
+        uploadedById: null,
+        assignmentId: null,
+        teamCode: '',
+        createdAt: row.created_at,
+        canDelete: false,
+      })),
+      ...documents.rows.map((row) => ({
+        id: row.id,
+        sourceId: row.id,
+        leadId: null,
+        name: row.original_name,
+        mimeType: row.mime_type,
+        sizeBytes: row.size_bytes,
+        documentType: row.document_type,
+        source: 'FEASIBILITY',
+        sourceLabel: 'Feasibility Study',
+        version: 1,
+        uploadedBy: row.uploaded_by_name || 'Workspace',
+        uploadedById: row.uploaded_by,
+        assignmentId: row.assignment_id,
+        teamCode: row.team_code || '',
+        createdAt: row.created_at,
+        canDelete: true,
+      })),
+    ].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || ''))),
     communications: communications.rows.map((row) => ({
       id: row.id,
       occurredOn: isoDate(row.occurred_on),
@@ -471,7 +506,15 @@ async function list() {
     query('SELECT feasibility_id, status, completion_percent FROM feasibility_team_assignments WHERE feasibility_id = ANY($1::uuid[])', [ids]),
     query('SELECT feasibility_id, status, risk_level FROM feasibility_risks WHERE feasibility_id = ANY($1::uuid[])', [ids]),
     query('SELECT feasibility_id, status, critical FROM feasibility_customer_inputs WHERE feasibility_id = ANY($1::uuid[])', [ids]),
-    query('SELECT feasibility_id, COUNT(*)::int AS total FROM feasibility_documents WHERE feasibility_id = ANY($1::uuid[]) GROUP BY feasibility_id', [ids]),
+    query(`
+      SELECT f.id AS feasibility_id,
+        (
+          (SELECT COUNT(*)::int FROM feasibility_documents d WHERE d.feasibility_id = f.id)
+          + (SELECT COUNT(*)::int FROM lead_documents ld WHERE ld.lead_id = f.lead_id)
+        ) AS total
+      FROM feasibility_studies f
+      WHERE f.id = ANY($1::uuid[])
+    `, [ids]),
   ]);
   const grouped = (rows, key) => {
     const map = new Map();
@@ -917,14 +960,28 @@ async function addDocument(feasibilityId, file) {
 }
 
 async function findDocument(feasibilityId, documentId) {
+  const raw = String(documentId || '');
+  if (raw.startsWith('lead:')) {
+    const leadDocId = raw.slice(5);
+    const result = await query(
+      `SELECT d.*, f.lead_id, 'LEAD' AS document_source
+       FROM lead_documents d
+       JOIN feasibility_studies f ON f.lead_id = d.lead_id
+       WHERE f.id = $1 AND d.id = $2`,
+      [feasibilityId, leadDocId],
+    );
+    return result.rows[0] || null;
+  }
   const result = await query(
-    'SELECT * FROM feasibility_documents WHERE feasibility_id = $1 AND id = $2',
+    `SELECT *, 'FEASIBILITY' AS document_source
+     FROM feasibility_documents WHERE feasibility_id = $1 AND id = $2`,
     [feasibilityId, documentId],
   );
   return result.rows[0] || null;
 }
 
 async function removeDocument(feasibilityId, documentId) {
+  if (String(documentId || '').startsWith('lead:')) return null;
   const result = await query(
     'DELETE FROM feasibility_documents WHERE feasibility_id = $1 AND id = $2 RETURNING stored_name',
     [feasibilityId, documentId],

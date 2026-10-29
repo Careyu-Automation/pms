@@ -195,6 +195,9 @@ async function submit(id, body, user) {
   const current = await getOrThrow(id);
   const access = buildAccess(user, current);
   if (!access.canSubmit) throw new ApiError(403, 'You cannot submit this feasibility study.');
+  if (current.status === 'UNDER_REVIEW') {
+    throw new ApiError(409, 'This feasibility study is already waiting for PM review.');
+  }
   const fields = submitErrors(current);
   if (Object.keys(fields).length) {
     throw new ApiError(422, Object.values(fields)[0], { fields });
@@ -205,12 +208,17 @@ async function submit(id, body, user) {
     prepared_at: new Date(),
     submitted_by: user.id,
     submitted_at: new Date(),
+    reviewed_by: null,
+    reviewed_at: null,
+    approved_by: null,
+    approved_at: null,
     completion_date: current.completionDate || today,
   });
-  await repository.addActivity(id, user.id, 'Submitted to PM');
+  await repository.addActivity(id, user.id, current.submittedAt ? 'Resubmitted to PM' : 'Submitted to PM');
   const workflow = require('./workflow.service');
   await workflow.markLead(current.leadId, 'FEASIBILITY_SUBMITTED', 'Feasibility Review', user.id, 'Feasibility submitted');
-  await workflow.notify(await workflow.usersByKind(['PM']), `Feasibility submitted: ${current.lead?.title || 'Lead'}`, 'A feasibility study is waiting for PM approval.', `/feasibility-studies/${id}`);
+  const pms = await workflow.usersByKind(['PM']);
+  await workflow.notify(pms, `Feasibility submitted: ${current.lead?.title || 'Lead'}`, 'A feasibility study is waiting for PM approval.', `/feasibility-studies/${id}`);
   return present(await getOrThrow(id), user);
 }
 
@@ -232,15 +240,42 @@ async function review(id, body, user) {
   if (action === 'changes') {
     if (!access.canRequestChanges) throw new ApiError(403, 'Only a project manager can request changes.');
     const note = cleanText(body.note, 1000);
+    if (note.length < 2) throw new ApiError(400, 'Describe the changes the feasibility team must make.');
     const next = workingStatus({ ...current, status: 'IN_PROGRESS' });
     await repository.setStatus(id, next === 'NOT_STARTED' ? 'IN_PROGRESS' : next, {
       review_note: note,
+      reviewed_by: user.id,
+      reviewed_at: new Date(),
       approved_by: null,
       approved_at: null,
     });
     await repository.addActivity(id, user.id, 'Changes Requested');
     const workflow = require('./workflow.service');
     await workflow.markLead(current.leadId, 'FEASIBILITY_CHANGES_REQUESTED', 'Feasibility', user.id, 'Feasibility changes requested');
+    const recipients = [...new Set([current.ownerId, ...(current.teams || []).flatMap((team) => [team.teamLeadId, ...(team.memberIds || [])])].filter(Boolean))];
+    if (recipients.length) {
+      await workflow.notify(recipients, `Changes requested: ${current.lead?.title || 'Feasibility'}`, note, `/feasibility-studies/${id}`);
+    }
+    return present(await getOrThrow(id), user);
+  }
+  if (action === 'reject') {
+    if (!access.canApprove) throw new ApiError(403, 'Only a project manager can reject this feasibility study.');
+    const note = cleanText(body.note, 1000);
+    if (note.length < 2) throw new ApiError(400, 'A rejection reason is required.');
+    await repository.setStatus(id, 'REJECTED', {
+      reviewed_by: user.id,
+      reviewed_at: new Date(),
+      approved_by: null,
+      approved_at: null,
+      review_note: note,
+      completion_date: current.completionDate || new Date().toISOString().slice(0, 10),
+    });
+    await repository.addActivity(id, user.id, 'Feasibility Rejected');
+    const workflow = require('./workflow.service');
+    await workflow.markLead(current.leadId, 'FEASIBILITY_REJECTED', 'Feasibility', user.id, 'Feasibility rejected');
+    if (current.ownerId) {
+      await workflow.notify([current.ownerId], `Feasibility rejected: ${current.lead?.title || 'Lead'}`, note, `/feasibility-studies/${id}`);
+    }
     return present(await getOrThrow(id), user);
   }
   if (action === 'approve') {
@@ -254,6 +289,8 @@ async function review(id, body, user) {
     await repository.setStatus(id, current.decision, {
       approved_by: user.id,
       approved_at: new Date(),
+      reviewed_by: user.id,
+      reviewed_at: new Date(),
       review_note: note || current.reviewNote,
       completion_date: current.completionDate || new Date().toISOString().slice(0, 10),
     });
@@ -262,7 +299,7 @@ async function review(id, body, user) {
     await workflow.markLead(current.leadId, 'FEASIBILITY_APPROVED', 'Procurement & Costing', user.id, 'Feasibility approved');
     return present(await getOrThrow(id), user);
   }
-  throw new ApiError(400, 'Choose team review, request changes, or approve.');
+  throw new ApiError(400, 'Choose team review, request changes, reject, or approve.');
 }
 
 async function proceed(id, user) {
@@ -305,14 +342,21 @@ async function addDocuments(id, files, body, user) {
 }
 
 async function openDocument(id, documentId) {
+  const study = await getOrThrow(id);
   const row = await repository.findDocument(id, documentId);
   if (!row) throw new ApiError(404, 'Document not found.');
-  const filePath = path.join(uploadDir(id), row.stored_name);
+  const fromLead = row.document_source === 'LEAD' || String(documentId || '').startsWith('lead:');
+  const filePath = fromLead
+    ? path.join(__dirname, '..', 'uploads', 'leads', String(row.lead_id || study.leadId), row.stored_name)
+    : path.join(uploadDir(id), row.stored_name);
   if (!fs.existsSync(filePath)) throw new ApiError(404, 'Document file is missing.');
   return { filePath, name: row.original_name, mimeType: row.mime_type || 'application/octet-stream' };
 }
 
 async function removeDocument(id, documentId, user) {
+  if (String(documentId || '').startsWith('lead:')) {
+    throw new ApiError(400, 'Lead creation documents stay with the lead. Remove them from the lead record if needed.');
+  }
   const current = await getOrThrow(id);
   const access = buildAccess(user, current);
   const row = await repository.findDocument(id, documentId);

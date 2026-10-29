@@ -435,6 +435,13 @@
   color: var(--text-secondary);
 }
 
+.feas-doc-list {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
 .feas-empty {
   padding: 12px 0 4px;
   color: var(--text-secondary);
