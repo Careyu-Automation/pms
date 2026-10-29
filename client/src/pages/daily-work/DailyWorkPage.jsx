@@ -21,7 +21,7 @@ const RANGES = [
   ['custom', 'Custom'],
 ];
 
-const EMPTY = { employeeId: '', teamId: '', workType: '', productId: '', projectId: '', status: '', priority: '', q: '' };
+const EMPTY = { employeeId: '', teamId: '', workType: '', productId: '', projectId: '', status: '', priority: '', period: '', q: '' };
 
 export default function DailyWorkPage() {
   const meta = usePageMeta();
@@ -37,6 +37,8 @@ export default function DailyWorkPage() {
   const [groupBy, setGroupBy] = useState('date');
   const [status, setStatus] = useState('loading');
   const [payload, setPayload] = useState(null);
+  const [dirtyCount, setDirtyCount] = useState(0);
+  const [saving, setSaving] = useState(false);
   const sheetRef = useRef(null);
 
   const load = useCallback((quiet) => {
@@ -65,10 +67,20 @@ export default function DailyWorkPage() {
   const query = { range, date, from, to, ...filters };
 
   async function saveUpdate(body) {
-    if (body.id) await updateDailyWork(body.id, body);
-    else await createDailyWork(body);
-    push({ tone: 'success', message: 'Daily work update saved.' });
-    await load(true);
+    if (body.id) return (await updateDailyWork(body.id, body)).data.update;
+    return (await createDailyWork(body)).data.update;
+  }
+
+  async function saveSheet() {
+    setSaving(true);
+    try {
+      const result = await sheetRef.current?.saveAll();
+      if (result?.saved) {
+        push({ tone: 'success', message: result.failed?.length ? 'Some rows were saved. Check the rows that still show an error.' : 'Daily work updates saved.' });
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function removeUpdate(id) {
@@ -94,6 +106,8 @@ export default function DailyWorkPage() {
         </div>
         <div className="daily-head__actions">
           <Button onClick={() => sheetRef.current?.addRow()} disabled={status !== 'ready'}><Plus size={16} /> Add Row</Button>
+          <Button onClick={saveSheet} disabled={!dirtyCount || saving}>{saving ? 'Saving…' : `Save Changes${dirtyCount ? ` (${dirtyCount})` : ''}`}</Button>
+          <Button variant="secondary" onClick={() => sheetRef.current?.discard()} disabled={!dirtyCount}>Discard</Button>
           <Button variant="secondary" onClick={() => exportFile('excel')}>Export Excel</Button>
           <Button variant="secondary" onClick={() => exportFile('pdf')}>Export PDF</Button>
         </div>
@@ -146,6 +160,11 @@ export default function DailyWorkPage() {
           <option value="">Status</option>
           {['NOT_STARTED', 'IN_PROGRESS', 'BLOCKED', 'ON_HOLD', 'COMPLETED'].map((value) => <option key={value} value={value}>{WORK_STATUS[value]}</option>)}
         </select>
+        <select className="select" aria-label="Period" value={filters.period} onChange={(event) => setFilters({ ...filters, period: event.target.value })}>
+          <option value="">Morning and Evening</option>
+          <option value="MORNING">Morning</option>
+          <option value="EVENING">Evening</option>
+        </select>
         <select className="select" aria-label="Priority" value={filters.priority} onChange={(event) => setFilters({ ...filters, priority: event.target.value })}>
           <option value="">Priority</option>
           {['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((value) => <option key={value} value={value}>{value[0] + value.slice(1).toLowerCase()}</option>)}
@@ -178,8 +197,11 @@ export default function DailyWorkPage() {
           user={user}
           canAssign={Boolean(payload?.access?.canAssignEmployee)}
           today={payload?.today || isoToday()}
+          defaultPeriod={filters.period}
           onSave={saveUpdate}
           onDelete={removeUpdate}
+          onDirty={setDirtyCount}
+          onReload={() => load(true)}
           emptyLabel={status === 'ready' ? 'No daily work updates for the selected filters.' : 'Loading daily work updates...'}
         />
       )}

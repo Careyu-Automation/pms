@@ -521,7 +521,7 @@ async function insertMeeting(teamId, input, actorId) {
 async function updateMeeting(teamId, meetingId, input) {
   if (input.isPrimary) await query('UPDATE team_meetings SET is_primary = FALSE WHERE team_id = $1 AND id <> $2', [teamId, meetingId]);
   const result = await query(
-    `UPDATE team_meetings SET name = $3, platform = $4, url = $5, description = $6, is_primary = $7
+    `UPDATE team_meetings SET name = $3, platform = $4, url = $5, description = $6, is_primary = $7, updated_at = NOW()
      WHERE team_id = $1 AND id = $2 RETURNING id`,
     [teamId, meetingId, input.name, input.platform, input.url, input.description, input.isPrimary],
   );

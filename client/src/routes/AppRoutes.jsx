@@ -22,10 +22,7 @@ import ProductsPage from '../pages/products/ProductsPage';
 import MyChecklistPage from '../pages/checklist/MyChecklistPage';
 import DailyWorkPage from '../pages/daily-work/DailyWorkPage';
 import DailyWorkDetailPage from '../pages/daily-work/DailyWorkDetailPage';
-import MyTimePage from '../pages/time/MyTimePage';
 import LeavePage from '../pages/leave/LeavePage';
-import WorkloadPage from '../pages/workload/WorkloadPage';
-import WorkloadDetailPage from '../pages/workload/WorkloadDetailPage';
 import MessagesPage from '../pages/messages/MessagesPage';
 import ForumThreadPage from '../pages/messages/ForumThreadPage';
 import MeetingsPage from '../pages/meetings/MeetingsPage';
@@ -57,7 +54,6 @@ const MODULE_PAGES = {
   '/projects/active': ActiveProjectsPage,
   '/projects/planning': PlanningPage,
   '/tasks': TaskListPage,
-  '/team-tasks': TaskListPage,
   '/my-assigned-work': MyAssignedWorkPage,
   '/products': ProductsPage,
   '/teams': TeamsPage,
@@ -130,11 +126,6 @@ export const router = createBrowserRouter([
                 icon: 'CalendarDays',
                 crumbs: [{ label: 'My Work' }, { label: 'Leave & Permission' }],
               } },
-              { path: '/workload/employee/:employeeId', element: <WorkloadDetailPage />, handle: {
-                title: 'Employee workload',
-                description: 'Capacity, tasks, attendance and timesheet for one person.',
-                crumbs: [{ label: 'Workload', path: '/workload' }, { label: 'Employee' }],
-              } },
               { path: '/messages/forum/:threadId', element: <ForumThreadPage />, handle: {
                 title: 'Forum thread',
                 description: 'A discussion, question, or idea.',
@@ -145,18 +136,6 @@ export const router = createBrowserRouter([
                 description: 'Connect with teammates through direct messages, groups, discussions and live chat.',
                 icon: 'MessageSquare',
                 crumbs: [{ label: 'Communication' }, { label: 'Messages' }],
-              } },
-              { path: '/workload', element: <WorkloadPage />, handle: {
-                title: 'Workload',
-                description: 'Capacity, workload and utilization across your teams.',
-                icon: 'ChartNoAxesColumn',
-                crumbs: [{ label: 'My Work' }, { label: 'Workload' }],
-              } },
-              { path: '/my-time', element: <MyTimePage />, handle: {
-                title: 'My Time',
-                description: 'Attendance, time tracking, and the end-of-day report.',
-                icon: 'Clock',
-                crumbs: [{ label: 'My Work' }, { label: 'My Time' }],
               } },
               { path: '/daily-work-updates/:workItemId', element: <DailyWorkDetailPage />, handle: {
                 title: 'Daily Work Update',

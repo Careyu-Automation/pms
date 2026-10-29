@@ -181,8 +181,25 @@
   background: var(--surface);
 }
 
+.daily-page {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.daily-sheet-wrap {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.daily-sheet-note {
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
 .daily-scroll {
   overflow: auto;
+  width: 100%;
   max-width: 100%;
   max-height: calc(100vh - 280px);
   border: 1px solid var(--border-subtle, var(--border));
@@ -427,6 +444,56 @@
   color: var(--text-primary);
 }
 
+.daily-sheet th {
+  position: sticky;
+}
+
+.daily-sheet th.is-sticky,
+.daily-sheet td.is-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.daily-sheet th.is-sticky {
+  z-index: 3;
+}
+
+.daily-sheet .col-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+}
+
+.daily-sheet th {
+  position: sticky;
+}
+
+.daily-sheet tr.is-dirty td {
+  box-shadow: inset 0 -2px 0 var(--primary);
+}
+
+.daily-sheet td.is-selected {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.daily-sheet td.is-invalid {
+  background: color-mix(in srgb, #b42318 10%, var(--surface));
+}
+
+.daily-sheet tr.is-alt td {
+  background: color-mix(in srgb, var(--text-primary) 3%, var(--surface));
+}
+
+.daily-cell-input.is-overdue {
+  color: #b42318;
+  font-weight: 700;
+}
+
 .daily-cell-input,
 .daily-status,
 .daily-date input {
@@ -476,6 +543,11 @@
 
 .daily-date.is-locked input {
   display: none;
+}
+
+.daily-date.is-overdue {
+  color: #b42318;
+  font-weight: 700;
 }
 
 .daily-deadline {

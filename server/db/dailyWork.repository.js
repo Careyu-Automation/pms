@@ -900,7 +900,7 @@ async function assignedForLog(filters, actor) {
   }
   const result = await query(
     `SELECT t.id AS task_id, t.title, t.description, t.status, t.priority, t.progress,
-            t.assignee_id, t.project_id, t.end_date,
+            t.assignee_id, t.project_id, t.start_date, t.end_date,
             emp.full_name AS employee_name, COALESCE(p.title, '') AS project_name,
             team.team_id, team.team_name
      FROM project_tasks t
@@ -944,6 +944,13 @@ async function assignedForLog(filters, actor) {
     minutes: 0,
     dependencyType: '',
     dependencyDetails: '',
+    startDate: isoDate(row.start_date),
+    deadline: isoDate(row.end_date),
+    reasonForDelay: '',
+    morningWork: '',
+    eveningWork: '',
+    loggedHours: 0,
+    period: filters.period === 'EVENING' ? 'EVENING' : 'MORNING',
     progress: Number(row.progress) || 0,
     createdById: row.assignee_id,
     attachments: [],

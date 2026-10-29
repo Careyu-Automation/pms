@@ -198,7 +198,7 @@ async function upcoming(ownerClause, params) {
 async function recentRuns(ownerClause, params) {
   const result = await query(
     `SELECT n.id, n.report_id, n.report_name, n.report_type, n.started_at, n.status, n.attachment, n.recipient_count, n.is_test,
-            n.error, COALESCE(u.full_name, '') AS sent_by_name, r.configuration,
+            n.error, n.completed_at, COALESCE(u.full_name, '') AS sent_by_name, r.configuration,
             COALESCE(n.snapshot->>'recordCount', '') AS record_count
      FROM email_report_runs n
      LEFT JOIN email_reports r ON r.id = n.report_id

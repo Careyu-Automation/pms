@@ -113,10 +113,12 @@ function teamInput(body, current) {
 }
 
 function meetingUrl(value) {
-  const text = clean(value, 2000);
+  let text = clean(value, 2000);
+  if (!text) return '';
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(text)) text = `https://${text}`;
   try {
     const url = new URL(text);
-    if (url.protocol === 'http:' || url.protocol === 'https:') return text;
+    if ((url.protocol === 'http:' || url.protocol === 'https:') && url.hostname.includes('.')) return text;
   } catch {
     return '';
   }

@@ -118,7 +118,7 @@ function RecipientField({ people, selected, disabled, onChange }) {
 
 function DailyComposer({ data, push, onSent }) {
   const [date, setDate] = useState(kolkataToday());
-  const [period, setPeriod] = useState('FULL');
+  const [period, setPeriod] = useState('MORNING');
   const [type, setType] = useState('DAILY_WORK');
   const [recipients, setRecipients] = useState(data.defaultRecipientIds || []);
   const [reportId, setReportId] = useState('');
@@ -193,7 +193,7 @@ function DailyComposer({ data, push, onSent }) {
       return;
     }
     if (type === 'DAILY_WORK' && match && match.count === 0) {
-      push({ tone: 'danger', message: 'No daily work updates found for the selected date.' });
+      push({ tone: 'danger', message: 'No daily work updates found for the selected date and period.' });
       return;
     }
     setBusy(test ? 'test' : 'send');
@@ -244,7 +244,7 @@ function DailyComposer({ data, push, onSent }) {
         <Button loading={busy === 'send'} onClick={() => runSend(false)} disabled={!canConfigure || (type === 'DAILY_WORK' && match?.count === 0)}>Send Report</Button>
       </div>
       {type === 'DAILY_WORK' && match?.count === 0 ? (
-        <p className="reports-note">No daily work updates found for the selected date.</p>
+        <p className="reports-note">No daily work updates found for the selected date and period.</p>
       ) : null}
       {preview ? (
         <div className="report-composer__preview">
@@ -259,16 +259,18 @@ function DailyComposer({ data, push, onSent }) {
         {(data.recent || []).length ? (
           <div className="reports-scroll">
             <table className="data-table">
-              <thead><tr><th>Report Date</th><th>Report Type</th><th>Period</th><th>Recipients</th><th>Entries</th><th>Generated/Sent At</th><th>Status</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Report ID</th><th>Report Date</th><th>Report Type</th><th>Period</th><th>Recipients</th><th>Entries</th><th>Generated At</th><th>Sent At</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
                 {data.recent.map((item) => (
                   <tr key={item.id}>
+                    <td>{item.id}</td>
                     <td>{item.reportDate ? stamp(item.reportDate).replace(/,.*/, '') : '—'}</td>
                     <td>{data.types?.[item.reportType] || item.reportName}</td>
                     <td>{item.period || '—'}</td>
                     <td>{item.recipientCount}</td>
                     <td>{item.recordCount || '—'}</td>
                     <td>{stamp(item.startedAt)}</td>
+                    <td>{item.status === 'SENT' ? stamp(item.completedAt || item.startedAt) : '—'}</td>
                     <td><Badge tone={tone(item.status)}>{statusLabel(item.status)}</Badge>{item.error ? <small className="reports-note">{item.error}</small> : null}</td>
                     <td className="reports-row-actions">
                       {item.status === 'FAILED' ? <button type="button" onClick={() => retryEmailRun(item.id).then(onSent).catch((error) => push({ tone: 'danger', message: error.message }))}>Retry</button> : null}

@@ -191,10 +191,12 @@ export default function InsightsPage() {
               ['Overdue', show(kpis.overdueTasks), '/tasks'],
               ['Open Escalations', show(kpis.openEscalations), '/escalations?quick=open'],
               ['Lead Pipeline', show(kpis.leads), '/lead-pipeline'],
-              ['Utilization', show(kpis.utilization, kpis.utilization == null ? '' : '%'), '/workload'],
+              ['Utilization', show(kpis.utilization, kpis.utilization == null ? '' : '%'), ''],
               ['On-Time Delivery', show(kpis.onTime, kpis.onTime == null ? '' : '%'), '/tasks'],
             ].map(([label, value, href]) => (
-              <Link key={label} to={href}><span>{label}</span><strong>{value}</strong></Link>
+              href
+                ? <Link key={label} to={href}><span>{label}</span><strong>{value}</strong></Link>
+                : <span key={label}><span>{label}</span><strong>{value}</strong></span>
             ))}
           </section>
 
@@ -317,7 +319,7 @@ export default function InsightsPage() {
           </div>
 
           <div className="ins-grid">
-            <Block title="Workload & Capacity" error={data.workload?.error} action={<Link to="/workload">View workload</Link>}>
+            <Block title="Workload & Capacity" error={data.workload?.error}>
               {data.workload?.error ? <Button onClick={load}>Retry</Button> : (
                 <>
                   <div className="ins-metrics">
@@ -333,7 +335,7 @@ export default function InsightsPage() {
                         <tbody>
                           {data.workload.employees.map((row) => (
                             <tr key={row.id}>
-                              <td><Link to={row.href}>{row.name}</Link></td>
+                              <td>{row.name}</td>
                               <td>{row.team || '—'}</td>
                               <td>{row.assigned}</td>
                               <td>{row.logged}</td>
@@ -370,7 +372,7 @@ export default function InsightsPage() {
           </div>
 
           <div className="ins-grid">
-            <Block title="Timesheet Insights" error={data.time?.error} action={<Link to="/my-time">View time</Link>}>
+            <Block title="Timesheet Insights" error={data.time?.error}>
               {data.time?.error ? <Button onClick={load}>Retry</Button> : (
                 <>
                   <div className="ins-metrics">
@@ -496,7 +498,7 @@ export default function InsightsPage() {
                         <td>{row.project || '—'}</td>
                         <td>{row.owner || '—'}</td>
                         <td>{row.due || '—'}</td>
-                        <td><Link to={row.href}>Open</Link></td>
+                        <td>{row.href ? <Link to={row.href}>Open</Link> : '—'}</td>
                       </tr>
                     ))}
                   </tbody>

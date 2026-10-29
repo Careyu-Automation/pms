@@ -100,6 +100,37 @@ const STATEMENTS = [
      IF NEW.phone IS DISTINCT FROM OLD.phone THEN
        UPDATE public.users SET phone = COALESCE(NEW.phone, '') WHERE pms_app.app_uuid('user', user_key) = OLD.id;
      END IF;
+     IF NEW.email IS DISTINCT FROM OLD.email THEN
+       UPDATE public.users SET email = lower(COALESCE(NEW.email, '')) WHERE pms_app.app_uuid('user', user_key) = OLD.id;
+     END IF;
+     IF NEW.employee_code IS DISTINCT FROM OLD.employee_code THEN
+       UPDATE public.users SET employee_id = COALESCE(NEW.employee_code, '') WHERE pms_app.app_uuid('user', user_key) = OLD.id;
+     END IF;
+     IF NEW.role_id IS DISTINCT FROM OLD.role_id THEN
+       UPDATE public.users
+       SET role_code = CASE NEW.role_id
+             WHEN 1 THEN 'CEO' WHEN 2 THEN 'SYSTEM_ADMIN' WHEN 4 THEN 'PROJECT_MANAGER'
+             WHEN 5 THEN 'TEAM_LEAD' WHEN 6 THEN 'EMPLOYEE'
+             ELSE role_code
+           END,
+           role = CASE NEW.role_id
+             WHEN 1 THEN 'CEO' WHEN 2 THEN 'SYSTEM_ADMIN' WHEN 4 THEN 'PROJECT_MANAGER'
+             WHEN 5 THEN 'TEAM_LEAD' WHEN 6 THEN 'EMPLOYEE'
+             ELSE role
+           END
+       WHERE pms_app.app_uuid('user', user_key) = OLD.id;
+     END IF;
+     IF NEW.reporting_manager_id IS DISTINCT FROM OLD.reporting_manager_id THEN
+       UPDATE public.users u
+       SET reporting_manager_id = mgr.user_key,
+           reporting_manager_name = COALESCE(mgr.name, '')
+       FROM (SELECT user_key, name FROM public.users WHERE pms_app.app_uuid('user', user_key) = NEW.reporting_manager_id LIMIT 1) mgr
+       WHERE pms_app.app_uuid('user', u.user_key) = OLD.id AND NEW.reporting_manager_id IS NOT NULL;
+       IF NEW.reporting_manager_id IS NULL THEN
+         UPDATE public.users SET reporting_manager_id = '', reporting_manager_name = ''
+         WHERE pms_app.app_uuid('user', user_key) = OLD.id;
+       END IF;
+     END IF;
      IF NEW.account_status IS DISTINCT FROM OLD.account_status OR NEW.is_active IS DISTINCT FROM OLD.is_active THEN
        UPDATE public.users
        SET account_status = CASE WHEN NEW.is_active AND NEW.account_status = 'ACTIVE' THEN 'ACTIVE' ELSE 'DISABLED' END,
@@ -119,22 +150,29 @@ const STATEMENTS = [
   'DROP TRIGGER IF EXISTS users_apply_update ON pms_app.users',
   `CREATE TRIGGER users_apply_update INSTEAD OF UPDATE ON pms_app.users
    FOR EACH ROW EXECUTE FUNCTION pms_app.apply_user_update()`,
+  `CREATE TABLE IF NOT EXISTS pms_app.team_profile (
+     team_id UUID PRIMARY KEY,
+     department VARCHAR(100) NOT NULL DEFAULT '',
+     assignment_rule VARCHAR(30) NOT NULL DEFAULT 'TEAM_LEAD_ONLY',
+     category VARCHAR(100) NOT NULL DEFAULT ''
+   )`,
   `CREATE OR REPLACE VIEW pms_app.teams AS
    SELECT
      pms_app.app_uuid('team', t.record_key) AS id,
      t.code,
      t.name,
-     ''::varchar(100) AS department,
+     COALESCE(profile.department, '')::varchar(100) AS department,
      COALESCE(t.description, '') AS description,
      CASE WHEN upper(COALESCE(t.status, '')) = 'ACTIVE' THEN 'ACTIVE' ELSE 'INACTIVE' END AS status,
      CASE WHEN lead.user_key IS NOT NULL THEN pms_app.app_uuid('user', t.team_lead_id) ELSE NULL END AS lead_id,
      NULL::uuid AS created_by,
      t.created_at,
      t.created_at AS updated_at,
-     'TEAM_LEAD_ONLY'::varchar(30) AS assignment_rule,
-     ''::varchar(100) AS category
+     COALESCE(profile.assignment_rule, 'TEAM_LEAD_ONLY')::varchar(30) AS assignment_rule,
+     COALESCE(profile.category, '')::varchar(100) AS category
    FROM public.teams t
-   LEFT JOIN public.users lead ON lead.user_key = t.team_lead_id`,
+   LEFT JOIN public.users lead ON lead.user_key = t.team_lead_id
+   LEFT JOIN pms_app.team_profile profile ON profile.team_id = pms_app.app_uuid('team', t.record_key)`,
   `CREATE OR REPLACE VIEW pms_app.team_members AS
    SELECT
      pms_app.app_uuid('member', u.user_key || ':' || t.record_key) AS id,
@@ -338,14 +376,30 @@ const STATEMENTS = [
   `CREATE TRIGGER projects_write
    INSTEAD OF INSERT OR UPDATE OR DELETE ON pms_app.projects
    FOR EACH ROW EXECUTE FUNCTION pms_app.projects_write()`,
-  `DROP VIEW IF EXISTS pms_app.products`,
-  `CREATE VIEW pms_app.products AS
-   SELECT NULL::uuid AS id, ''::varchar AS product_code, ''::varchar AS name,
-          ''::text AS description, ''::varchar AS team_code, ''::varchar AS department,
-          NULL::uuid AS lead_id, 'PLANNING'::varchar AS status, 'MEDIUM'::varchar AS priority,
-          NULL::date AS start_date, NULL::date AS end_date, NULL::uuid AS created_by,
-          NOW() AS created_at, NOW() AS updated_at
-   WHERE FALSE`,
+  `DO $$
+   BEGIN
+     IF EXISTS (
+       SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'pms_app' AND c.relname = 'products' AND c.relkind = 'v'
+     ) THEN EXECUTE 'DROP VIEW pms_app.products'; END IF;
+   END $$`,
+  `CREATE SEQUENCE IF NOT EXISTS pms_app.product_code_seq`,
+  `CREATE TABLE IF NOT EXISTS pms_app.products (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     product_code VARCHAR(40) NOT NULL UNIQUE,
+     name VARCHAR(200) NOT NULL,
+     description TEXT NOT NULL DEFAULT '',
+     team_code VARCHAR(40) NOT NULL DEFAULT '',
+     department VARCHAR(120) NOT NULL DEFAULT '',
+     lead_id UUID,
+     status VARCHAR(40) NOT NULL DEFAULT 'PLANNING',
+     priority VARCHAR(20) NOT NULL DEFAULT 'MEDIUM',
+     start_date DATE,
+     end_date DATE,
+     created_by UUID,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   )`,
   `DO $$
    BEGIN
      IF EXISTS (
@@ -364,8 +418,22 @@ const STATEMENTS = [
      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
    )`,
-  `CREATE OR REPLACE VIEW pms_app.project_teams AS
-   SELECT NULL::uuid AS id, NULL::uuid AS project_id, NULL::uuid AS team_id WHERE FALSE`,
+  `DO $$
+   BEGIN
+     IF EXISTS (
+       SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'pms_app' AND c.relname = 'project_teams' AND c.relkind = 'v'
+     ) THEN EXECUTE 'DROP VIEW pms_app.project_teams'; END IF;
+   END $$`,
+  `CREATE TABLE IF NOT EXISTS pms_app.project_teams (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     project_id UUID NOT NULL,
+     team_id UUID NOT NULL,
+     team_role VARCHAR(40) NOT NULL DEFAULT 'SUPPORTING',
+     contribution_percent INTEGER NOT NULL DEFAULT 0,
+     assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+     UNIQUE (project_id, team_id)
+   )`,
   `DO $$
    BEGIN
      IF EXISTS (
@@ -768,19 +836,52 @@ const STATEMENTS = [
      LIMIT 1
    ) k ON TRUE
    WHERE pms_app.as_date(d.work_date) IS NOT NULL`,
-  `CREATE OR REPLACE VIEW pms_app.daily_work_dependencies AS
-   SELECT NULL::uuid AS id, NULL::uuid AS daily_work_update_id, ''::varchar AS dependency_type,
-          NULL::uuid AS employee_id, NULL::uuid AS team_id, ''::varchar AS external_name,
-          ''::text AS description, NOW() AS created_at
-   WHERE FALSE`,
-  `CREATE OR REPLACE VIEW pms_app.daily_work_activity AS
-   SELECT NULL::uuid AS id, NULL::uuid AS work_item_id, NULL::uuid AS update_id,
-          NULL::uuid AS actor_id, ''::text AS action, NOW() AS created_at
-   WHERE FALSE`,
-  `CREATE OR REPLACE VIEW pms_app.daily_work_attachments AS
-   SELECT NULL::uuid AS id, NULL::uuid AS update_id, ''::text AS original_name,
-          ''::text AS mime_type, 0 AS size_bytes, NOW() AS created_at
-   WHERE FALSE`,
+  `DO $$
+   BEGIN
+     IF EXISTS (
+       SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'pms_app' AND c.relname = 'daily_work_dependencies' AND c.relkind = 'v'
+     ) THEN EXECUTE 'DROP VIEW pms_app.daily_work_dependencies'; END IF;
+     IF EXISTS (
+       SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'pms_app' AND c.relname = 'daily_work_activity' AND c.relkind = 'v'
+     ) THEN EXECUTE 'DROP VIEW pms_app.daily_work_activity'; END IF;
+   END $$`,
+  `CREATE TABLE IF NOT EXISTS pms_app.daily_work_dependencies (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     daily_work_update_id UUID,
+     dependency_type VARCHAR(30) NOT NULL DEFAULT '',
+     employee_id UUID,
+     team_id UUID,
+     external_name VARCHAR(200) NOT NULL DEFAULT '',
+     description TEXT NOT NULL DEFAULT '',
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   )`,
+  `CREATE TABLE IF NOT EXISTS pms_app.daily_work_activity (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     work_item_id UUID,
+     update_id UUID,
+     actor_id UUID,
+     action TEXT NOT NULL DEFAULT '',
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   )`,
+  `DO $$
+   BEGIN
+     IF EXISTS (
+       SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'pms_app' AND c.relname = 'daily_work_attachments' AND c.relkind = 'v'
+     ) THEN EXECUTE 'DROP VIEW pms_app.daily_work_attachments'; END IF;
+   END $$`,
+  `CREATE TABLE IF NOT EXISTS pms_app.daily_work_attachments (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     update_id UUID NOT NULL,
+     original_name TEXT NOT NULL DEFAULT '',
+     stored_name TEXT NOT NULL DEFAULT '',
+     mime_type TEXT NOT NULL DEFAULT '',
+     size_bytes INTEGER NOT NULL DEFAULT 0,
+     uploaded_by UUID,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   )`,
   `CREATE OR REPLACE VIEW pms_app.daily_work_types AS
    SELECT code::varchar(40), name::varchar(80), sort_order, is_active
    FROM (VALUES
@@ -800,24 +901,62 @@ const STATEMENTS = [
      ('TECHNICAL_SUPPORT', 'Technical Support', 140, TRUE),
      ('OTHER', 'Other', 150, TRUE)
    ) AS kind(code, name, sort_order, is_active)`,
-  `DROP VIEW IF EXISTS pms_app.team_meetings`,
-  `CREATE VIEW pms_app.team_meetings AS
-   SELECT NULL::uuid AS id, NULL::uuid AS team_id, ''::varchar AS name, ''::varchar AS platform,
-          ''::text AS url, ''::text AS description, FALSE AS is_primary, NULL::uuid AS created_by,
-          NOW() AS created_at
-   WHERE FALSE`,
-  `CREATE OR REPLACE VIEW pms_app.team_activity AS
-   SELECT NULL::uuid AS id, NULL::uuid AS team_id, NULL::uuid AS actor_id, ''::text AS action, NOW() AS created_at
-   WHERE FALSE`,
-  `CREATE OR REPLACE VIEW pms_app.organization_activity AS
-   SELECT NULL::uuid AS id, ''::text AS action, ''::text AS previous_value, ''::text AS new_value,
-          NULL::uuid AS actor_id, NULL::uuid AS target_user_id, NOW() AS created_at
-   WHERE FALSE`,
+  `DO $$
+   BEGIN
+     IF EXISTS (
+       SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'pms_app' AND c.relname = 'team_meetings' AND c.relkind = 'v'
+     ) THEN EXECUTE 'DROP VIEW pms_app.team_meetings'; END IF;
+     IF EXISTS (
+       SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'pms_app' AND c.relname = 'team_activity' AND c.relkind = 'v'
+     ) THEN EXECUTE 'DROP VIEW pms_app.team_activity'; END IF;
+     IF EXISTS (
+       SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'pms_app' AND c.relname = 'organization_activity' AND c.relkind = 'v'
+     ) THEN EXECUTE 'DROP VIEW pms_app.organization_activity'; END IF;
+   END $$`,
+  `CREATE TABLE IF NOT EXISTS pms_app.team_meetings (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     team_id UUID NOT NULL,
+     name VARCHAR(160) NOT NULL,
+     platform VARCHAR(20) NOT NULL DEFAULT 'OTHER',
+     url TEXT NOT NULL,
+     description TEXT NOT NULL DEFAULT '',
+     is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+     created_by UUID,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   )`,
+  `CREATE INDEX IF NOT EXISTS team_meetings_team_idx ON pms_app.team_meetings (team_id)`,
+  `CREATE TABLE IF NOT EXISTS pms_app.team_activity (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     team_id UUID NOT NULL,
+     actor_id UUID,
+     action TEXT NOT NULL DEFAULT '',
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   )`,
+  `CREATE INDEX IF NOT EXISTS team_activity_team_idx ON pms_app.team_activity (team_id, created_at DESC)`,
+  `CREATE TABLE IF NOT EXISTS pms_app.organization_activity (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     actor_id UUID,
+     action TEXT NOT NULL DEFAULT '',
+     previous_value TEXT NOT NULL DEFAULT '',
+     new_value TEXT NOT NULL DEFAULT '',
+     target_user_id UUID,
+     target_team_id UUID,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   )`,
   `CREATE TABLE IF NOT EXISTS pms_app.role_permissions (
      role_id SMALLINT,
      module TEXT,
      action TEXT
    )`,
+  `DELETE FROM pms_app.role_permissions a
+   USING pms_app.role_permissions b
+   WHERE a.ctid < b.ctid AND a.role_id IS NOT DISTINCT FROM b.role_id
+     AND a.module IS NOT DISTINCT FROM b.module AND a.action IS NOT DISTINCT FROM b.action`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS role_permissions_key ON pms_app.role_permissions (role_id, module, action)`,
   `CREATE TABLE IF NOT EXISTS pms_app.user_permission_overrides (
      user_id UUID,
      module TEXT,
@@ -988,7 +1127,7 @@ const STATEMENTS = [
      COALESCE(NULLIF(btrim(p.title), ''), 'Discussion')::varchar(200) AS title,
      COALESCE(p.body, '') AS body,
      'DISCUSSION'::varchar(20) AS category,
-     'OPEN'::varchar(20) AS status,
+     CASE WHEN p.locked THEN 'CLOSED' ELSE 'OPEN' END::varchar(20) AS status,
      CASE WHEN author.user_key IS NOT NULL THEN pms_app.app_uuid('user', p.author_id) ELSE NULL END AS author_id,
      NULL::uuid AS project_id,
      NULL::uuid AS team_id,
@@ -999,8 +1138,19 @@ const STATEMENTS = [
    FROM public.forum_posts p
    LEFT JOIN public.users author ON author.user_key = p.author_id
    WHERE p.deleted_at IS NULL`,
-  `CREATE OR REPLACE VIEW pms_app.forum_follows AS
-   SELECT NULL::uuid AS user_id, NULL::uuid AS thread_id, NULL::timestamptz AS last_read_at WHERE FALSE`,
+  `DO $$
+   BEGIN
+     IF EXISTS (
+       SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+       WHERE n.nspname = 'pms_app' AND c.relname = 'forum_follows' AND c.relkind = 'v'
+     ) THEN EXECUTE 'DROP VIEW pms_app.forum_follows'; END IF;
+   END $$`,
+  `CREATE TABLE IF NOT EXISTS pms_app.forum_follows (
+     user_id UUID NOT NULL,
+     thread_id UUID NOT NULL,
+     last_read_at TIMESTAMPTZ,
+     PRIMARY KEY (thread_id, user_id)
+   )`,
   `SELECT 1`,
   `CREATE TABLE IF NOT EXISTS pms_app.project_activity (
      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -2018,6 +2168,324 @@ const STATEMENTS = [
    JOIN pms_app.solution_costings c
      ON c.id = pms_app.app_uuid('costing', COALESCE(NULLIF(l.record_key, ''), l.id::text))
    ON CONFLICT (id) DO NOTHING`,
+  `CREATE TABLE IF NOT EXISTS pms_app.message_attachments (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     message_id UUID NOT NULL,
+     file_name TEXT NOT NULL DEFAULT '',
+     stored_name TEXT NOT NULL DEFAULT '',
+     mime_type TEXT NOT NULL DEFAULT '',
+     size_bytes INTEGER NOT NULL DEFAULT 0,
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   )`,
+  `CREATE TABLE IF NOT EXISTS pms_app.message_reactions (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     message_id UUID NOT NULL,
+     user_id UUID NOT NULL,
+     emoji TEXT NOT NULL,
+     UNIQUE (message_id, user_id, emoji)
+   )`,
+  `CREATE TABLE IF NOT EXISTS pms_app.message_reads (
+     message_id UUID NOT NULL,
+     user_id UUID NOT NULL,
+     read_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+     PRIMARY KEY (message_id, user_id)
+   )`,
+  `CREATE TABLE IF NOT EXISTS pms_app.message_pins (
+     conversation_id UUID NOT NULL,
+     message_id UUID NOT NULL,
+     pinned_by UUID,
+     pinned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+     PRIMARY KEY (conversation_id, message_id)
+   )`,
+  `CREATE TABLE IF NOT EXISTS pms_app.message_activity (
+     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+     actor_id UUID,
+     action TEXT NOT NULL DEFAULT '',
+     conversation_id UUID,
+     message_id UUID,
+     thread_id UUID,
+     comment TEXT NOT NULL DEFAULT '',
+     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+   )`,
+  `CREATE OR REPLACE FUNCTION pms_app.next_public_id(target regclass) RETURNS integer LANGUAGE plpgsql AS $fn$
+   DECLARE next_id integer;
+   BEGIN
+     EXECUTE format('SELECT COALESCE(MAX(id), 0) + 1 FROM %s', target) INTO next_id;
+     RETURN next_id;
+   END
+   $fn$`,
+  `CREATE OR REPLACE FUNCTION pms_app.users_insert() RETURNS trigger LANGUAGE plpgsql AS $fn$
+   DECLARE
+     source_id integer;
+     source_key text;
+     role_code text;
+     manager_key text;
+     manager_name text;
+   BEGIN
+     source_id := pms_app.next_public_id('public.users');
+     source_key := 'u-' || substr(md5(clock_timestamp()::text || random()::text), 1, 16);
+     role_code := CASE NEW.role_id
+       WHEN 1 THEN 'CEO' WHEN 2 THEN 'SYSTEM_ADMIN' WHEN 4 THEN 'PROJECT_MANAGER'
+       WHEN 5 THEN 'TEAM_LEAD' ELSE 'EMPLOYEE' END;
+     SELECT user_key, name INTO manager_key, manager_name
+     FROM public.users
+     WHERE NEW.reporting_manager_id IS NOT NULL AND pms_app.app_uuid('user', user_key) = NEW.reporting_manager_id
+     LIMIT 1;
+     INSERT INTO public.users (
+       id, user_key, name, email, phone, role, role_code, status, account_status,
+       password_hash, password_created_at, email_verified, employee_id,
+       reporting_manager_id, reporting_manager_name, created_at, updated_at
+     ) VALUES (
+       source_id, source_key, left(COALESCE(NEW.full_name, 'New user'), 200),
+       lower(COALESCE(NEW.email, source_key || '@careyu.local')), COALESCE(NEW.phone, ''),
+       role_code, role_code,
+       CASE WHEN NEW.is_active IS FALSE OR NEW.employment_status = 'INACTIVE' THEN 'INACTIVE' ELSE 'ACTIVE' END,
+       CASE WHEN NEW.is_active IS FALSE OR NEW.employment_status = 'INACTIVE' THEN 'DISABLED' ELSE 'ACTIVE' END,
+       COALESCE(NEW.password_hash, ''), NOW(), TRUE, COALESCE(NEW.employee_code, ''),
+       COALESCE(manager_key, ''), COALESCE(manager_name, ''), NOW(), NOW()
+     );
+     INSERT INTO pms_app.user_auth_state (user_id, must_change_password)
+     VALUES (pms_app.app_uuid('user', source_key), COALESCE(NEW.must_change_password, FALSE))
+     ON CONFLICT (user_id) DO NOTHING;
+     RETURN (SELECT v FROM pms_app.users v WHERE v.id = pms_app.app_uuid('user', source_key));
+   END
+   $fn$`,
+  `DROP TRIGGER IF EXISTS users_apply_insert ON pms_app.users`,
+  `CREATE TRIGGER users_apply_insert INSTEAD OF INSERT ON pms_app.users
+   FOR EACH ROW EXECUTE FUNCTION pms_app.users_insert()`,
+  `CREATE OR REPLACE FUNCTION pms_app.teams_write() RETURNS trigger LANGUAGE plpgsql AS $fn$
+   DECLARE
+     source_id integer;
+     source_key text;
+     lead_key text;
+     lead_name text;
+   BEGIN
+     IF TG_OP = 'INSERT' THEN
+       source_id := pms_app.next_public_id('public.teams');
+       source_key := 't-' || substr(md5(clock_timestamp()::text || random()::text), 1, 12);
+       SELECT user_key, name INTO lead_key, lead_name FROM public.users
+       WHERE NEW.lead_id IS NOT NULL AND pms_app.app_uuid('user', user_key) = NEW.lead_id LIMIT 1;
+       INSERT INTO public.teams (id, record_key, code, name, description, team_lead_id, team_lead_name, status, member_count, created_at)
+       VALUES (
+         source_id, source_key, left(COALESCE(NEW.code, 'TEAM'), 40), left(COALESCE(NEW.name, 'Team'), 160),
+         COALESCE(NEW.description, ''), COALESCE(lead_key, ''), COALESCE(lead_name, ''),
+         CASE WHEN upper(COALESCE(NEW.status, 'ACTIVE')) = 'ACTIVE' THEN 'ACTIVE' ELSE 'INACTIVE' END,
+         0, NOW()
+       );
+       INSERT INTO pms_app.team_profile (team_id, department, assignment_rule, category)
+       VALUES (
+         pms_app.app_uuid('team', source_key), COALESCE(NEW.department, ''),
+         COALESCE(NULLIF(NEW.assignment_rule, ''), 'TEAM_LEAD_ONLY'), COALESCE(NEW.category, '')
+       )
+       ON CONFLICT (team_id) DO UPDATE SET department = EXCLUDED.department, assignment_rule = EXCLUDED.assignment_rule, category = EXCLUDED.category;
+       RETURN (SELECT v FROM pms_app.teams v WHERE v.id = pms_app.app_uuid('team', source_key));
+     ELSIF TG_OP = 'UPDATE' THEN
+       SELECT user_key, name INTO lead_key, lead_name FROM public.users
+       WHERE NEW.lead_id IS NOT NULL AND pms_app.app_uuid('user', user_key) = NEW.lead_id LIMIT 1;
+       UPDATE public.teams SET
+         code = left(COALESCE(NEW.code, code), 40),
+         name = left(COALESCE(NEW.name, name), 160),
+         description = COALESCE(NEW.description, ''),
+         status = CASE WHEN upper(COALESCE(NEW.status, 'ACTIVE')) = 'ACTIVE' THEN 'ACTIVE' ELSE 'INACTIVE' END,
+         team_lead_id = CASE WHEN NEW.lead_id IS NULL THEN '' ELSE COALESCE(lead_key, team_lead_id) END,
+         team_lead_name = CASE WHEN NEW.lead_id IS NULL THEN '' ELSE COALESCE(lead_name, team_lead_name) END
+       WHERE pms_app.app_uuid('team', record_key) = OLD.id;
+       INSERT INTO pms_app.team_profile (team_id, department, assignment_rule, category)
+       VALUES (OLD.id, COALESCE(NEW.department, ''), COALESCE(NULLIF(NEW.assignment_rule, ''), 'TEAM_LEAD_ONLY'), COALESCE(NEW.category, ''))
+       ON CONFLICT (team_id) DO UPDATE SET department = EXCLUDED.department, assignment_rule = EXCLUDED.assignment_rule, category = EXCLUDED.category;
+       RETURN (SELECT v FROM pms_app.teams v WHERE v.id = OLD.id);
+     END IF;
+     DELETE FROM pms_app.team_profile WHERE team_id = OLD.id;
+     DELETE FROM public.teams WHERE pms_app.app_uuid('team', record_key) = OLD.id;
+     RETURN OLD;
+   END
+   $fn$`,
+  `DROP TRIGGER IF EXISTS teams_write ON pms_app.teams`,
+  `CREATE TRIGGER teams_write INSTEAD OF INSERT OR UPDATE OR DELETE ON pms_app.teams
+   FOR EACH ROW EXECUTE FUNCTION pms_app.teams_write()`,
+  `CREATE OR REPLACE FUNCTION pms_app.team_members_write() RETURNS trigger LANGUAGE plpgsql AS $fn$
+   DECLARE
+     team_key text;
+     team_label text;
+     person uuid;
+     updated_count integer;
+   BEGIN
+     person := CASE WHEN TG_OP = 'DELETE' THEN OLD.user_id ELSE NEW.user_id END;
+     IF TG_OP <> 'DELETE' THEN
+       SELECT record_key, name INTO team_key, team_label FROM public.teams
+       WHERE pms_app.app_uuid('team', record_key) = NEW.team_id LIMIT 1;
+       IF team_key IS NULL THEN
+         RAISE EXCEPTION 'Team not found' USING ERRCODE = '23503';
+       END IF;
+       IF upper(COALESCE(NEW.status, 'ACTIVE')) = 'INACTIVE' THEN
+         UPDATE public.users SET team_id = '', team_name = '', updated_at = NOW()
+         WHERE pms_app.app_uuid('user', user_key) = person
+           AND pms_app.app_uuid('team', team_id) = NEW.team_id;
+       ELSE
+         UPDATE public.users SET
+           team_id = team_key,
+           team_name = team_label,
+           role_code = CASE WHEN NEW.role = 'TEAM_LEAD' THEN 'TEAM_LEAD' ELSE role_code END,
+           role = CASE WHEN NEW.role = 'TEAM_LEAD' THEN 'TEAM_LEAD' ELSE role END,
+           updated_at = NOW()
+         WHERE pms_app.app_uuid('user', user_key) = person;
+         GET DIAGNOSTICS updated_count = ROW_COUNT;
+         IF updated_count = 0 THEN
+           RAISE EXCEPTION 'User not found' USING ERRCODE = '23503';
+         END IF;
+         IF NEW.role = 'TEAM_LEAD' THEN
+           UPDATE public.teams SET team_lead_id = u.user_key, team_lead_name = u.name
+           FROM public.users u
+           WHERE public.teams.record_key = team_key AND pms_app.app_uuid('user', u.user_key) = person;
+         END IF;
+       END IF;
+       RETURN (SELECT v FROM pms_app.team_members v WHERE v.team_id = NEW.team_id AND v.user_id = person LIMIT 1);
+     END IF;
+     UPDATE public.users SET team_id = '', team_name = '', updated_at = NOW()
+     WHERE pms_app.app_uuid('user', user_key) = OLD.user_id
+       AND pms_app.app_uuid('team', team_id) = OLD.team_id;
+     UPDATE public.teams SET team_lead_id = '', team_lead_name = ''
+     WHERE pms_app.app_uuid('team', record_key) = OLD.team_id
+       AND pms_app.app_uuid('user', team_lead_id) = OLD.user_id;
+     RETURN OLD;
+   END
+   $fn$`,
+  `DROP TRIGGER IF EXISTS team_members_write ON pms_app.team_members`,
+  `CREATE TRIGGER team_members_write INSTEAD OF INSERT OR UPDATE OR DELETE ON pms_app.team_members
+   FOR EACH ROW EXECUTE FUNCTION pms_app.team_members_write()`,
+  `CREATE OR REPLACE FUNCTION pms_app.conversations_write() RETURNS trigger LANGUAGE plpgsql AS $fn$
+   DECLARE
+     source_id integer;
+     source_key text;
+     owner_key text;
+     owner_name text;
+   BEGIN
+     IF TG_OP = 'INSERT' THEN
+       source_id := pms_app.next_public_id('public.conversations');
+       source_key := 'c-' || substr(md5(clock_timestamp()::text || random()::text), 1, 12);
+       SELECT user_key, name INTO owner_key, owner_name FROM public.users
+       WHERE NEW.created_by IS NOT NULL AND pms_app.app_uuid('user', user_key) = NEW.created_by LIMIT 1;
+       INSERT INTO public.conversations (id, record_key, type, name, description, created_by_id, created_by, created_at, updated_at)
+       VALUES (
+         source_id, source_key, COALESCE(NEW.type, 'GROUP'), COALESCE(NEW.name, ''), COALESCE(NEW.description, ''),
+         COALESCE(owner_key, ''), COALESCE(owner_name, ''), NOW(), NOW()
+       );
+       RETURN (SELECT v FROM pms_app.conversations v WHERE v.id = pms_app.app_uuid('conversation', source_key));
+     END IF;
+     UPDATE public.conversations SET
+       name = COALESCE(NEW.name, name),
+       description = COALESCE(NEW.description, description),
+       updated_at = COALESCE(NEW.updated_at, NOW()),
+       deleted_at = CASE WHEN TG_OP = 'DELETE' THEN NOW() ELSE deleted_at END
+     WHERE pms_app.app_uuid('conversation', COALESCE(NULLIF(record_key, ''), id::text)) = OLD.id;
+     IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+     RETURN NEW;
+   END
+   $fn$`,
+  `DROP TRIGGER IF EXISTS conversations_write ON pms_app.conversations`,
+  `CREATE TRIGGER conversations_write INSTEAD OF INSERT OR UPDATE OR DELETE ON pms_app.conversations
+   FOR EACH ROW EXECUTE FUNCTION pms_app.conversations_write()`,
+  `CREATE OR REPLACE FUNCTION pms_app.conversation_members_write() RETURNS trigger LANGUAGE plpgsql AS $fn$
+   DECLARE
+     conv_key text;
+     person_key text;
+     source_id integer;
+     source_key text;
+   BEGIN
+     IF TG_OP = 'UPDATE' THEN
+       UPDATE public.conversation_participants p SET last_read_at = NEW.last_read_at
+       WHERE pms_app.app_uuid('participant', COALESCE(NULLIF(p.record_key, ''), p.id::text)) = OLD.id;
+       RETURN NEW;
+     END IF;
+     SELECT COALESCE(NULLIF(record_key, ''), id::text) INTO conv_key FROM public.conversations
+     WHERE pms_app.app_uuid('conversation', COALESCE(NULLIF(record_key, ''), id::text)) = NEW.conversation_id LIMIT 1;
+     SELECT user_key INTO person_key FROM public.users WHERE pms_app.app_uuid('user', user_key) = NEW.user_id LIMIT 1;
+     IF conv_key IS NULL OR person_key IS NULL THEN
+       RAISE EXCEPTION 'Conversation member could not be saved' USING ERRCODE = '23503';
+     END IF;
+     source_id := pms_app.next_public_id('public.conversation_participants');
+     source_key := 'p-' || substr(md5(clock_timestamp()::text || random()::text), 1, 12);
+     INSERT INTO public.conversation_participants (id, record_key, conversation_id, user_id, role, joined_at, last_read_at)
+     VALUES (source_id, source_key, conv_key, person_key, COALESCE(NEW.role, 'MEMBER'), NOW(), NEW.last_read_at);
+     RETURN (SELECT v FROM pms_app.conversation_members v WHERE v.conversation_id = NEW.conversation_id AND v.user_id = NEW.user_id LIMIT 1);
+   END
+   $fn$`,
+  `DROP TRIGGER IF EXISTS conversation_members_write ON pms_app.conversation_members`,
+  `CREATE TRIGGER conversation_members_write INSTEAD OF INSERT OR UPDATE ON pms_app.conversation_members
+   FOR EACH ROW EXECUTE FUNCTION pms_app.conversation_members_write()`,
+  `CREATE OR REPLACE FUNCTION pms_app.messages_write() RETURNS trigger LANGUAGE plpgsql AS $fn$
+   DECLARE
+     source_id integer;
+     source_key text;
+     conv_key text;
+     sender_key text;
+     sender_name text;
+   BEGIN
+     IF TG_OP = 'INSERT' THEN
+       source_id := pms_app.next_public_id('public.chat_messages');
+       source_key := 'm-' || substr(md5(clock_timestamp()::text || random()::text), 1, 12);
+       SELECT COALESCE(NULLIF(record_key, ''), id::text) INTO conv_key FROM public.conversations
+       WHERE pms_app.app_uuid('conversation', COALESCE(NULLIF(record_key, ''), id::text)) = NEW.conversation_id LIMIT 1;
+       SELECT user_key, name INTO sender_key, sender_name FROM public.users
+       WHERE pms_app.app_uuid('user', user_key) = NEW.sender_id LIMIT 1;
+       IF conv_key IS NULL OR sender_key IS NULL THEN
+         RAISE EXCEPTION 'Message could not be saved' USING ERRCODE = '23503';
+       END IF;
+       INSERT INTO public.chat_messages (
+         id, record_key, conversation_id, sender_id, sender_name, message, message_type, created_at, updated_at
+       ) VALUES (
+         source_id, source_key, conv_key, sender_key, COALESCE(sender_name, ''), COALESCE(NEW.body, ''), 'TEXT', NOW(), NOW()
+       );
+       RETURN (SELECT v FROM pms_app.messages v WHERE v.id = pms_app.app_uuid('chat', source_key));
+     END IF;
+     UPDATE public.chat_messages SET
+       message = COALESCE(NEW.body, ''),
+       deleted_at = NEW.deleted_at,
+       updated_at = NOW()
+     WHERE pms_app.app_uuid('chat', COALESCE(NULLIF(record_key, ''), id::text)) = OLD.id;
+     RETURN NEW;
+   END
+   $fn$`,
+  `DROP TRIGGER IF EXISTS messages_write ON pms_app.messages`,
+  `CREATE TRIGGER messages_write INSTEAD OF INSERT OR UPDATE ON pms_app.messages
+   FOR EACH ROW EXECUTE FUNCTION pms_app.messages_write()`,
+  `CREATE OR REPLACE FUNCTION pms_app.forum_threads_write() RETURNS trigger LANGUAGE plpgsql AS $fn$
+   DECLARE
+     source_id integer;
+     source_key text;
+     author_key text;
+     author_name text;
+   BEGIN
+     IF TG_OP = 'INSERT' THEN
+       source_id := pms_app.next_public_id('public.forum_posts');
+       source_key := 'f-' || substr(md5(clock_timestamp()::text || random()::text), 1, 12);
+       SELECT user_key, name INTO author_key, author_name FROM public.users
+       WHERE NEW.author_id IS NOT NULL AND pms_app.app_uuid('user', user_key) = NEW.author_id LIMIT 1;
+       INSERT INTO public.forum_posts (
+         id, record_key, title, body, body_text, category, author_id, author_name, locked, created_at, updated_at
+       ) VALUES (
+         source_id, source_key, left(COALESCE(NEW.title, 'Discussion'), 200), COALESCE(NEW.body, ''),
+         left(COALESCE(NEW.body, ''), 4000), COALESCE(NEW.category, 'DISCUSSION'),
+         COALESCE(author_key, ''), COALESCE(author_name, ''),
+         upper(COALESCE(NEW.status, 'OPEN')) IN ('CLOSED', 'LOCKED'), NOW(), NOW()
+       );
+       RETURN (SELECT v FROM pms_app.forum_threads v WHERE v.id = pms_app.app_uuid('forum', source_key));
+     END IF;
+     UPDATE public.forum_posts SET
+       title = left(COALESCE(NEW.title, title), 200),
+       body = COALESCE(NEW.body, body),
+       body_text = left(COALESCE(NEW.body, body), 4000),
+       locked = upper(COALESCE(NEW.status, 'OPEN')) IN ('CLOSED', 'LOCKED'),
+       deleted_at = CASE WHEN TG_OP = 'DELETE' THEN NOW() ELSE deleted_at END,
+       updated_at = COALESCE(NEW.last_activity_at, NOW())
+     WHERE pms_app.app_uuid('forum', COALESCE(NULLIF(record_key, ''), id::text)) = OLD.id;
+     IF TG_OP = 'DELETE' THEN RETURN OLD; END IF;
+     RETURN NEW;
+   END
+   $fn$`,
+  `DROP TRIGGER IF EXISTS forum_threads_write ON pms_app.forum_threads`,
+  `CREATE TRIGGER forum_threads_write INSTEAD OF INSERT OR UPDATE OR DELETE ON pms_app.forum_threads
+   FOR EACH ROW EXECUTE FUNCTION pms_app.forum_threads_write()`,
 ];
 
 async function install(connectionString) {

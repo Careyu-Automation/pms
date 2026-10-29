@@ -1,8 +1,9 @@
 const { STATUS_LABEL } = require('./dailyWork.service');
 
 const COLUMNS = [
-  'DATE', 'EMPLOYEE', 'TEAM', 'WORK TYPE', 'WORK TITLE', 'DESCRIPTION', 'PROJECT', 'PRODUCT',
-  'STATUS', 'PRIORITY', 'DEPENDENCY', 'NEXT ACTION', 'HOURS',
+  'PERSON', 'PROJECT', 'TASK DESCRIPTION', 'DEPENDENCIES', 'STATUS', 'START DATE', 'TASK DEADLINE',
+  'LOGGED HOURS', 'REASON FOR DELAY', 'TEAM', 'WORK TYPE', 'MORNING WORK', 'EVENING WORK',
+  'PROGRESS', 'NEXT ACTION', 'PRIORITY', 'REPORT DATE', 'PERIOD',
 ];
 
 function escapeXml(value) {
@@ -14,21 +15,29 @@ function escapeXml(value) {
 }
 
 function excel(rows) {
-  const body = [COLUMNS, ...rows.map((row) => [
-    row.currentDate,
-    row.employeeName,
-    row.teamName,
-    row.workTypeName,
-    row.workTitle,
-    row.description,
-    row.projectName || 'No project',
-    row.productName || '',
-    STATUS_LABEL[row.status] || row.status,
-    row.priority,
-    row.dependencyDetails || row.dependencyType || 'None',
-    row.nextAction,
-    `${row.hours || 0}h ${row.minutes || 0}m`,
-  ])].map((line) => `<Row>${line.map((cell) => `<Cell><Data ss:Type="String">${escapeXml(cell)}</Data></Cell>`).join('')}</Row>`).join('');
+  const body = [COLUMNS, ...rows.map((row) => {
+    const logged = row.loggedHours != null ? Number(row.loggedHours) : (Number(row.hours) || 0) + ((Number(row.minutes) || 0) / 60);
+    return [
+      row.employeeName,
+      row.projectName || 'No project',
+      row.description || row.workTitle,
+      row.dependencyDetails || 'None',
+      STATUS_LABEL[row.status] || row.status,
+      row.startDate || '',
+      row.deadline || '',
+      `${Math.round((logged || 0) * 10) / 10} hrs`,
+      row.reasonForDelay || '',
+      row.teamName || '',
+      row.workTypeName || '',
+      row.morningWork || '',
+      row.eveningWork || '',
+      row.progress == null || row.progress === '' ? '' : `${row.progress}%`,
+      row.nextAction || '',
+      row.priority || '',
+      row.currentDate,
+      row.period === 'EVENING' ? 'Evening' : 'Morning',
+    ];
+  })].map((line) => `<Row>${line.map((cell) => `<Cell><Data ss:Type="String">${escapeXml(cell)}</Data></Cell>`).join('')}</Row>`).join('');
   return `<?xml version="1.0"?>
 <?mso-application progid="Excel.Sheet"?>
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">

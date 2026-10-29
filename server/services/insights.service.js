@@ -256,7 +256,7 @@ async function overview(user, query) {
     (focusData.waiting || []).forEach((row) => attentionRows.push({ priority: 'Medium', issue: 'Customer response pending', project: row.project || row.description, owner: row.owner || '', due: dayKey(row.due), href: '/daily-work-updates' }));
   }
   employees.filter((person) => person.status === 'OVERLOADED').slice(0, 4).forEach((person) => {
-    attentionRows.push({ priority: 'High', issue: 'Team member overloaded', project: person.teamName || '', owner: person.name, due: '', href: `/workload/employee/${person.id}` });
+    attentionRows.push({ priority: 'High', issue: 'Team member overloaded', project: person.teamName || '', owner: person.name, due: '', href: '' });
   });
 
   const summary = [];
@@ -365,7 +365,7 @@ async function overview(user, query) {
         capacity: person.capacity,
         utilization: person.utilization,
         status: person.status === 'HEALTHY' || person.status === 'NEAR_CAPACITY' ? 'Balanced' : person.status === 'UNDERUTILIZED' ? 'Underutilized' : person.status === 'OVER_CAPACITY' ? 'High Load' : 'Overloaded',
-        href: `/workload/employee/${person.id}`,
+        href: '',
       })),
     } : { error: true },
     daily: daily.ok ? {

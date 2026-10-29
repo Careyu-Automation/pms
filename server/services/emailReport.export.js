@@ -99,29 +99,89 @@ function prettyDate(iso) {
   return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(year, month - 1, day));
 }
 
+function reportStamp(iso) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const [year, month, day] = String(iso || '').slice(0, 10).split('-').map(Number);
+  if (!year || !month || !day) return '';
+  return `${String(day).padStart(2, '0')}-${months[month - 1]}-${year}`;
+}
+
+function sheetDate(iso) {
+  const [year, month, day] = String(iso || '').slice(0, 10).split('-');
+  if (!year || !month || !day) return '—';
+  return `${day}-${month}-${year}`;
+}
+
+function loggedHours(row) {
+  const logged = row.loggedHours != null && row.loggedHours !== ''
+    ? Number(row.loggedHours)
+    : (Number(row.hours) || 0) + ((Number(row.minutes) || 0) / 60);
+  if (!Number.isFinite(logged)) return '—';
+  return `${Math.round(logged * 10) / 10} hrs`;
+}
+
 function dailyWorkEmail(snapshot) {
   const period = snapshot.period || {};
-  const when = prettyDate(period.from);
-  const section = (snapshot.sections || [])[0] || { columns: [], rows: [] };
-  const columns = section.columns || [];
-  const head = columns.map((column) => `<th style="padding:10px 12px;border:1px solid #d7e2ee;background:#0356c5;color:#ffffff;font-size:12px;font-weight:700;text-align:left;white-space:nowrap">${escapeHtml(column)}</th>`).join('');
-  const body = (section.rows || []).map((row, index) => `<tr>${row.map((cell, cellIndex) => `<td style="${cellStyle(columns[cellIndex], index)}">${textHtml(cell)}</td>`).join('')}</tr>`).join('');
-  const empty = `<p style="margin:12px 0;padding:14px 12px;border:1px solid #d7e2ee;background:#f7fafc;color:#5b6b80">No daily work updates found for the selected date.</p>`;
+  const when = reportStamp(period.from) || prettyDate(period.from);
+  const shift = snapshot.shift === 'Evening' ? 'Evening' : snapshot.shift === 'Morning' ? 'Morning' : 'Daily';
+  const rows = snapshot.dailyRows || [];
+  const evening = shift !== 'Morning';
+  const columns = ['Person', 'Project', 'Task Description', 'Dependencies', 'Status', 'Start Date', 'Task Deadline', 'Logged Hours', 'Reason for Delay'];
+  if (evening) columns.push('Morning Work', 'Evening Work', 'Progress', 'Next Action');
+  const head = columns.map((column) => `<th style="padding:8px 10px;border:1px solid #bfbfbf;background:#ffe599;color:#1f1f1f;font-size:12px;font-weight:700;text-align:left;white-space:nowrap">${escapeHtml(column)}</th>`).join('');
+  const body = rows.map((row) => {
+    const overdue = row.deadline && String(row.deadline).slice(0, 10) < String(period.from || '').slice(0, 10) && row.status !== 'COMPLETED';
+    const delayed = overdue || row.status === 'BLOCKED';
+    const cells = [
+      row.employeeName || '—',
+      row.projectName || 'No project',
+      [row.workTitle, row.description].filter((item, index, list) => item && (index === 0 || item !== list[0]) && item !== 'Daily work').join('\n') || '—',
+      row.dependencyDetails || 'None',
+      ({ NOT_STARTED: 'Not Started', IN_PROGRESS: 'In Progress', COMPLETED: 'Completed', BLOCKED: 'Blocked', ON_HOLD: 'On Hold' })[row.status] || row.status || '—',
+      sheetDate(row.startDate),
+      sheetDate(row.deadline),
+      loggedHours(row),
+      row.reasonForDelay || '—',
+    ];
+    if (evening) {
+      cells.push(row.morningWork || '—', row.eveningWork || '—', row.progress == null || row.progress === '' ? '—' : `${row.progress}%`, row.nextAction || '—');
+    }
+    return `<tr>${cells.map((cell, index) => {
+      const deadlineCell = columns[index] === 'Task Deadline' && overdue;
+      const reasonCell = columns[index] === 'Reason for Delay' && delayed && row.reasonForDelay;
+      const style = [
+        'padding:8px 10px',
+        'border:1px solid #d9d9d9',
+        'font-size:13px',
+        'line-height:1.4',
+        'vertical-align:top',
+        'color:#1f1f1f',
+        'background:#ffffff',
+        'white-space:normal',
+        'overflow-wrap:anywhere',
+        deadlineCell ? 'color:#b42318;font-weight:700' : '',
+        reasonCell ? 'background:#fff2cc' : '',
+      ].filter(Boolean).join(';');
+      return `<td style="${style}">${textHtml(cell)}</td>`;
+    }).join('')}</tr>`;
+  }).join('');
+  const empty = `<p style="margin:12px 0;padding:14px 12px;border:1px solid #d9d9d9;background:#fff8e1;color:#5b5346">No daily work updates were found for ${escapeHtml(when)} (${escapeHtml(shift)}).</p>`;
   const tableHtml = body
-    ? `<div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #d7e2ee"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #bfbfbf"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`
     : empty;
-  return `<!doctype html><html><body style="margin:0;padding:0;background:#f5f8fc;font-family:Segoe UI,Arial,sans-serif;color:#102033;font-size:14px;line-height:1.5">
-    <div style="max-width:920px;margin:0 auto;background:#ffffff">
-      <div style="padding:20px 24px;background:#0356c5;color:#ffffff">
-        <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase">CareYu Automation</div>
-        <div style="margin-top:4px;font-size:22px;font-weight:700">Daily Work Report</div>
+  return `<!doctype html><html><body style="margin:0;padding:0;background:#f7f7f7;font-family:Calibri,Segoe UI,Arial,sans-serif;color:#1f1f1f;font-size:14px;line-height:1.5">
+    <div style="max-width:980px;margin:0 auto;background:#ffffff">
+      <div style="padding:18px 22px;border-bottom:3px solid #f1c232">
+        <div style="font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#7a5b00">CareYu Automation</div>
+        <div style="margin-top:4px;font-size:22px;font-weight:700">${escapeHtml(shift)} Status Report</div>
       </div>
-      <div style="padding:24px">
+      <div style="padding:22px">
         <p style="margin:0 0 12px">Dear Team,</p>
-        <p style="margin:0 0 16px">Please find below the Daily Work Report for <strong>${escapeHtml(when)}</strong>.</p>
-        <p style="margin:0 0 16px">The following table lists the work updates recorded.</p>
+        <p style="margin:0 0 8px">Please find the ${escapeHtml(shift)} Status Report below.</p>
+        <p style="margin:0 0 16px">This report summarizes the daily work updates recorded in the system for <strong>${escapeHtml(when)}</strong>, reporting period <strong>${escapeHtml(shift)}</strong>. ${rows.length} ${rows.length === 1 ? 'record is' : 'records are'} included.</p>
         ${tableHtml}
-        <p style="margin:20px 0 0">Regards,<br>CareYu Automation<br>Project Hub</p>
+        <p style="margin:20px 0 0">Please review the items that are overdue or blocked and follow up on the recorded reasons for delay.</p>
+        <p style="margin:16px 0 0">Regards,<br>CareYu Automation<br>Project Hub</p>
       </div>
     </div>
   </body></html>`;

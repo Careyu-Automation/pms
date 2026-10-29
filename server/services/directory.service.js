@@ -173,9 +173,7 @@ async function syncMemberships(client, userId, memberships) {
   for (const item of memberships) {
     await client.query(
       `INSERT INTO team_members (team_id, user_id, role, status, is_primary)
-       VALUES ($1,$2,$3,'ACTIVE',$4)
-       ON CONFLICT (team_id, user_id) DO UPDATE
-       SET role = EXCLUDED.role, status = 'ACTIVE', is_primary = EXCLUDED.is_primary`,
+       VALUES ($1,$2,$3,'ACTIVE',$4)`,
       [item.teamId, userId, item.role, item.primary],
     );
     if (item.role === 'TEAM_LEAD') {

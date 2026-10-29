@@ -159,7 +159,8 @@ async function update(id, input) {
       status = $8,
       priority = $9,
       start_date = $10,
-      end_date = $11
+      end_date = $11,
+      updated_at = NOW()
      WHERE id = $1
      RETURNING id`,
     [id, input.productCode, input.name, input.description, input.teamCode, input.department, input.leadId, input.status, input.priority, input.startDate, input.endDate],

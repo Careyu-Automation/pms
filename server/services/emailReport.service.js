@@ -220,7 +220,7 @@ async function preview(user, body) {
   const snapshot = await generate.build({ ...input, name: input.name }, user);
   const files = require('./emailReport.export');
   const subject = input.type === 'DAILY_WORK'
-    ? generate.dailySubject(snapshot.period.from)
+    ? generate.dailySubject(snapshot.period.from, snapshot.shift)
     : generate.applyVariables(input.subject, snapshot.variables);
   return { snapshot, subject, html: files.htmlEmail({ ...snapshot, subject }), recordCount: snapshot.recordCount || 0, reportDate: snapshot.period.from };
 }
@@ -292,7 +292,7 @@ async function processRun(runId) {
       throw new ApiError(400, 'No daily work updates found for the selected date.');
     }
     const subject = report.type === 'DAILY_WORK'
-      ? generate.dailySubject(snapshot.period.from)
+      ? generate.dailySubject(snapshot.period.from, snapshot.shift)
       : generate.applyVariables(report.subject, snapshot.variables);
     const attachment = run.isTest ? null : fileFor(snapshot, report.attachment === 'EXCEL' ? 'excel' : 'pdf');
     const resolved = await resolveRecipients(report, await repository.recipients(report.id), run.isTest ? actor.email : '');

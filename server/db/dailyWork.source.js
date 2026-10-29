@@ -15,6 +15,11 @@ function metaOf(row) {
     minutes: Number.isInteger(Number(meta.minutes)) ? Number(meta.minutes) : 0,
     dependencyType: meta.dependencyType || '',
     hours: Number.isInteger(Number(meta.hours)) ? Number(meta.hours) : Math.floor(worked),
+    startDate: meta.startDate || '',
+    deadline: meta.deadline || '',
+    reasonForDelay: meta.reasonForDelay || '',
+    morningWork: meta.morningWork || '',
+    eveningWork: meta.eveningWork || '',
   };
 }
 
@@ -44,7 +49,12 @@ function mapRow(row) {
     dependencyType: meta.dependencyType,
     dependencyDetails: row.dependency_details || '',
     taskId: row.task_uuid || '',
-    deadline: row.due_date ? String(row.due_date).slice(0, 10) : '',
+    startDate: meta.startDate || '',
+    deadline: meta.deadline || (row.due_date ? String(row.due_date).slice(0, 10) : ''),
+    reasonForDelay: meta.reasonForDelay || '',
+    morningWork: meta.morningWork || (String(row.period || 'MORNING').toUpperCase() === 'EVENING' ? '' : (row.description || '')),
+    eveningWork: meta.eveningWork || (String(row.period || '').toUpperCase() === 'EVENING' ? (row.description || '') : ''),
+    loggedHours: Math.round(((meta.hours || 0) + ((meta.minutes || 0) / 60)) * 10) / 10,
     entryKind: row.task_uuid ? 'UPDATE' : 'MANUAL',
     progress: row.progress_percent == null ? null : Number(row.progress_percent),
     createdById: row.created_by || row.employee_id,
@@ -190,8 +200,27 @@ function payload(input, user, team, projectName) {
       minutes: input.minutes || 0,
       hours: input.hours || 0,
       dependencyType: input.dependencyType || '',
+      startDate: input.startDate || '',
+      deadline: input.deadline || '',
+      reasonForDelay: input.reasonForDelay || '',
+      morningWork: input.morningWork || '',
+      eveningWork: input.eveningWork || '',
     },
   };
+}
+
+async function existingUpdate(client, userKey, taskKey, workDate, period) {
+  const result = await client.query(
+    `SELECT pms_app.app_uuid('work-update', id::text) AS id
+     FROM public.daily_updates
+     WHERE COALESCE(user_id, '') = COALESCE($1, '')
+       AND COALESCE(work_date, '') = COALESCE($2, '')
+       AND upper(COALESCE(period, 'MORNING')) = upper(COALESCE($3, 'MORNING'))
+       AND COALESCE(NULLIF(task_id, ''), assignment_id, '') = COALESCE($4, '')
+     LIMIT 1`,
+    [userKey, workDate, period || 'MORNING', taskKey || ''],
+  );
+  return result.rows[0]?.id || null;
 }
 
 async function insert(client, input) {
@@ -201,27 +230,43 @@ async function insert(client, input) {
   const projectName = input.projectName || await resolveProjectName(client, input.projectId);
   const taskKey = await resolveTaskKey(client, input.taskId);
   const packed = payload(input, user, team, projectName);
+  if (taskKey) {
+    const existing = await existingUpdate(client, packed.userKey, taskKey, input.updateDate, input.period);
+    if (existing) {
+      await save(client, existing, input);
+      return existing;
+    }
+  }
   const recordKey = `work-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-  const result = await client.query(
-    `INSERT INTO public.daily_updates (
-       id, record_key, user_id, user_name, user_role, team_id, team_name,
-       task_id, project_id, project_name, task_title, work_date, work_completed,
-       work_status, dependency, next_plan, summary, progress_percent, hours_worked,
-       pm_comments, period, update_type, created_at, updated_at, submitted_at
-     )
-     SELECT
-       COALESCE((SELECT MAX(id) FROM public.daily_updates), 0) + 1,
-       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20,$21,NOW(),NOW(),NOW()
-     RETURNING ${UPDATE_UUID} AS id`,
-    [
-      recordKey, packed.userKey, packed.userName, packed.userRole, packed.teamKey, packed.teamName,
-      taskKey || null, input.projectId || null, projectName, input.workTitle, input.updateDate, input.description,
-      input.status, input.dependencyDetails || '', input.nextAction || '', input.workTitle, input.progress,
-      (Number(input.hours) || 0) + ((Number(input.minutes) || 0) / 60),
-      JSON.stringify(packed.comments), input.period || 'MORNING', input.workType,
-    ],
-  );
-  return result.rows[0].id;
+  const storedTask = taskKey || recordKey;
+  try {
+    const result = await client.query(
+      `INSERT INTO public.daily_updates (
+         id, record_key, user_id, user_name, user_role, team_id, team_name,
+         task_id, project_id, project_name, task_title, work_date, work_completed,
+         work_status, dependency, next_plan, summary, progress_percent, hours_worked,
+         pm_comments, period, update_type, created_at, updated_at, submitted_at
+       )
+       SELECT
+         COALESCE((SELECT MAX(id) FROM public.daily_updates), 0) + 1,
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20,$21,NOW(),NOW(),NOW()
+       RETURNING ${UPDATE_UUID} AS id`,
+      [
+        recordKey, packed.userKey, packed.userName, packed.userRole, packed.teamKey, packed.teamName,
+        storedTask, input.projectId || null, projectName, input.workTitle, input.updateDate, input.description,
+        input.status, input.dependencyDetails || '', input.nextAction || '', input.workTitle, input.progress,
+        (Number(input.hours) || 0) + ((Number(input.minutes) || 0) / 60),
+        JSON.stringify(packed.comments), input.period || 'MORNING', input.workType,
+      ],
+    );
+    return result.rows[0].id;
+  } catch (error) {
+    if (error.code !== '23505' || !taskKey) throw error;
+    const again = await existingUpdate(client, packed.userKey, taskKey, input.updateDate, input.period);
+    if (!again) throw error;
+    await save(client, again, input);
+    return again;
+  }
 }
 
 async function save(client, id, input) {
@@ -231,7 +276,9 @@ async function save(client, id, input) {
   const projectName = input.projectName || await resolveProjectName(client, input.projectId);
   const taskKey = await resolveTaskKey(client, input.taskId);
   const packed = payload(input, user, team, projectName);
-  const result = await client.query(
+  let result;
+  try {
+    result = await client.query(
     `UPDATE public.daily_updates SET
        user_id = $2, user_name = $3, user_role = $4, team_id = $5, team_name = $6,
        task_id = COALESCE($7, task_id), project_id = $8, project_name = $9, task_title = $10,
@@ -247,7 +294,11 @@ async function save(client, id, input) {
       (Number(input.hours) || 0) + ((Number(input.minutes) || 0) / 60),
       JSON.stringify(packed.comments), input.period || 'MORNING', input.workType,
     ],
-  );
+    );
+  } catch (error) {
+    if (error.code === '23505') throw new ApiError(409, 'A morning or evening update already exists for this task and date.');
+    throw error;
+  }
   return result.rows[0] || null;
 }
 
@@ -267,8 +318,10 @@ async function linkTask(client, taskId, input) {
   const assignee = await client.query(`SELECT ${USER_UUID} AS id FROM public.users WHERE user_key = $1`, [row.assigned_to_id]);
   if (assignee.rows[0]?.id !== input.employeeId) throw new ApiError(403, 'This task is not assigned to that employee.');
   const existing = await client.query(
-    `SELECT ${UPDATE_UUID} AS id FROM public.daily_updates WHERE task_id = $1 AND work_date = $2 LIMIT 1`,
-    [row.key, input.updateDate],
+    `SELECT ${UPDATE_UUID} AS id FROM public.daily_updates
+     WHERE task_id = $1 AND work_date = $2 AND upper(COALESCE(period, 'MORNING')) = upper($3)
+     LIMIT 1`,
+    [row.key, input.updateDate, input.period || 'MORNING'],
   );
   return { itemId: null, updateId: existing.rows[0]?.id || null };
 }

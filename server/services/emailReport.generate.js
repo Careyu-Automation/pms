@@ -119,7 +119,9 @@ const DAILY_DEPENDENCY = {
   OTHER: 'Other',
 };
 
-const DAILY_COLUMNS = ['S.No.', 'Employee', 'Team', 'Work Type', 'Work Title', 'Description', 'Project', 'Status', 'Priority', 'Progress', 'Hours'];
+const DAILY_COLUMNS = ['Person', 'Project', 'Task Description', 'Dependencies', 'Status', 'Start Date', 'Task Deadline', 'Logged Hours', 'Reason for Delay'];
+const EVENING_COLUMNS = [...DAILY_COLUMNS, 'Morning Work', 'Evening Work', 'Progress', 'Next Action'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function displayDate(iso) {
   const text = String(iso || '').slice(0, 10);
@@ -129,28 +131,58 @@ function displayDate(iso) {
 }
 
 function hoursText(row) {
-  const hours = Number(row.hours) || 0;
-  const minutes = Number(row.minutes) || 0;
-  if (!hours && !minutes) return '—';
-  if (!minutes) return `${hours}h`;
-  if (!hours) return `${minutes}m`;
-  return `${hours}h ${minutes}m`;
+  const logged = row.loggedHours != null && row.loggedHours !== ''
+    ? Number(row.loggedHours)
+    : (Number(row.hours) || 0) + ((Number(row.minutes) || 0) / 60);
+  if (!Number.isFinite(logged)) return '—';
+  const rounded = Math.round(logged * 10) / 10;
+  return `${rounded} hrs`;
 }
 
-function dailyLine(row, index) {
-  return [
-    String(index + 1),
+function sheetDate(iso) {
+  const text = String(iso || '').slice(0, 10);
+  const [year, month, day] = text.split('-');
+  if (!year || !month || !day) return '—';
+  return `${day}-${month}-${year}`;
+}
+
+function taskText(row) {
+  const title = String(row.workTitle || '').trim();
+  const body = String(row.description || '').trim();
+  if (!body || body === title) return title || '—';
+  if (!title || title === 'Daily work') return body;
+  return `${title}\n${body}`;
+}
+
+function dependencyText(row) {
+  const kind = DAILY_DEPENDENCY[row.dependencyType] || '';
+  const detail = String(row.dependencyDetails || '').trim();
+  if (!kind && !detail) return 'None';
+  if (!detail || detail === kind) return kind || detail;
+  return kind ? `${kind}: ${detail}` : detail;
+}
+
+function dailyLine(row, shift) {
+  const line = [
     row.employeeName || '—',
-    row.teamName || '—',
-    row.workTypeName || '—',
-    row.workTitle || '—',
-    row.description || '—',
     row.projectName || 'No project',
+    taskText(row),
+    dependencyText(row),
     DAILY_STATUS[row.status] || row.status || '—',
-    DAILY_PRIORITY[row.priority] || row.priority || '—',
-    row.progress == null || row.progress === '' ? '—' : `${row.progress}%`,
+    sheetDate(row.startDate),
+    sheetDate(row.deadline),
     hoursText(row),
+    row.reasonForDelay || '—',
   ];
+  if (shift !== 'Morning') {
+    line.push(
+      row.morningWork || '—',
+      row.eveningWork || '—',
+      row.progress == null || row.progress === '' ? '—' : `${row.progress}%`,
+      row.nextAction || '—',
+    );
+  }
+  return line;
 }
 
 function attentionText(values) {
@@ -166,8 +198,15 @@ function shiftLabel(period) {
   return 'Full day';
 }
 
-function dailySubject(iso) {
-  return `CareYu Automation | Daily Work Report | ${displayDate(iso)}`;
+function reportStamp(iso) {
+  const [year, month, day] = String(iso || '').slice(0, 10).split('-').map(Number);
+  if (!year || !month || !day) return '—';
+  return `${String(day).padStart(2, '0')}-${MONTHS[month - 1]}-${year}`;
+}
+
+function dailySubject(iso, shift) {
+  const label = shift === 'Evening' ? 'Evening' : shift === 'Morning' ? 'Morning' : 'Daily';
+  return `${label} Status Report - ${reportStamp(iso)}`;
 }
 
 async function daily(config, actor, period) {
@@ -188,7 +227,9 @@ async function daily(config, actor, period) {
     savedOnly: true,
   });
   const updates = (data.updates || []).filter((row) => row.id);
-  const rows = updates.map(dailyLine);
+  const shift = shiftLabel(config.period);
+  const columns = shift === 'Morning' ? DAILY_COLUMNS : EVENING_COLUMNS;
+  const rows = updates.map((row) => dailyLine(row, shift));
   const blockers = updates.map((row) => [row.dependencyDetails, DAILY_DEPENDENCY[row.dependencyType] || ''].filter((item) => item && item !== 'None').join(' — '));
   return {
     kpis: [
@@ -201,9 +242,10 @@ async function daily(config, actor, period) {
       { label: 'Outstanding blockers or dependencies', value: attentionText(blockers) },
       { label: 'Next actions requiring attention', value: attentionText(updates.map((row) => row.nextAction)) },
     ],
-    sections: [table('Daily Work Updates', DAILY_COLUMNS, rows, 500)],
+    sections: [table(shift === 'Evening' ? 'Evening Status Report' : shift === 'Morning' ? 'Morning Status Report' : 'Daily Status Report', columns, rows, 500)],
     bars: [],
-    shift: shiftLabel(config.period),
+    shift,
+    dailyRows: updates,
     empty: rows.length === 0,
     recordCount: updates.length,
   };
@@ -338,7 +380,7 @@ async function projects(config, scope) {
      LEFT JOIN users u ON u.id = p.project_manager_id
      LEFT JOIN project_tasks t ON t.project_id = p.id
      ${extra}
-     GROUP BY p.id, u.full_name
+     GROUP BY p.id, p.project_code, p.title, p.customer_name, p.status, p.start_date, p.target_date, u.full_name
      ORDER BY p.title
      LIMIT 80`,
     params,
@@ -588,6 +630,7 @@ async function build(report, actor) {
     typeLabel: TYPES[report.type] || report.type,
     period,
     shift: pack.shift || '',
+    dailyRows: pack.dailyRows || [],
     empty: Boolean(pack.empty),
     recordCount: Number(pack.recordCount || 0),
     generatedAt: new Date().toISOString(),

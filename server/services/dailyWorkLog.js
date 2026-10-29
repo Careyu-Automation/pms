@@ -41,6 +41,26 @@ function canFuture(user) {
   return ['admin', 'super_admin', 'management'].includes(user?.role?.code || '');
 }
 
+function attachShifts(rows) {
+  const groups = new Map();
+  rows.forEach((row) => {
+    if (!row.id) return;
+    const key = [row.employeeId, row.currentDate, row.taskId || row.workTitle || row.id].join('|');
+    const group = groups.get(key) || {};
+    group[row.period === 'EVENING' ? 'evening' : 'morning'] = row;
+    groups.set(key, group);
+  });
+  return rows.map((row) => {
+    const key = [row.employeeId, row.currentDate, row.taskId || row.workTitle || row.id].join('|');
+    const group = groups.get(key) || {};
+    return {
+      ...row,
+      morningWork: row.morningWork || (row.period === 'EVENING' ? (group.morning?.morningWork || '') : ''),
+      eveningWork: row.eveningWork || (row.period === 'MORNING' ? (group.evening?.eveningWork || '') : ''),
+    };
+  });
+}
+
 function present(user, row) {
   const own = row.employeeId === user.id;
   const editable = own || seesOrganization(user);
@@ -93,8 +113,8 @@ async function buildInput(user, body, current) {
   const updateDate = cleanDate(body.workDate || body.currentDate || body.updateDate) || current?.currentDate || isoToday();
   if (!updateDate) throw new ApiError(400, 'Select a work date.');
   if (updateDate > isoToday() && !canFuture(user)) throw new ApiError(400, 'Future work dates need an admin.');
-  const projectId = body.projectId ? String(body.projectId) : null;
-  const productId = body.productId ? String(body.productId) : null;
+  const projectId = body.projectId && body.projectId !== 'none' ? String(body.projectId) : null;
+  const productId = body.productId && body.productId !== 'none' ? String(body.productId) : null;
   if (projectId && !UUID.test(projectId)) throw new ApiError(400, 'Select a valid project.');
   if (productId && !UUID.test(productId)) throw new ApiError(400, 'Select a valid product.');
   if (projectId && !catalog.projects.some((item) => item.id === projectId)) throw new ApiError(400, 'Select a valid project.');
@@ -114,17 +134,32 @@ async function buildInput(user, body, current) {
   if (progress === '' || progress == null) progress = current?.progress ?? null;
   if (progress != null && progress !== '') {
     progress = Number(progress);
-    if (!Number.isInteger(progress) || progress < 0 || progress > 100) {
+    if (!Number.isFinite(progress) || progress < 0 || progress > 100) {
       throw new ApiError(400, 'Progress must be a whole number from 0 to 100.', { fields: { progress: 'Enter progress from 0 to 100.' } });
     }
+    progress = Math.round(progress);
   } else progress = null;
   const period = String(body.period || current?.period || 'MORNING').toUpperCase();
   if (period !== 'MORNING' && period !== 'EVENING') throw new ApiError(400, 'Select Morning or Evening.');
-  const hours = Number(body.hours ?? current?.hours ?? 0);
-  const minutes = Number(body.minutes ?? current?.minutes ?? 0);
-  if (!Number.isInteger(hours) || hours < 0 || hours > 24) throw new ApiError(400, 'Hours must be between 0 and 24.', { fields: { hours: 'Enter hours from 0 to 24.' } });
-  if (!Number.isInteger(minutes) || minutes < 0 || minutes > 59) throw new ApiError(400, 'Minutes must be between 0 and 59.', { fields: { minutes: 'Enter minutes from 0 to 59.' } });
-  if (hours * 60 + minutes > 1440) throw new ApiError(400, 'Time for one update cannot exceed 24 hours.');
+  const logged = body.loggedHours != null && body.loggedHours !== '' ? Number(body.loggedHours) : null;
+  const rawHours = logged != null ? logged : Number(body.hours ?? current?.hours ?? 0);
+  const rawMinutes = logged != null ? 0 : Number(body.minutes ?? current?.minutes ?? 0);
+  if (!Number.isFinite(rawHours) || rawHours < 0 || rawHours > 24) throw new ApiError(400, 'Hours must be between 0 and 24.', { fields: { hours: 'Enter hours from 0 to 24.' } });
+  if (!Number.isFinite(rawMinutes) || rawMinutes < 0 || rawMinutes > 59) throw new ApiError(400, 'Minutes must be between 0 and 59.', { fields: { minutes: 'Enter minutes from 0 to 59.' } });
+  const totalMinutes = Math.round(rawHours * 60 + rawMinutes);
+  if (totalMinutes > 1440) throw new ApiError(400, 'Time for one update cannot exceed 24 hours.');
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const startDate = cleanDate(body.startDate || current?.startDate);
+  const deadline = cleanDate(body.deadline || body.taskDeadline || current?.deadline);
+  if (startDate && deadline && deadline < startDate) {
+    throw new ApiError(400, 'The deadline cannot be before the start date.', { fields: { deadline: 'The deadline cannot be before the start date.' } });
+  }
+  const reasonForDelay = clean(body.reasonForDelay, 1000);
+  const delayed = status === 'BLOCKED' || (deadline && deadline < updateDate && status !== 'COMPLETED');
+  if (delayed && reasonForDelay.length < 2) {
+    throw new ApiError(400, 'Explain why this work is delayed.', { fields: { reasonForDelay: 'A reason is required when work is blocked or overdue.' } });
+  }
   return {
     employeeId,
     projectId: projectId || null,
@@ -146,6 +181,11 @@ async function buildInput(user, body, current) {
     progress,
     period,
     projectName: clean(body.projectName, 200),
+    startDate,
+    deadline,
+    reasonForDelay,
+    morningWork: clean(body.morningWork, 4000),
+    eveningWork: clean(body.eveningWork, 4000),
   };
 }
 
@@ -191,9 +231,9 @@ async function list(user, filters = {}) {
     priority: PRIORITIES.has(filters.priority) ? filters.priority : '',
     q: clean(filters.q, 80),
   }, user);
-  const reported = new Set(rows.filter((row) => row.taskId).map((row) => `${row.taskId}:${row.employeeId}`));
-  const pending = filters.period || filters.savedOnly ? [] : assigned.filter((row) => !reported.has(`${row.taskId}:${row.employeeId}`));
-  const visible = [...rows, ...pending].map((row) => present(user, row));
+  const reported = new Set(rows.filter((row) => row.taskId).map((row) => `${row.taskId}:${row.employeeId}:${row.period || 'MORNING'}`));
+  const pending = filters.period || filters.savedOnly ? [] : assigned.filter((row) => !reported.has(`${row.taskId}:${row.employeeId}:${row.period || 'MORNING'}`));
+  const visible = attachShifts([...rows, ...pending]).map((row) => present(user, row));
   visible.sort((a, b) => String(b.currentDate).localeCompare(String(a.currentDate)) || String(a.employeeName).localeCompare(String(b.employeeName)));
   const lookups = await repository.catalog();
   if (!organization) {

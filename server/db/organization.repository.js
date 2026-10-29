@@ -155,8 +155,7 @@ async function ensureRoleGrant(roleId, module, action) {
 async function setMembership(teamId, userId, { role, primary }) {
   await query(
     `INSERT INTO team_members (team_id, user_id, role, status, is_primary)
-     VALUES ($1,$2,$3,'ACTIVE',$4)
-     ON CONFLICT (team_id, user_id) DO UPDATE SET status = 'ACTIVE', is_primary = EXCLUDED.is_primary`,
+     VALUES ($1,$2,$3,'ACTIVE',$4)`,
     [teamId, userId, role, primary],
   );
 }
@@ -169,20 +168,24 @@ async function clearPrimary(userId, exceptTeamId) {
 }
 
 async function removeMember(teamId, userId) {
-  await query('DELETE FROM team_members WHERE team_id = $1 AND user_id = $2', [teamId, userId]);
+  const removed = await query('DELETE FROM team_members WHERE team_id = $1 AND user_id = $2', [teamId, userId]);
+  if (!removed.rowCount) return false;
   await query('UPDATE teams SET lead_id = NULL WHERE id = $1 AND lead_id = $2', [teamId, userId]);
+  return true;
 }
 
 async function setLead(teamId, userId, lead) {
-  await query(
+  const updated = await query(
     `UPDATE team_members SET role = $3 WHERE team_id = $1 AND user_id = $2`,
     [teamId, userId, lead ? 'TEAM_LEAD' : 'MEMBER'],
   );
+  if (!updated.rowCount) return false;
   if (lead) {
     await query('UPDATE teams SET lead_id = $2 WHERE id = $1 AND lead_id IS NULL', [teamId, userId]);
   } else {
     await query('UPDATE teams SET lead_id = NULL WHERE id = $1 AND lead_id = $2', [teamId, userId]);
   }
+  return true;
 }
 
 async function log(entry) {

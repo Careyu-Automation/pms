@@ -198,12 +198,10 @@ async function approvedLeave(userIds, start, end) {
 async function completedTasks(userId, start, end) {
   const result = await query(
     `SELECT t.id, t.title, t.estimated_hours, t.end_date, t.updated_at, t.status,
-        COALESCE(SUM(e.hours), 0) AS actual_hours
+        COALESCE((SELECT SUM(e.hours) FROM project_time_entries e WHERE e.task_id = t.id), 0) AS actual_hours
      FROM project_tasks t
-     LEFT JOIN project_time_entries e ON e.task_id = t.id
      WHERE t.assignee_id = $1 AND t.status = 'COMPLETED'
        AND t.updated_at::date BETWEEN $2::date AND $3::date
-     GROUP BY t.id
      ORDER BY t.updated_at DESC`,
     [userId, start, end],
   );
@@ -256,11 +254,12 @@ async function timeEntries(userId, start, end) {
 async function attendance(userId, start, end) {
   const result = await query(
     `SELECT a.work_date, a.check_in, a.check_out, a.total_worked_minutes,
-        COALESCE(SUM(b.duration_minutes) FILTER (WHERE b.end_time IS NOT NULL), 0) AS break_minutes
+        COALESCE((
+          SELECT SUM(b.duration_minutes) FILTER (WHERE b.end_time IS NOT NULL)
+          FROM break_entries b WHERE b.attendance_session_id = a.id
+        ), 0) AS break_minutes
      FROM attendance_sessions a
-     LEFT JOIN break_entries b ON b.attendance_session_id = a.id
      WHERE a.user_id = $1 AND a.work_date BETWEEN $2 AND $3
-     GROUP BY a.id
      ORDER BY a.work_date`,
     [userId, start, end],
   );

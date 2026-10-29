@@ -69,9 +69,6 @@ export function UserMenu() {
             <Link role="menuitem" className="menu-item" to="/settings" onClick={close}>
               My Settings
             </Link>
-            <Link role="menuitem" className="menu-item" to="/my-time" onClick={close}>
-              My Time
-            </Link>
             <Link role="menuitem" className="menu-item" to="/leave" onClick={close}>
               Leave & Permission
             </Link>

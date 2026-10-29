@@ -330,13 +330,15 @@ async function addMember(user, teamId, body) {
 
 async function removeMember(user, teamId, userId) {
   assertManage(user);
-  await repository.removeMember(teamId, userId);
+  const removed = await repository.removeMember(teamId, userId);
+  if (!removed) throw new ApiError(404, 'Team member not found.');
   await repository.log({ actorId: user.id, action: 'Team removed', userId, teamId });
 }
 
 async function lead(user, teamId, userId, enabled) {
   assertManage(user);
-  await repository.setLead(teamId, userId, Boolean(enabled));
+  const updated = await repository.setLead(teamId, userId, Boolean(enabled));
+  if (!updated) throw new ApiError(404, 'Team member not found.');
   await repository.log({ actorId: user.id, action: 'Team lead changed', userId, teamId, next: enabled ? 'Lead' : 'Member' });
 }
 

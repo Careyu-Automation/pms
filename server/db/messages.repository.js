@@ -79,8 +79,10 @@ async function insertConversation(client, input) {
 async function addMember(client, conversationId, userId, role) {
   await client.query(
     `INSERT INTO conversation_members (conversation_id, user_id, role)
-     VALUES ($1,$2,$3)
-     ON CONFLICT (conversation_id, user_id) DO NOTHING`,
+     SELECT $1, $2, $3
+     WHERE NOT EXISTS (
+       SELECT 1 FROM conversation_members WHERE conversation_id = $1 AND user_id = $2
+     )`,
     [conversationId, userId, role || 'MEMBER'],
   );
 }
