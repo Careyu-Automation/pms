@@ -688,7 +688,7 @@ export function DocumentsSection({ study, uploadType, uploadTeamId, onUploadType
   const access = study.access || {};
   const documents = study.documents || [];
   return (
-    <Section title="Documents" description="Lead creation files and feasibility uploads stay linked to this study. Preview and download go through the API — storage paths are never exposed.">
+    <Section title="Documents" description="Upload drawings, specifications, POC evidence, and other supporting files for this feasibility study.">
       {access.canUpload ? (
         <form className="feas-upload" onSubmit={onUpload}>
           <Choice
@@ -697,7 +697,7 @@ export function DocumentsSection({ study, uploadType, uploadTeamId, onUploadType
             value={uploadType}
             options={[
               'Customer Requirements', 'Technical Drawing', 'Technical Specification', 'BOM',
-              'Proposed Solution', 'Cost Estimation', 'POC / Validation Report', 'Vendor Document', 'Other',
+              'Proposed Solution', 'Cost Estimation', 'POC / Validation Report', 'POC Evidence', 'Vendor Document', 'Other',
             ]}
             onChange={onUploadType}
           />
@@ -710,11 +710,13 @@ export function DocumentsSection({ study, uploadType, uploadTeamId, onUploadType
           </label>
           <label className="field">
             <span className="field__label">Files</span>
-            <input className="input" type="file" name="documents" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.jpg,.jpeg,.png,.webp" />
+            <input className="input" type="file" name="documents" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.jpg,.jpeg,.png,.webp,.dwg,.dxf" />
           </label>
           <Button type="submit">Upload Document</Button>
         </form>
-      ) : null}
+      ) : (
+        <p className="feas-note">You do not have permission to upload documents on this study. Ask the PM or study owner if you need access.</p>
+      )}
       <div className="lead-table-wrap">
         <table className="data-table">
           <thead>

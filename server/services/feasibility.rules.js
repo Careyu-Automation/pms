@@ -358,8 +358,11 @@ function isLocked(study) {
 
 function buildAccess(user, study) {
   const code = roleCode(user);
-  const { isPm, isTeamLead } = require('./workflow.roles');
+  const {
+    isPm, isTeamLead, isCeo, isBusinessHead, isEngineeringDirector, seesOrganization,
+  } = require('./workflow.roles');
   const pm = isPm(user);
+  const orgViewer = seesOrganization(user) || isCeo(user) || isBusinessHead(user) || isEngineeringDirector(user);
   const teamLeadRole = isTeamLead(user) || code === 'team_lead';
   const sales = code === 'sales';
   const locked = isLocked(study);
@@ -375,35 +378,38 @@ function buildAccess(user, study) {
   // Study team leads may run the full assessment; plain members only their team rows.
   const studyTeamLead = teams.some((team) => team.teamLeadId === user.id);
   const assignedAssessor = owner || studyTeamLead;
-  const core = !locked && (pm || assignedAssessor);
+  const core = !locked && (pm || orgViewer || assignedAssessor);
   const feasible = ['FEASIBLE', 'FEASIBLE_WITH_CONDITIONS'].includes(study.status);
   const leadStatus = study.lead?.status || '';
   const procurementDone = Boolean(study.solutionCostingId)
     || leadStatus === 'PROCUREMENT_APPROVED'
     || ['COSTING', 'COSTING_SUBMITTED', 'COSTING_CHANGES_REQUESTED', 'COSTING_APPROVED', 'QUOTATION', 'QUOTATION_SENT', 'NEGOTIATION', 'WON', 'CONVERTED'].includes(leadStatus);
   const procurementPending = feasible && !procurementDone && ['FEASIBILITY_APPROVED', 'PROCUREMENT_SUBMITTED', ''].includes(leadStatus);
+  const canManageDocs = pm || orgViewer || owner || studyTeamLead || memberTeamIds.length > 0 || teamLeadRole || sales;
 
   return {
-    canStart: !started && (pm || teamLeadRole || owner || studyTeamLead),
-    canSave: !locked && (pm || owner || studyTeamLead || sales || memberTeamIds.length > 0),
+    canStart: !started && (pm || orgViewer || teamLeadRole || owner || studyTeamLead),
+    canSave: !locked && (pm || orgViewer || owner || studyTeamLead || sales || memberTeamIds.length > 0),
     canEditCore: core,
-    canEditStudy: core && started,
-    canEditTeams: core && started,
-    canEditAssessment: !locked && started && (core || memberTeamIds.length > 0),
-    editableTeamIds: !locked && started ? (core ? teams.map((team) => team.id) : memberTeamIds) : [],
-    canReviewTeamIds: (pm || leadTeamIds.length) ? (pm ? teams.map((team) => team.id) : leadTeamIds) : [],
-    canEditCommunications: !locked && (pm || owner || studyTeamLead || sales),
-    canManageCustomerInputs: !locked && (pm || owner || studyTeamLead),
-    canUpdateCustomerInputs: !locked && (pm || owner || studyTeamLead || sales),
-    canSubmit: started && !locked && (pm || owner || studyTeamLead),
-    canApprove: study.status === 'UNDER_REVIEW' && pm,
-    canRequestChanges: study.status === 'UNDER_REVIEW' && pm,
-    canReject: study.status === 'UNDER_REVIEW' && pm,
-    canProceed: pm && feasible && procurementDone,
+    // Editable as soon as the user may work the study — Start is no longer a hard lock on fields.
+    canEditStudy: core,
+    canEditTeams: core,
+    canEditAssessment: !locked && (core || memberTeamIds.length > 0),
+    editableTeamIds: !locked ? (core ? teams.map((team) => team.id) : memberTeamIds) : [],
+    canReviewTeamIds: (pm || orgViewer || leadTeamIds.length) ? ((pm || orgViewer) ? teams.map((team) => team.id) : leadTeamIds) : [],
+    canEditCommunications: !locked && (pm || orgViewer || owner || studyTeamLead || sales),
+    canManageCustomerInputs: !locked && (pm || orgViewer || owner || studyTeamLead),
+    canUpdateCustomerInputs: !locked && (pm || orgViewer || owner || studyTeamLead || sales),
+    canSubmit: started && !locked && (pm || orgViewer || owner || studyTeamLead),
+    canApprove: study.status === 'UNDER_REVIEW' && (pm || orgViewer),
+    canRequestChanges: study.status === 'UNDER_REVIEW' && (pm || orgViewer),
+    canReject: study.status === 'UNDER_REVIEW' && (pm || orgViewer),
+    canProceed: (pm || orgViewer) && feasible && procurementDone,
     procurementPending: Boolean(procurementPending),
     procurementHref: '/procurement-requests',
-    canUpload: started && !['NOT_FEASIBLE', 'REJECTED'].includes(study.status) && (pm || owner || studyTeamLead || memberTeamIds.length > 0),
-    canDeleteDocuments: pm || owner || studyTeamLead,
+    // Allow document upload before Start study so drawings/specs can be attached immediately.
+    canUpload: !['NOT_FEASIBLE', 'REJECTED'].includes(study.status) && canManageDocs,
+    canDeleteDocuments: pm || orgViewer || owner || studyTeamLead,
     isOwner: owner,
     isStudyTeamLead: studyTeamLead,
     isAssignedMember: memberTeamIds.length > 0,

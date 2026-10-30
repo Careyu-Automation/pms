@@ -6,9 +6,42 @@
 
 .report-composer__controls {
   display: grid;
-  grid-template-columns: 160px 150px minmax(180px, 1fr) minmax(220px, 1.4fr);
+  grid-template-columns: 160px minmax(180px, 1fr) minmax(220px, 1.4fr) minmax(220px, 1.4fr);
   gap: 8px;
   align-items: end;
+}
+
+.report-period-toggle {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  width: fit-content;
+}
+
+.report-period-toggle button {
+  min-height: var(--control-height);
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.report-period-toggle button.is-active {
+  background: var(--brand, #2563eb);
+  color: #fff;
+}
+
+.report-period-toggle button:hover:not(.is-active) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .report-composer__controls label {

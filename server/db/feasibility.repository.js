@@ -441,10 +441,114 @@ async function findIdByLead(leadId) {
   return result.rows[0]?.id || null;
 }
 
+async function legacyLeadFields(client, leadId) {
+  const result = await client.query(`
+    SELECT
+      pl.fs_status,
+      pl.status AS pub_status,
+      COALESCE(pl.fs_technical_feasibility, '') AS technical_feasibility,
+      COALESCE(pl.fs_required_resources, '') AS required_resources,
+      COALESCE(pl.fs_proposed_solution, '') AS proposed_solution,
+      COALESCE(pl.fs_major_constraints, '') AS major_constraints,
+      COALESCE(pl.fs_estimated_timeline, '') AS estimated_timeline,
+      COALESCE(pl.fs_required_equipment, '') AS required_equipment,
+      COALESCE(pl.fs_technical_assumptions, '') AS technical_assumptions,
+      COALESCE(pl.fs_team_remarks, '') AS team_remarks,
+      COALESCE(pl.costing_commercial_assumptions, '') AS commercial_notes,
+      pl.fs_started_at,
+      pl.fs_submitted_at,
+      pl.created_at
+    FROM public.leads pl
+    WHERE pms_app.app_uuid('lead', COALESCE(NULLIF(pl.record_key, ''), pl.id::text)) = $1
+    LIMIT 1
+  `, [leadId]);
+  return result.rows[0] || null;
+}
+
+function mapLegacyStudyStatus(legacy) {
+  const fs = String(legacy?.fs_status || '').toUpperCase();
+  const status = String(legacy?.pub_status || '').toUpperCase();
+  if (fs === 'APPROVED' || ['NEGOTIATION', 'QUOTATION', 'WON', 'COSTING', 'COSTING_APPROVED'].includes(status)) {
+    return { status: 'FEASIBLE', decision: 'FEASIBLE', nextStep: 'Proceed to Solution & Costing' };
+  }
+  if (fs === 'SUBMITTED') return { status: 'UNDER_REVIEW', decision: '', nextStep: '' };
+  if (fs === 'DRAFT' || fs) return { status: 'IN_PROGRESS', decision: '', nextStep: '' };
+  return { status: 'IN_PROGRESS', decision: '', nextStep: '' };
+}
+
+async function applyLegacyStudyFields(client, studyId, legacy) {
+  if (!legacy) return;
+  const hasContent = [
+    legacy.technical_feasibility,
+    legacy.required_resources,
+    legacy.proposed_solution,
+    legacy.major_constraints,
+    legacy.estimated_timeline,
+    legacy.required_equipment,
+    legacy.technical_assumptions,
+    legacy.team_remarks,
+    legacy.fs_status,
+  ].some((value) => String(value || '').trim());
+  if (!hasContent && !legacy.fs_started_at && !legacy.fs_submitted_at) return;
+  const mapped = mapLegacyStudyStatus(legacy);
+  await client.query(`
+    UPDATE feasibility_studies SET
+      status = CASE
+        WHEN status IN ('FEASIBLE', 'FEASIBLE_WITH_CONDITIONS', 'NOT_FEASIBLE', 'REJECTED', 'UNDER_REVIEW') THEN status
+        WHEN status = 'NOT_STARTED' THEN $2
+        ELSE status
+      END,
+      decision = CASE WHEN btrim(COALESCE(decision, '')) <> '' THEN decision ELSE $3 END,
+      technical_feasibility = CASE WHEN btrim(COALESCE(technical_feasibility, '')) <> '' THEN technical_feasibility ELSE $4 END,
+      required_resources = CASE WHEN btrim(COALESCE(required_resources, '')) <> '' THEN required_resources ELSE $5 END,
+      proposed_solution = CASE WHEN btrim(COALESCE(proposed_solution, '')) <> '' THEN proposed_solution ELSE $6 END,
+      major_constraints = CASE WHEN btrim(COALESCE(major_constraints, '')) <> '' THEN major_constraints ELSE $7 END,
+      estimated_timeline = CASE WHEN btrim(COALESCE(estimated_timeline, '')) <> '' THEN estimated_timeline ELSE $8 END,
+      required_equipment = CASE WHEN btrim(COALESCE(required_equipment, '')) <> '' THEN required_equipment ELSE $9 END,
+      technical_assumptions = CASE WHEN btrim(COALESCE(technical_assumptions, '')) <> '' THEN technical_assumptions ELSE $10 END,
+      team_remarks = CASE WHEN btrim(COALESCE(team_remarks, '')) <> '' THEN team_remarks ELSE $11 END,
+      commercial_notes = CASE WHEN btrim(COALESCE(commercial_notes, '')) <> '' THEN commercial_notes ELSE $12 END,
+      recommended_next_step = CASE WHEN btrim(COALESCE(recommended_next_step, '')) <> '' THEN recommended_next_step ELSE $13 END,
+      overall_conclusion = CASE
+        WHEN btrim(COALESCE(overall_conclusion, '')) <> '' THEN overall_conclusion
+        ELSE COALESCE(NULLIF(btrim($4), ''), NULLIF(btrim($6), ''), overall_conclusion)
+      END,
+      started_at = COALESCE(started_at, $14, $15, CASE WHEN $16::boolean THEN $17 ELSE NULL END),
+      updated_at = NOW()
+    WHERE id = $1
+  `, [
+    studyId,
+    mapped.status,
+    mapped.decision,
+    legacy.technical_feasibility,
+    legacy.required_resources,
+    legacy.proposed_solution,
+    legacy.major_constraints,
+    legacy.estimated_timeline,
+    legacy.required_equipment,
+    legacy.technical_assumptions,
+    legacy.team_remarks,
+    legacy.commercial_notes,
+    mapped.nextStep,
+    legacy.fs_started_at,
+    legacy.fs_submitted_at,
+    hasContent,
+    legacy.created_at,
+  ]);
+}
+
 async function ensureForLead(leadId, actorId) {
   return withTransaction(async (client) => {
-    const existing = await client.query('SELECT id FROM feasibility_studies WHERE lead_id = $1', [leadId]);
-    if (existing.rows[0]) return existing.rows[0].id;
+    const existing = await client.query('SELECT id, status, proposed_solution, technical_feasibility, started_at FROM feasibility_studies WHERE lead_id = $1', [leadId]);
+    if (existing.rows[0]) {
+      const row = existing.rows[0];
+      const empty = !String(row.proposed_solution || '').trim()
+        || !String(row.technical_feasibility || '').trim()
+        || !row.started_at
+        || row.status === 'NOT_STARTED';
+      if (empty) await applyLegacyStudyFields(client, row.id, await legacyLeadFields(client, leadId));
+      return row.id;
+    }
     const lead = await client.query(
       'SELECT id, status, production_quantity, details FROM leads WHERE id = $1',
       [leadId],
@@ -456,6 +560,7 @@ async function ensureForLead(leadId, actorId) {
     );
     const id = inserted.rows[0].id;
     await client.query('INSERT INTO feasibility_validations (feasibility_id) VALUES ($1)', [id]);
+    await applyLegacyStudyFields(client, id, await legacyLeadFields(client, leadId));
     const details = lead.rows[0].details || {};
     const seeds = [
       ['Cycle Time', details.cycleTime || '', 'sec'],

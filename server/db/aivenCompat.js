@@ -2073,20 +2073,24 @@ const STATEMENTS = [
   `INSERT INTO pms_app.feasibility_studies (
      lead_id, status, decision, technical_feasibility, required_resources, proposed_solution,
      major_constraints, estimated_timeline, required_equipment, technical_assumptions, team_remarks,
-     commercial_notes, started_at, created_at, updated_at
+     commercial_notes, recommended_next_step, started_at, created_at, updated_at
    )
    SELECT
      pms_app.app_uuid('lead', COALESCE(NULLIF(l.record_key, ''), l.id::text)),
      CASE upper(COALESCE(l.fs_status, ''))
        WHEN 'APPROVED' THEN 'FEASIBLE'
-       WHEN 'SUBMITTED' THEN 'SUBMITTED_FOR_REVIEW'
+       WHEN 'SUBMITTED' THEN 'UNDER_REVIEW'
        WHEN 'DRAFT' THEN 'IN_PROGRESS'
        ELSE CASE
-         WHEN upper(COALESCE(l.status, '')) IN ('NEGOTIATION', 'QUOTATION', 'WON') THEN 'FEASIBLE'
+         WHEN upper(COALESCE(l.status, '')) IN ('NEGOTIATION', 'QUOTATION', 'WON', 'COSTING', 'COSTING_APPROVED') THEN 'FEASIBLE'
          ELSE 'IN_PROGRESS'
        END
      END,
-     CASE WHEN upper(COALESCE(l.fs_status, '')) = 'APPROVED' THEN 'FEASIBLE' ELSE '' END,
+     CASE
+       WHEN upper(COALESCE(l.fs_status, '')) = 'APPROVED' THEN 'FEASIBLE'
+       WHEN upper(COALESCE(l.status, '')) IN ('NEGOTIATION', 'QUOTATION', 'WON', 'COSTING', 'COSTING_APPROVED') THEN 'FEASIBLE'
+       ELSE ''
+     END,
      COALESCE(l.fs_technical_feasibility, ''),
      COALESCE(l.fs_required_resources, ''),
      COALESCE(l.fs_proposed_solution, ''),
@@ -2096,20 +2100,177 @@ const STATEMENTS = [
      COALESCE(l.fs_technical_assumptions, ''),
      COALESCE(l.fs_team_remarks, ''),
      COALESCE(l.costing_commercial_assumptions, ''),
-     l.fs_started_at,
+     CASE
+       WHEN upper(COALESCE(l.fs_status, '')) = 'APPROVED'
+         OR upper(COALESCE(l.status, '')) IN ('NEGOTIATION', 'QUOTATION', 'WON', 'COSTING', 'COSTING_APPROVED')
+       THEN 'Proceed to Solution & Costing'
+       ELSE ''
+     END,
+     CASE
+       WHEN l.fs_started_at IS NOT NULL OR l.fs_submitted_at IS NOT NULL
+         OR btrim(COALESCE(l.fs_status, '')) <> ''
+         OR btrim(COALESCE(l.fs_proposed_solution, '')) <> ''
+         OR btrim(COALESCE(l.fs_technical_feasibility, '')) <> ''
+       THEN COALESCE(l.fs_started_at, l.fs_submitted_at, l.created_at)
+       ELSE NULL
+     END,
      COALESCE(l.created_at, NOW()),
      COALESCE(l.updated_at, l.created_at, NOW())
    FROM public.leads l
    WHERE upper(COALESCE(l.status, '')) IN (
-       'FEASIBILITY_IN_PROGRESS', 'ACCEPTED_FOR_FEASIBILITY', 'NEGOTIATION', 'QUOTATION', 'WON', 'FEASIBILITY'
+       'FEASIBILITY_IN_PROGRESS', 'ACCEPTED_FOR_FEASIBILITY', 'NEGOTIATION', 'QUOTATION', 'WON', 'FEASIBILITY',
+       'COSTING', 'COSTING_SUBMITTED', 'COSTING_APPROVED', 'FEASIBILITY_APPROVED'
      )
      OR upper(COALESCE(l.pipeline_stage, '')) IN ('FEASIBILITY', 'NEGOTIATION', 'COSTING', 'QUOTATION')
      OR btrim(COALESCE(l.fs_status, '')) <> ''
-   ON CONFLICT (lead_id) DO NOTHING`,
+   ON CONFLICT (lead_id) DO UPDATE SET
+     status = CASE
+       WHEN pms_app.feasibility_studies.status IN ('FEASIBLE', 'FEASIBLE_WITH_CONDITIONS', 'NOT_FEASIBLE', 'REJECTED', 'UNDER_REVIEW')
+         THEN pms_app.feasibility_studies.status
+       WHEN EXCLUDED.status = 'FEASIBLE' OR EXCLUDED.status = 'UNDER_REVIEW' THEN EXCLUDED.status
+       WHEN btrim(COALESCE(EXCLUDED.proposed_solution, '')) <> ''
+         OR btrim(COALESCE(EXCLUDED.technical_feasibility, '')) <> ''
+         OR EXCLUDED.started_at IS NOT NULL
+       THEN EXCLUDED.status
+       ELSE pms_app.feasibility_studies.status
+     END,
+     decision = CASE
+       WHEN btrim(COALESCE(pms_app.feasibility_studies.decision, '')) <> '' THEN pms_app.feasibility_studies.decision
+       ELSE EXCLUDED.decision
+     END,
+     technical_feasibility = CASE
+       WHEN btrim(COALESCE(pms_app.feasibility_studies.technical_feasibility, '')) <> '' THEN pms_app.feasibility_studies.technical_feasibility
+       ELSE EXCLUDED.technical_feasibility
+     END,
+     required_resources = CASE
+       WHEN btrim(COALESCE(pms_app.feasibility_studies.required_resources, '')) <> '' THEN pms_app.feasibility_studies.required_resources
+       ELSE EXCLUDED.required_resources
+     END,
+     proposed_solution = CASE
+       WHEN btrim(COALESCE(pms_app.feasibility_studies.proposed_solution, '')) <> '' THEN pms_app.feasibility_studies.proposed_solution
+       ELSE EXCLUDED.proposed_solution
+     END,
+     major_constraints = CASE
+       WHEN btrim(COALESCE(pms_app.feasibility_studies.major_constraints, '')) <> '' THEN pms_app.feasibility_studies.major_constraints
+       ELSE EXCLUDED.major_constraints
+     END,
+     estimated_timeline = CASE
+       WHEN btrim(COALESCE(pms_app.feasibility_studies.estimated_timeline, '')) <> '' THEN pms_app.feasibility_studies.estimated_timeline
+       ELSE EXCLUDED.estimated_timeline
+     END,
+     required_equipment = CASE
+       WHEN btrim(COALESCE(pms_app.feasibility_studies.required_equipment, '')) <> '' THEN pms_app.feasibility_studies.required_equipment
+       ELSE EXCLUDED.required_equipment
+     END,
+     technical_assumptions = CASE
+       WHEN btrim(COALESCE(pms_app.feasibility_studies.technical_assumptions, '')) <> '' THEN pms_app.feasibility_studies.technical_assumptions
+       ELSE EXCLUDED.technical_assumptions
+     END,
+     team_remarks = CASE
+       WHEN btrim(COALESCE(pms_app.feasibility_studies.team_remarks, '')) <> '' THEN pms_app.feasibility_studies.team_remarks
+       ELSE EXCLUDED.team_remarks
+     END,
+     commercial_notes = CASE
+       WHEN btrim(COALESCE(pms_app.feasibility_studies.commercial_notes, '')) <> '' THEN pms_app.feasibility_studies.commercial_notes
+       ELSE EXCLUDED.commercial_notes
+     END,
+     recommended_next_step = CASE
+       WHEN btrim(COALESCE(pms_app.feasibility_studies.recommended_next_step, '')) <> '' THEN pms_app.feasibility_studies.recommended_next_step
+       ELSE EXCLUDED.recommended_next_step
+     END,
+     started_at = COALESCE(pms_app.feasibility_studies.started_at, EXCLUDED.started_at),
+     updated_at = NOW()
+   WHERE btrim(COALESCE(pms_app.feasibility_studies.proposed_solution, '')) = ''
+      OR btrim(COALESCE(pms_app.feasibility_studies.technical_feasibility, '')) = ''
+      OR btrim(COALESCE(pms_app.feasibility_studies.technical_assumptions, '')) = ''
+      OR pms_app.feasibility_studies.started_at IS NULL
+      OR pms_app.feasibility_studies.status = 'NOT_STARTED'`,
   `INSERT INTO pms_app.feasibility_validations (feasibility_id)
    SELECT s.id FROM pms_app.feasibility_studies s
    WHERE NOT EXISTS (
      SELECT 1 FROM pms_app.feasibility_validations v WHERE v.feasibility_id = s.id
+   )`,
+  `UPDATE pms_app.feasibility_studies s
+   SET overall_conclusion = CASE
+         WHEN btrim(COALESCE(s.overall_conclusion, '')) <> '' THEN s.overall_conclusion
+         ELSE COALESCE(NULLIF(btrim(s.technical_feasibility), ''), NULLIF(btrim(s.proposed_solution), ''), s.overall_conclusion)
+       END,
+       updated_at = NOW()
+   WHERE btrim(COALESCE(s.overall_conclusion, '')) = ''
+     AND (
+       btrim(COALESCE(s.technical_feasibility, '')) <> ''
+       OR btrim(COALESCE(s.proposed_solution, '')) <> ''
+     )`,
+  `INSERT INTO pms_app.feasibility_team_assignments (
+     id, feasibility_id, team_code, team_lead_id, assignment_date, due_date, status, completion_percent, created_at
+   )
+   SELECT
+     pms_app.app_uuid('feas-team', COALESCE(NULLIF(fta.record_key, ''), fta.id::text)),
+     s.id,
+     CASE lower(regexp_replace(COALESCE(fta.team_id, ''), '^t-', ''))
+       WHEN 'vision' THEN 'vision'
+       WHEN 'robotics' THEN 'robotics'
+       WHEN 'software' THEN 'software'
+       WHEN 'procurement' THEN 'procurement'
+       WHEN 'execution' THEN 'execution'
+       ELSE lower(regexp_replace(COALESCE(fta.team_id, ''), '^t-', ''))
+     END,
+     CASE
+       WHEN btrim(COALESCE(fta.team_lead_id, '')) <> '' THEN pms_app.app_uuid('user', fta.team_lead_id)
+       ELSE NULL
+     END,
+     COALESCE(fta.created_at::date, CURRENT_DATE),
+     pms_app.as_date(fta.due_date::text),
+     CASE upper(COALESCE(fta.status, ''))
+       WHEN 'COMPLETED' THEN 'COMPLETED'
+       WHEN 'BLOCKED' THEN 'BLOCKED'
+       WHEN 'NOT_STARTED' THEN 'NOT_STARTED'
+       ELSE 'IN_PROGRESS'
+     END,
+     CASE upper(COALESCE(fta.status, '')) WHEN 'COMPLETED' THEN 100 ELSE 40 END,
+     COALESCE(fta.created_at, NOW())
+   FROM public.feasibility_team_assignments fta
+   JOIN public.leads l ON l.record_key = fta.lead_id OR l.id::text = fta.lead_id
+   JOIN pms_app.feasibility_studies s
+     ON s.lead_id = pms_app.app_uuid('lead', COALESCE(NULLIF(l.record_key, ''), l.id::text))
+   WHERE CASE lower(regexp_replace(COALESCE(fta.team_id, ''), '^t-', ''))
+       WHEN 'vision' THEN true
+       WHEN 'robotics' THEN true
+       WHEN 'software' THEN true
+       WHEN 'procurement' THEN true
+       WHEN 'execution' THEN true
+       ELSE false
+     END
+   ON CONFLICT (feasibility_id, team_code) DO UPDATE SET
+     team_lead_id = COALESCE(pms_app.feasibility_team_assignments.team_lead_id, EXCLUDED.team_lead_id),
+     due_date = COALESCE(pms_app.feasibility_team_assignments.due_date, EXCLUDED.due_date),
+     status = CASE
+       WHEN pms_app.feasibility_team_assignments.status = 'COMPLETED' THEN pms_app.feasibility_team_assignments.status
+       ELSE EXCLUDED.status
+     END,
+     completion_percent = GREATEST(pms_app.feasibility_team_assignments.completion_percent, EXCLUDED.completion_percent)`,
+  `INSERT INTO pms_app.feasibility_assessments (assignment_id, technical_assessment, remarks, updated_at)
+   SELECT
+     a.id,
+     COALESCE(NULLIF(btrim(fta.pm_instructions), ''), ''),
+     COALESCE('Legacy assignment: ' || NULLIF(btrim(fta.team_lead_name), ''), ''),
+     NOW()
+   FROM public.feasibility_team_assignments fta
+   JOIN public.leads l ON l.record_key = fta.lead_id OR l.id::text = fta.lead_id
+   JOIN pms_app.feasibility_studies s
+     ON s.lead_id = pms_app.app_uuid('lead', COALESCE(NULLIF(l.record_key, ''), l.id::text))
+   JOIN pms_app.feasibility_team_assignments a
+     ON a.feasibility_id = s.id
+    AND a.team_code = CASE lower(regexp_replace(COALESCE(fta.team_id, ''), '^t-', ''))
+      WHEN 'vision' THEN 'vision'
+      WHEN 'robotics' THEN 'robotics'
+      WHEN 'software' THEN 'software'
+      WHEN 'procurement' THEN 'procurement'
+      WHEN 'execution' THEN 'execution'
+      ELSE lower(regexp_replace(COALESCE(fta.team_id, ''), '^t-', ''))
+    END
+   WHERE NOT EXISTS (
+     SELECT 1 FROM pms_app.feasibility_assessments fa WHERE fa.assignment_id = a.id
    )`,
   `INSERT INTO pms_app.solution_costings (
      id, costing_code, feasibility_id, lead_id, status, currency, created_at, updated_at
@@ -2167,7 +2328,112 @@ const STATEMENTS = [
    FROM public.leads l
    JOIN pms_app.solution_costings c
      ON c.id = pms_app.app_uuid('costing', COALESCE(NULLIF(l.record_key, ''), l.id::text))
-   ON CONFLICT (id) DO NOTHING`,
+   ON CONFLICT (id) DO UPDATE SET
+     solution_name = CASE
+       WHEN btrim(COALESCE(pms_app.solution_costing_versions.solution_name, '')) <> '' THEN pms_app.solution_costing_versions.solution_name
+       ELSE EXCLUDED.solution_name
+     END,
+     solution_description = CASE
+       WHEN btrim(COALESCE(pms_app.solution_costing_versions.solution_description, '')) <> '' THEN pms_app.solution_costing_versions.solution_description
+       ELSE EXCLUDED.solution_description
+     END,
+     commercial_assumptions = CASE
+       WHEN btrim(COALESCE(pms_app.solution_costing_versions.commercial_assumptions, '')) <> '' THEN pms_app.solution_costing_versions.commercial_assumptions
+       ELSE EXCLUDED.commercial_assumptions
+     END,
+     payment_terms = CASE
+       WHEN btrim(COALESCE(pms_app.solution_costing_versions.payment_terms, '')) <> '' THEN pms_app.solution_costing_versions.payment_terms
+       ELSE EXCLUDED.payment_terms
+     END,
+     delivery_terms = CASE
+       WHEN btrim(COALESCE(pms_app.solution_costing_versions.delivery_terms, '')) <> '' THEN pms_app.solution_costing_versions.delivery_terms
+       ELSE EXCLUDED.delivery_terms
+     END,
+     validity = CASE
+       WHEN btrim(COALESCE(pms_app.solution_costing_versions.validity, '')) <> '' THEN pms_app.solution_costing_versions.validity
+       ELSE EXCLUDED.validity
+     END,
+     totals = CASE
+       WHEN COALESCE((pms_app.solution_costing_versions.totals->>'selling')::numeric, 0) > 0
+         OR COALESCE((pms_app.solution_costing_versions.totals->>'totalInternal')::numeric, 0) > 0
+       THEN pms_app.solution_costing_versions.totals
+       ELSE EXCLUDED.totals
+     END,
+     updated_at = NOW()
+   WHERE btrim(COALESCE(pms_app.solution_costing_versions.solution_description, '')) = ''
+      OR btrim(COALESCE(pms_app.solution_costing_versions.solution_name, '')) = ''
+      OR (
+        COALESCE((pms_app.solution_costing_versions.totals->>'selling')::numeric, 0) = 0
+        AND COALESCE((EXCLUDED.totals->>'selling')::numeric, 0) > 0
+      )`,
+  `INSERT INTO pms_app.solution_costing_teams (version_id, team_code, contribution, estimated_cost, members, status)
+   SELECT DISTINCT ON (v.id, orphan.team_code)
+     v.id,
+     orphan.team_code,
+     orphan.contribution,
+     orphan.estimated_cost,
+     orphan.members,
+     orphan.status
+   FROM pms_app.solution_costing_versions v
+   JOIN pms_app.solution_costings c ON c.id = v.costing_id AND v.is_current = TRUE
+   JOIN pms_app.solution_costing_teams orphan
+     ON orphan.team_code IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM pms_app.solution_costing_versions keep WHERE keep.id = orphan.version_id
+    )
+   WHERE (SELECT count(*)::int FROM pms_app.solution_costing_versions WHERE is_current = TRUE) = 1
+     AND NOT EXISTS (
+       SELECT 1 FROM pms_app.solution_costing_teams existing
+       WHERE existing.version_id = v.id AND existing.team_code = orphan.team_code
+     )
+   ORDER BY v.id, orphan.team_code, length(coalesce(orphan.contribution, '')) DESC
+   ON CONFLICT (version_id, team_code) DO NOTHING`,
+  `INSERT INTO pms_app.solution_cost_entries (version_id, section, line_key, label, mode, hours, rate, amount, sort_order)
+   SELECT DISTINCT ON (v.id, orphan.line_key)
+     v.id,
+     orphan.section,
+     orphan.line_key,
+     orphan.label,
+     orphan.mode,
+     orphan.hours,
+     orphan.rate,
+     orphan.amount,
+     orphan.sort_order
+   FROM pms_app.solution_costing_versions v
+   JOIN pms_app.solution_costings c ON c.id = v.costing_id AND v.is_current = TRUE
+   JOIN pms_app.solution_cost_entries orphan
+     ON NOT EXISTS (
+       SELECT 1 FROM pms_app.solution_costing_versions keep WHERE keep.id = orphan.version_id
+     )
+   WHERE (SELECT count(*)::int FROM pms_app.solution_costing_versions WHERE is_current = TRUE) = 1
+     AND NOT EXISTS (
+       SELECT 1 FROM pms_app.solution_cost_entries existing
+       WHERE existing.version_id = v.id AND existing.line_key = orphan.line_key
+     )
+   ORDER BY v.id, orphan.line_key, orphan.sort_order
+   ON CONFLICT (version_id, line_key) DO NOTHING`,
+  `INSERT INTO pms_app.solution_bom_items (
+     version_id, item_no, category, component, description, quantity, unit, unit_cost, remarks, sort_order
+   )
+   SELECT
+     v.id,
+     1,
+     'Miscellaneous',
+     COALESCE(NULLIF(btrim(l.costing_bom_components::text), ''), 'Legacy BOM'),
+     'Migrated from legacy costing BOM note',
+     1,
+     'Lot',
+     0,
+     'Legacy costing_bom_components',
+     0
+   FROM public.leads l
+   JOIN pms_app.solution_costings c
+     ON c.id = pms_app.app_uuid('costing', COALESCE(NULLIF(l.record_key, ''), l.id::text))
+   JOIN pms_app.solution_costing_versions v ON v.costing_id = c.id AND v.is_current = TRUE
+   WHERE btrim(COALESCE(l.costing_bom_components::text, '')) NOT IN ('', 'null')
+     AND NOT EXISTS (
+       SELECT 1 FROM pms_app.solution_bom_items b WHERE b.version_id = v.id
+     )`,
   `CREATE TABLE IF NOT EXISTS pms_app.message_attachments (
      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
      message_id UUID NOT NULL,

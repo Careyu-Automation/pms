@@ -122,17 +122,8 @@ export default function FeasibilityDetailPage() {
   }
 
   const access = study.access || {};
-  const formAccess = {
-    ...access,
-    canEditStudy: Boolean(access.canEditStudy && editing),
-    canEditCore: Boolean(access.canEditCore && editing),
-    canEditTeams: Boolean(access.canEditTeams && editing),
-    canManageCustomerInputs: Boolean(access.canManageCustomerInputs && editing),
-    canUpdateCustomerInputs: Boolean(access.canUpdateCustomerInputs && editing),
-    canEditCommunications: Boolean(access.canEditCommunications && editing),
-    editableTeamIds: editing ? (access.editableTeamIds || []) : [],
-  };
-  const view = { ...study, directory: users, access: formAccess };
+  // Fields follow server permissions directly — no extra "Edit Assessment" lock.
+  const view = { ...study, directory: users, access };
   const progress = calculateProgress(study);
   const counts = summarize(study);
   const statusInfo = statusMeta(FEASIBILITY_STATUSES, study.status);
@@ -147,23 +138,21 @@ export default function FeasibilityDetailPage() {
   }
 
   function cancelEdit() {
-    if (editSnapshot) {
-      try {
-        const restored = JSON.parse(editSnapshot);
-        setStudy((current) => ({
-          ...current,
-          ...restored,
-          access: current.access,
-          progress: current.progress,
-          summary: current.summary,
-          lead: current.lead,
-          activity: current.activity,
-          documents: current.documents,
-          directory: current.directory,
-        }));
-      } catch {
-        load();
-      }
+    try {
+      const restored = JSON.parse(savedKey);
+      setStudy((current) => ({
+        ...current,
+        ...restored,
+        access: current.access,
+        progress: current.progress,
+        summary: current.summary,
+        lead: current.lead,
+        activity: current.activity,
+        documents: current.documents,
+        directory: current.directory,
+      }));
+    } catch {
+      load();
     }
     setEditing(false);
     setEditSnapshot(null);
@@ -172,11 +161,20 @@ export default function FeasibilityDetailPage() {
   async function onSave() {
     setBusy('save');
     try {
-      const result = await saveStudy(study.id, study);
+      let current = study;
+      if (access.canStart && !study.startedAt) {
+        const started = await startStudy(study.id, {
+          ownerId: study.ownerId,
+          targetCompletionDate: study.targetCompletionDate,
+        });
+        current = started.data.study;
+        apply(current);
+      }
+      const result = await saveStudy(current.id, { ...study, ...current, access: undefined });
       apply(result.data.study);
       setEditing(false);
       setEditSnapshot(null);
-      push({ tone: 'success', message: 'Changes saved.' });
+      push({ tone: 'success', message: study.startedAt || current.startedAt ? 'Changes saved.' : 'Study started and changes saved.' });
     } catch (error) {
       push({ tone: 'danger', message: error.message });
     } finally {
@@ -197,7 +195,9 @@ export default function FeasibilityDetailPage() {
         targetCompletionDate: current.targetCompletionDate,
       });
       apply(result.data.study);
-      push({ tone: 'success', message: 'Feasibility study started.' });
+      setEditing(true);
+      setEditSnapshot(snapshot(result.data.study));
+      push({ tone: 'success', message: 'Feasibility study started. You can edit the fields now.' });
     } catch (error) {
       push({ tone: 'danger', message: error.message });
     } finally {
@@ -417,7 +417,7 @@ export default function FeasibilityDetailPage() {
         onCancelEdit={cancelEdit}
         onSave={onSave}
         onSubmit={askSubmit}
-        onUploadTab={() => setTab('solution')}
+        onUploadTab={() => setTab('documents')}
         onApprove={() => onReview('approve')}
         onChanges={() => { setChangesNote(''); setChangesOpen(true); }}
         onReject={() => { setChangesNote(''); setRejectOpen(true); }}
@@ -433,7 +433,23 @@ export default function FeasibilityDetailPage() {
       </div>
 
       <div className="feas-tab" role="tabpanel">
-        {tab === 'overview' ? <OverviewPanel study={view} counts={counts} pocLabel={pocInfo.label} /> : null}
+        {tab === 'overview' ? (
+          <div className="feas-stack">
+            <OverviewPanel study={view} counts={counts} pocLabel={pocInfo.label} />
+            <DocumentsSection
+              study={view}
+              uploadType={uploadType}
+              uploadTeamId={uploadTeamId}
+              onUploadType={setUploadType}
+              onUploadTeam={setUploadTeamId}
+              onUpload={onUpload}
+              onView={onView}
+              onDownload={onDownload}
+              onDelete={setPendingDelete}
+              currentUserId={user?.id}
+            />
+          </div>
+        ) : null}
         {tab === 'requirements' ? <RequirementsPanel study={view} onStudy={setStudy} /> : null}
         {tab === 'teams' ? <TeamsWorkspace study={view} users={users} onStudy={setStudy} onSaveTeam={onSaveTeam} onReviewTeam={onReviewTeam} /> : null}
         {tab === 'validation' ? (

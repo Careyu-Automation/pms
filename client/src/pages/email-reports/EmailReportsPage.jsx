@@ -273,22 +273,34 @@ const SmtpSettingsPanel = forwardRef(function SmtpSettingsPanel({ push, onSaved,
   );
 });
 
-function defaultEveningPeriod() {
+function defaultReportPeriod() {
   const hour = Number(new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Kolkata',
     hour: '2-digit',
     hourCycle: 'h23',
   }).format(new Date()));
-  return hour >= 14 ? 'EVENING' : 'EVENING';
+  return hour < 14 ? 'MORNING' : 'EVENING';
+}
+
+function periodLabel(value) {
+  if (value === 'MORNING') return 'Morning';
+  if (value === 'EVENING') return 'Evening';
+  return 'Full day';
+}
+
+function dailyReportName(periodValue) {
+  if (periodValue === 'MORNING') return 'Morning Daily Work Updates Report';
+  if (periodValue === 'EVENING') return 'Evening Daily Work Updates Report';
+  return 'Daily Work Updates Report';
 }
 
 function DailyComposer({ data, push, onSent, onNeedSmtp }) {
   const [date, setDate] = useState(kolkataToday());
-  const [period, setPeriod] = useState(defaultEveningPeriod());
+  const [period, setPeriod] = useState(defaultReportPeriod());
   const [type, setType] = useState('DAILY_WORK');
   const [toRecipients, setToRecipients] = useState(data.defaultToRecipientIds || data.defaultRecipientIds || []);
   const [ccRecipients, setCcRecipients] = useState(data.defaultCcRecipientIds || []);
-  const [reportId, setReportId] = useState('');
+  const [reportIds, setReportIds] = useState({});
   const [preview, setPreview] = useState(null);
   const [match, setMatch] = useState(null);
   const [frame, setFrame] = useState('desktop');
@@ -302,9 +314,8 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
   const canSend = Boolean(data.access?.canSend);
   const mailReady = mailConfigured || Boolean(data.mail?.configured);
   const emptyDaily = type === 'DAILY_WORK' && match?.count === 0;
-  // Keep Send clickable after preview so users can finish SMTP setup and send from the same screen.
-  const sendDisabled = !canSend || sendingLock || emptyDaily;
   const testDisabled = !canSend || sendingLock || emptyDaily;
+  const bothBusy = busy === 'both';
 
   useEffect(() => {
     setMailConfigured(Boolean(data.mail?.configured));
@@ -316,26 +327,35 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
     setCcRecipients(data.defaultCcRecipientIds || []);
   }, [data.defaultToRecipientIds, data.defaultCcRecipientIds, data.defaultRecipientIds]);
 
-  function payload() {
+  function payloadFor(periodValue = period) {
     const to = toRecipients.map((userId) => ({ kind: 'TO', recipientType: 'USER', userId, email: '', teamId: '', name: '' }));
     const cc = ccRecipients
       .filter((userId) => !toRecipients.includes(userId))
       .map((userId) => ({ kind: 'CC', recipientType: 'USER', userId, email: '', teamId: '', name: '' }));
+    const name = type === 'DAILY_WORK' ? dailyReportName(periodValue) : (data.types?.[type] || 'Report');
     return {
-      name: type === 'DAILY_WORK' ? 'Daily Work Updates Report' : (data.types?.[type] || 'Report'),
+      name,
       type,
-      description: type === 'DAILY_WORK' ? `${period} report for ${date}` : '',
+      description: type === 'DAILY_WORK' ? `${periodLabel(periodValue)} report for ${date}` : '',
       scope: 'ORGANIZATION',
       frequency: 'MANUAL',
-      sendTime: period === 'EVENING' ? '18:00' : period === 'MORNING' ? '09:00' : '18:00',
+      sendTime: periodValue === 'EVENING' ? '19:15' : periodValue === 'MORNING' ? '11:15' : '18:00',
       dayOfWeek: 1,
       dayOfMonth: 1,
       timezone: 'Asia/Kolkata',
       attachment: 'NONE',
-      subject: type === 'DAILY_WORK' ? `Daily Work Updates Report — ${date}` : 'CareYu Automation Report',
-      configuration: { dateFrom: date, dateTo: date, period, sections: [] },
+      subject: type === 'DAILY_WORK'
+        ? `Daily Work Updates Report — ${periodLabel(periodValue)} — ${date}`
+        : 'CareYu Automation Report',
+      configuration: { dateFrom: date, dateTo: date, period: periodValue, sections: [] },
       recipients: [...to, ...cc],
     };
+  }
+
+  function choosePeriod(next) {
+    setPeriod(next);
+    setPreview(null);
+    setMatch(null);
   }
 
   useEffect(() => {
@@ -345,7 +365,7 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
     }
     let cancel = false;
     setMatch(null);
-    previewEmailReport(payload())
+    previewEmailReport(payloadFor(period))
       .then((result) => {
         if (!cancel) setMatch({ count: Number(result.data.recordCount || 0), date, period });
       })
@@ -358,11 +378,11 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
   async function runPreview() {
     setBusy('preview');
     try {
-      const result = await previewEmailReport(payload());
+      const result = await previewEmailReport(payloadFor(period));
       setPreview(result.data);
       setMatch({ count: Number(result.data.recordCount || 0), date, period });
       if (type === 'DAILY_WORK' && Number(result.data.recordCount || 0) === 0) {
-        push({ tone: 'warning', message: 'No daily work updates found for the selected date and period. Review the date/period before sending.' });
+        push({ tone: 'warning', message: `No ${periodLabel(period).toLowerCase()} updates found for ${date}. Try the other period or Full day.` });
       }
     } catch (error) {
       push({ tone: 'danger', message: error.message });
@@ -374,7 +394,7 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
   async function runDownload(format) {
     setBusy(format);
     try {
-      await downloadPreview(payload(), format);
+      await downloadPreview(payloadFor(period), format);
     } catch (error) {
       push({ tone: 'danger', message: error.message });
     } finally {
@@ -406,7 +426,33 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
     return false;
   }
 
-  async function runSend(test) {
+  async function sendOne(periodValue, { test = false, quiet = false } = {}) {
+    const body = payloadFor(periodValue);
+    let count = null;
+    if (type === 'DAILY_WORK') {
+      const check = await previewEmailReport(body);
+      count = Number(check.data.recordCount || 0);
+      if (count === 0) {
+        if (!quiet) {
+          push({
+            tone: 'warning',
+            message: `No ${periodLabel(periodValue).toLowerCase()} updates for ${date}. Skipped ${periodLabel(periodValue)} send.`,
+          });
+        }
+        return { ok: false, skipped: true, period: periodValue, count: 0 };
+      }
+    }
+    const existing = reportIds[periodValue]
+      || (data.reports || []).find((item) => item.type === type && item.name === body.name && item.frequency === 'MANUAL')?.id;
+    const saved = await saveEmailReport(body, existing || undefined);
+    const id = saved.data.report.id;
+    setReportIds((current) => ({ ...current, [periodValue]: id }));
+    if (test) await testEmailReport(id);
+    else await sendEmailReport(id);
+    return { ok: true, period: periodValue, id, count };
+  }
+
+  async function runSend(test, periodValue = period) {
     if (sendingLock) return;
     setShowSmtp(true);
     onNeedSmtp?.();
@@ -424,27 +470,61 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
       push({ tone: 'danger', message: 'Choose at least one To recipient.' });
       return;
     }
-    if (type === 'DAILY_WORK' && match && match.count === 0) {
-      push({ tone: 'danger', message: 'No daily work updates found for the selected date and period. Change the date or period, then preview again.' });
+    setSendingLock(true);
+    setBusy(test ? 'test' : `send-${periodValue}`);
+    try {
+      const result = await sendOne(periodValue, { test });
+      if (result.ok) {
+        push({
+          tone: 'success',
+          message: test
+            ? `${periodLabel(periodValue)} test email sent.`
+            : `${periodLabel(periodValue)} report sent for ${date}.`,
+        });
+        await onSent();
+      }
+    } catch (error) {
+      push({ tone: 'danger', message: error.message || 'The email could not be delivered.' });
+    } finally {
+      setBusy('');
+      setSendingLock(false);
+    }
+  }
+
+  async function runSendBoth() {
+    if (sendingLock) return;
+    setShowSmtp(true);
+    onNeedSmtp?.();
+    const ready = await ensureMailReady();
+    if (!ready) {
+      push({
+        tone: 'danger',
+        message: canConfigure
+          ? 'Mail was not sent. Paste the Gmail app password, save SMTP, then try again.'
+          : 'Email is not configured. An administrator needs to save the SMTP settings.',
+      });
+      return;
+    }
+    if (!toRecipients.length) {
+      push({ tone: 'danger', message: 'Choose at least one To recipient.' });
       return;
     }
     setSendingLock(true);
-    setBusy(test ? 'test' : 'send');
+    setBusy('both');
     try {
-      const body = payload();
-      const existing = reportId || (data.reports || []).find((item) => item.type === type && item.name === body.name && item.frequency === 'MANUAL')?.id;
-      const saved = await saveEmailReport(body, existing || undefined);
-      const id = saved.data.report.id;
-      setReportId(id);
-      if (test) await testEmailReport(id);
-      else await sendEmailReport(id);
-      push({
-        tone: 'success',
-        message: test
-          ? 'Test email sent to your account.'
-          : `Report sent for ${date} (${match?.count ?? 'all'} updates).`,
-      });
-      await onSent();
+      const morning = await sendOne('MORNING', { quiet: true });
+      const evening = await sendOne('EVENING', { quiet: true });
+      const sent = [morning, evening].filter((item) => item.ok);
+      const skipped = [morning, evening].filter((item) => item.skipped);
+      if (!sent.length) {
+        push({ tone: 'warning', message: `No morning or evening updates found for ${date}. Nothing was sent.` });
+      } else {
+        push({
+          tone: 'success',
+          message: `Sent ${sent.map((item) => periodLabel(item.period)).join(' and ')} report${sent.length > 1 ? 's' : ''} for ${date}.${skipped.length ? ` Skipped ${skipped.map((item) => periodLabel(item.period).toLowerCase()).join(' and ')} (no updates).` : ''}`,
+        });
+        await onSent();
+      }
     } catch (error) {
       push({ tone: 'danger', message: error.message || 'The email could not be delivered.' });
     } finally {
@@ -457,15 +537,8 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
     <section className="report-composer">
       <div className="report-composer__controls">
         <label>Report Date<input className="input" type="date" value={date} onChange={(event) => { setDate(event.target.value); setPreview(null); }} /></label>
-        <label>Period
-          <select className="select" value={period} onChange={(event) => { setPeriod(event.target.value); setPreview(null); }}>
-            <option value="EVENING">Evening</option>
-            <option value="MORNING">Morning</option>
-            <option value="FULL">Full day</option>
-          </select>
-        </label>
         <label>Report Type
-          <select className="select" value={type} onChange={(event) => { setType(event.target.value); setReportId(''); setPreview(null); }}>
+          <select className="select" value={type} onChange={(event) => { setType(event.target.value); setReportIds({}); setPreview(null); }}>
             {Object.entries(data.types || {}).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
@@ -476,11 +549,29 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
           <RecipientField people={people} selected={ccRecipients} disabled={!canConfigure} onChange={setCcRecipients} />
         </label>
       </div>
+      {type === 'DAILY_WORK' ? (
+        <div className="report-period-toggle" role="group" aria-label="Report period">
+          {[
+            ['MORNING', 'Morning'],
+            ['EVENING', 'Evening'],
+            ['FULL', 'Full day'],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={period === value ? 'is-active' : ''}
+              onClick={() => choosePeriod(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {type === 'DAILY_WORK' && match?.count != null ? (
         <p className="reports-note">
           {match.count === 0
-            ? `No saved ${period === 'EVENING' ? 'evening' : period === 'MORNING' ? 'morning' : 'daily'} updates for ${date}.`
-            : `${match.count} saved ${period === 'EVENING' ? 'evening' : period === 'MORNING' ? 'morning' : 'daily'} update${match.count === 1 ? '' : 's'} found for ${date}.`}
+            ? `No saved ${periodLabel(period).toLowerCase()} updates for ${date}. Switch period above, or send both Morning and Evening.`
+            : `${match.count} saved ${periodLabel(period).toLowerCase()} update${match.count === 1 ? '' : 's'} found for ${date}.`}
         </p>
       ) : null}
       <div className="report-composer__actions">
@@ -490,7 +581,9 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
         <Button variant="secondary" loading={busy === 'excel'} onClick={() => runDownload('excel')}>Download Excel</Button>
         <Button variant="secondary" loading={busy === 'pdf'} onClick={() => runDownload('pdf')}>Download PDF</Button>
         <Button variant="secondary" loading={busy === 'test'} onClick={() => runSend(true)} disabled={testDisabled}>Send Test Email</Button>
-        <Button variant="primary" loading={busy === 'send'} onClick={() => runSend(false)} disabled={sendDisabled}>Send Report</Button>
+        <Button variant="secondary" loading={busy === 'send-MORNING'} onClick={() => runSend(false, 'MORNING')} disabled={!canSend || sendingLock}>Send Morning</Button>
+        <Button variant="secondary" loading={busy === 'send-EVENING'} onClick={() => runSend(false, 'EVENING')} disabled={!canSend || sendingLock}>Send Evening</Button>
+        <Button variant="primary" loading={bothBusy} onClick={runSendBoth} disabled={!canSend || sendingLock}>Send Morning & Evening</Button>
       </div>
       {!mailReady && canConfigure && showSmtp ? (
         <div id="email-smtp-setup" className="report-composer__smtp">
@@ -517,9 +610,6 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
       {!mailReady && !canConfigure ? (
         <p className="reports-note">Email is not configured. An administrator needs to save the SMTP settings.</p>
       ) : null}
-      {type === 'DAILY_WORK' && match?.count === 0 ? (
-        <p className="reports-note">No daily work updates found for the selected date and period. Review the date and period before sending.</p>
-      ) : null}
       {preview ? (
         <div className="report-composer__preview">
           <div className="report-composer__preview-head">
@@ -528,9 +618,19 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
               <Button variant="secondary" onClick={() => setFrame('desktop')}>Desktop</Button>
               <Button variant="secondary" onClick={() => setFrame('mobile')}>Mobile</Button>
               <Button variant="secondary" loading={busy === 'pdf'} onClick={() => runDownload('pdf')}>Download PDF</Button>
-              <Button variant="primary" loading={busy === 'send'} onClick={() => runSend(false)} disabled={sendDisabled}>
-                {mailReady ? 'Send Mail' : 'Save SMTP & Send Mail'}
-              </Button>
+              {type === 'DAILY_WORK' ? (
+                <>
+                  <Button variant="secondary" loading={busy === 'send-MORNING'} onClick={() => runSend(false, 'MORNING')} disabled={!canSend || sendingLock}>Send Morning</Button>
+                  <Button variant="secondary" loading={busy === 'send-EVENING'} onClick={() => runSend(false, 'EVENING')} disabled={!canSend || sendingLock}>Send Evening</Button>
+                  <Button variant="primary" loading={bothBusy} onClick={runSendBoth} disabled={!canSend || sendingLock}>
+                    {mailReady ? 'Send Morning & Evening' : 'Save SMTP & Send Both'}
+                  </Button>
+                </>
+              ) : (
+                <Button variant="primary" loading={busy.startsWith('send')} onClick={() => runSend(false)} disabled={!canSend || sendingLock}>
+                  {mailReady ? 'Send Mail' : 'Save SMTP & Send Mail'}
+                </Button>
+              )}
             </div>
           </div>
           <div className={frame === 'mobile' ? 'report-frame is-mobile' : 'report-frame'}>
@@ -908,7 +1008,7 @@ function Wizard({ open, state, setState, options, types, sections, busy, onClose
           <label className="field is-wide"><span className="field__label">Report name *</span><input className="input" value={form.name} onChange={(event) => patch({ name: event.target.value })} /></label>
           <label className="field is-wide"><span className="field__label">Description</span><textarea className="textarea" rows={2} value={form.description} onChange={(event) => patch({ description: event.target.value })} /></label>
           {form.type === 'DAILY_WORK' ? (
-            <p className="reports-note">Daily Work reports include all saved updates for the selected date and period. Use Report Date, Period, and Report Type on the Send tab for day-to-day delivery.</p>
+            <p className="reports-note">Daily Work reports include all saved updates for the selected date and period. On the Send tab, choose Morning, Evening, or Full day — or use Send Morning & Evening to deliver both.</p>
           ) : (
             <>
               <label className="field"><span className="field__label">Scope</span>

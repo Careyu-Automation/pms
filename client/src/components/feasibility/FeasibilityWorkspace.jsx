@@ -68,17 +68,16 @@ export function StudyHeader({
           <span>Priority: {text(lead.priority)}</span>
           <span>Owner: {study.ownerName || lead.assignedPm || 'Not assigned'}</span>
           <span>Last updated: {formatDate(study.updatedAt)}</span>
-          {editing ? <span>Editing</span> : null}
           {dirty ? <span>Unsaved changes</span> : null}
+          {canAssess && !dirty ? <span>Fields are editable</span> : null}
         </div>
       </div>
       <div className="feas-top__actions">
         {access.canStart ? <Button onClick={onStart} loading={busy === 'start'} disabled={Boolean(busy)}>Start study</Button> : null}
-        {canAssess && !editing ? <Button variant="secondary" onClick={onEdit} disabled={Boolean(busy)}>Edit Assessment</Button> : null}
-        {editing ? <Button variant="secondary" onClick={onCancelEdit} disabled={Boolean(busy)}>Cancel</Button> : null}
-        {editing && access.canSave ? <Button onClick={onSave} loading={busy === 'save'} disabled={Boolean(busy) || !dirty}>Save Changes</Button> : null}
+        {access.canSave ? <Button onClick={onSave} loading={busy === 'save'} disabled={Boolean(busy) || !dirty}>Save Changes</Button> : null}
+        {dirty && canAssess ? <Button variant="secondary" onClick={onCancelEdit} disabled={Boolean(busy)}>Discard changes</Button> : null}
         {access.canUpload ? <Button variant="secondary" onClick={onUploadTab} disabled={Boolean(busy)}>Upload Document</Button> : null}
-        {access.canSubmit ? <Button onClick={onSubmit} disabled={Boolean(busy) || editing && dirty}>{submitLabel}</Button> : null}
+        {access.canSubmit ? <Button onClick={onSubmit} disabled={Boolean(busy) || dirty}>{submitLabel}</Button> : null}
         {access.canRequestChanges ? <Button variant="secondary" onClick={onChanges} disabled={Boolean(busy)}>Request Changes</Button> : null}
         {access.canReject ? <Button variant="danger" onClick={onReject} disabled={Boolean(busy)}>Reject</Button> : null}
         {access.canApprove ? <Button onClick={onApprove} loading={busy === 'approve'} disabled={Boolean(busy)}>Approve</Button> : null}
@@ -765,11 +764,11 @@ export function FeasibilitySolutionPanel({
 
       <Section title="Actions" description="Save your work, submit to the project manager, or continue after approval.">
         <div className="feas-solution-actions">
-          {access.canSave && editing ? (
+          {access.canSave ? (
             <Button onClick={onSave} loading={busy === 'save'} disabled={Boolean(busy) || !dirty}>Save Solution</Button>
           ) : null}
           {access.canSubmit ? (
-            <Button className="feas-submit-pm" onClick={onSubmit} disabled={Boolean(busy) || (editing && dirty)} loading={busy === 'submit'}>
+            <Button className="feas-submit-pm" onClick={onSubmit} disabled={Boolean(busy) || dirty} loading={busy === 'submit'}>
               {submitLabel}
             </Button>
           ) : null}

@@ -472,13 +472,25 @@ export default function LeadDetailPage() {
         </section>
       ) : null}
 
-      {['PM_APPROVED', 'FEASIBILITY', 'FEASIBILITY_SUBMITTED', 'FEASIBILITY_APPROVED'].includes(lead.status) ? (
+      {[
+        'PM_APPROVED', 'READY_FOR_TEAM_ASSIGNMENT', 'FEASIBILITY',
+        'FEASIBILITY_SUBMITTED', 'FEASIBILITY_CHANGES_REQUESTED', 'FEASIBILITY_APPROVED',
+        'PROCUREMENT_SUBMITTED', 'PROCUREMENT_APPROVED',
+        'COSTING', 'COSTING_SUBMITTED', 'COSTING_CHANGES_REQUESTED', 'COSTING_APPROVED',
+        'QUOTATION', 'QUOTATION_SENT', 'NEGOTIATION', 'WON',
+      ].includes(lead.status) ? (
         <section className="lead-banner">
-          <strong>Approved for feasibility study</strong>
+          <strong>Pipeline workspace</strong>
           <p>
-            This lead is ready for the next workflow.
+            Open the linked study and costing for this lead.
             {' '}
             <Link to={`/feasibility-studies/lead/${lead.id}`}>Open feasibility study</Link>
+            {['COSTING', 'COSTING_SUBMITTED', 'COSTING_CHANGES_REQUESTED', 'COSTING_APPROVED', 'QUOTATION', 'QUOTATION_SENT', 'NEGOTIATION', 'WON'].includes(lead.status) ? (
+              <>
+                {' · '}
+                <Link to="/solution-costing">Open solution & costing</Link>
+              </>
+            ) : null}
           </p>
         </section>
       ) : null}
