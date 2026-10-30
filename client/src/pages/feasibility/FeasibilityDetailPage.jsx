@@ -329,27 +329,34 @@ export default function FeasibilityDetailPage() {
 
   async function uploadDocuments(event, documentType) {
     event.preventDefault();
-    const input = event.currentTarget.querySelector('input[type="file"]');
-    if (!input?.files?.length) {
+    event.stopPropagation();
+    const form = event.currentTarget;
+    const input = form.querySelector('input[type="file"]');
+    const files = input?.files ? [...input.files] : [];
+    if (!files.length) {
       push({ tone: 'warning', message: 'Choose a file to upload.' });
       return;
     }
     const formData = new FormData();
-    formData.append('documentType', documentType || uploadType);
+    formData.append('documentType', documentType || uploadType || 'Other');
     if (uploadTeamId) formData.append('assignmentId', uploadTeamId);
-    [...input.files].forEach((file) => formData.append('documents', file));
+    files.forEach((file) => formData.append('documents', file, file.name));
     setBusy('upload');
     try {
       const result = await uploadStudyDocuments(study.id, formData);
+      const next = result.data.study;
       setStudy((current) => ({
         ...current,
-        documents: result.data.study.documents,
-        activity: result.data.study.activity,
+        ...next,
+        access: next.access || current.access,
+        documents: next.documents || [],
+        activity: next.activity || current.activity,
+        lead: next.lead || current.lead,
       }));
-      input.value = '';
-      push({ tone: 'success', message: 'Documents saved.' });
+      if (input) input.value = '';
+      push({ tone: 'success', message: `${files.length} document${files.length === 1 ? '' : 's'} uploaded.` });
     } catch (error) {
-      push({ tone: 'danger', message: error.message });
+      push({ tone: 'danger', message: error.message || 'Document upload failed.' });
     } finally {
       setBusy('');
     }

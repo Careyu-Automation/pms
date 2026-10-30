@@ -16,8 +16,10 @@ const {
   cleanText,
 } = require('./feasibility.rules');
 
+const { feasibilityDir, leadsDir } = require('../utils/uploads');
+
 function uploadDir(id) {
-  return path.join(__dirname, '..', 'uploads', 'feasibility', id);
+  return feasibilityDir(id);
 }
 
 function summaryOf(study) {
@@ -338,13 +340,17 @@ async function addDocuments(id, files, body, user) {
   const current = await getOrThrow(id);
   const access = buildAccess(user, current);
   if (!access.canUpload) throw new ApiError(403, 'You cannot upload documents to this feasibility study.');
+  const list = Array.isArray(files) ? files : [];
+  if (!list.length) throw new ApiError(400, 'Choose at least one file to upload.');
   const documentType = DOCUMENT_TYPES.has(body.documentType) ? body.documentType : 'Other';
   const assignment = current.teams.find((team) => team.id === body.assignmentId);
   if (body.assignmentId && !assignment) throw new ApiError(400, 'That team is not assigned to this feasibility study.');
   if (assignment && !access.canEditCore && !access.editableTeamIds.includes(assignment.id)) {
     throw new ApiError(403, 'You can attach files only to your own team.');
   }
-  for (const file of files) {
+  // Ensure destination exists before recording rows.
+  uploadDir(id);
+  for (const file of list) {
     await repository.addDocument(id, {
       assignmentId: assignment?.id || null,
       originalName: file.originalname,
@@ -355,7 +361,7 @@ async function addDocuments(id, files, body, user) {
       uploadedBy: user.id,
     });
   }
-  if (files.length) await repository.addActivity(id, user.id, 'Document Uploaded');
+  await repository.addActivity(id, user.id, 'Document Uploaded');
   return present(await getOrThrow(id), user);
 }
 
@@ -365,7 +371,7 @@ async function openDocument(id, documentId) {
   if (!row) throw new ApiError(404, 'Document not found.');
   const fromLead = row.document_source === 'LEAD' || String(documentId || '').startsWith('lead:');
   const filePath = fromLead
-    ? path.join(__dirname, '..', 'uploads', 'leads', String(row.lead_id || study.leadId), row.stored_name)
+    ? path.join(leadsDir(row.lead_id || study.leadId), row.stored_name)
     : path.join(uploadDir(id), row.stored_name);
   if (!fs.existsSync(filePath)) throw new ApiError(404, 'Document file is missing.');
   return { filePath, name: row.original_name, mimeType: row.mime_type || 'application/octet-stream' };

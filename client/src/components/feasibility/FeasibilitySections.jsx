@@ -258,7 +258,8 @@ export function RequirementSection({ study, onStudy }) {
 }
 
 export function TechnicalAssessmentSection({ study, onStudy }) {
-  const disabled = !study.access?.canEditStudy;
+  const access = study.access || {};
+  const disabled = !(access.canEditStudy || access.canSave);
   function setField(key, value) {
     onStudy((current) => ({ ...current, [key]: value }));
   }
@@ -279,7 +280,8 @@ export function TechnicalAssessmentSection({ study, onStudy }) {
 }
 
 export function TechnicalSection({ study, onStudy }) {
-  const disabled = !study.access?.canEditStudy;
+  const access = study.access || {};
+  const disabled = !(access.canEditStudy || access.canSave);
   const validation = study.validation || {};
   function setValidation(partial) {
     onStudy((current) => ({ ...current, validation: { ...current.validation, ...partial } }));
@@ -689,7 +691,7 @@ export function DocumentsSection({ study, uploadType, uploadTeamId, onUploadType
   const documents = study.documents || [];
   return (
     <Section title="Documents" description="Upload drawings, specifications, POC evidence, and other supporting files for this feasibility study.">
-      {access.canUpload ? (
+      {(access.canUpload || access.canSave || access.canEditStudy) ? (
         <form className="feas-upload" onSubmit={onUpload}>
           <Choice
             id="document-type"
@@ -697,7 +699,8 @@ export function DocumentsSection({ study, uploadType, uploadTeamId, onUploadType
             value={uploadType}
             options={[
               'Customer Requirements', 'Technical Drawing', 'Technical Specification', 'BOM',
-              'Proposed Solution', 'Cost Estimation', 'POC / Validation Report', 'POC Evidence', 'Vendor Document', 'Other',
+              'Proposed Solution', 'Cost Estimation', 'POC / Validation Report', 'POC Evidence',
+              'Feasibility Report', 'Solution Document', 'Supporting File', 'Vendor Document', 'Other',
             ]}
             onChange={onUploadType}
           />
@@ -708,7 +711,7 @@ export function DocumentsSection({ study, uploadType, uploadTeamId, onUploadType
               {(study.teams || []).filter((team) => team.id).map((team) => <option key={team.id} value={team.id}>{team.teamName}</option>)}
             </select>
           </label>
-          <label className="field">
+          <label className="field is-wide">
             <span className="field__label">Files</span>
             <input className="input" type="file" name="documents" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.jpg,.jpeg,.png,.webp,.dwg,.dxf" />
           </label>

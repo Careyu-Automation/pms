@@ -381,7 +381,8 @@ export function RequirementsPanel({ study, onStudy }) {
 }
 
 export function ValidationPanel({ study, onStudy }) {
-  const canEdit = study.access?.canEditStudy;
+  const access = study.access || {};
+  const canEdit = Boolean(access.canEditStudy || access.canSave);
   const validation = study.validation || { tests: [], testStatus: 'NOT_REQUIRED' };
   const tests = validation.tests || [];
   function setValidation(partial) {
@@ -557,7 +558,8 @@ export function FeasibilitySolutionPanel({
 }) {
   const access = study.access || {};
   const lead = study.lead || {};
-  const disabled = !access.canEditStudy && !access.canEditCore;
+  const disabled = !(access.canEditStudy || access.canEditCore || access.canSave);
+  const canUpload = Boolean(access.canUpload || access.canSave || access.canEditStudy);
   const steps = NEXT_STEPS[study.decision] || [];
   const solutionInfo = solutionStatusMeta(study);
   const documents = study.documents || [];
@@ -683,7 +685,7 @@ export function FeasibilitySolutionPanel({
             label="Prepared by"
             value={study.ownerId}
             users={users}
-            disabled={!access.canEditCore}
+            disabled={disabled}
             onChange={(ownerId) => onStudy((current) => ({ ...current, ownerId }))}
           />
           <label className="field">
@@ -700,7 +702,7 @@ export function FeasibilitySolutionPanel({
       </Section>
 
       <Section title="Solution documents" description="Upload feasibility reports, solution documents, drawings, and supporting files.">
-        {access.canUpload ? (
+        {canUpload ? (
           <form className="feas-upload" onSubmit={onUpload}>
             <Choice
               id="solution-document-type"
@@ -718,13 +720,21 @@ export function FeasibilitySolutionPanel({
                 ))}
               </select>
             </label>
-            <label className="field">
+            <label className="field is-wide">
               <span className="field__label">Files</span>
-              <input className="input" type="file" name="documents" multiple accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.jpg,.jpeg,.png,.webp,.dwg,.dxf" />
+              <input
+                className="input"
+                type="file"
+                name="documents"
+                multiple
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,.jpg,.jpeg,.png,.webp,.dwg,.dxf"
+              />
             </label>
-            <Button type="submit" loading={busy === 'upload'}>Upload Document</Button>
+            <Button type="submit" loading={busy === 'upload'} disabled={busy === 'upload'}>Upload Document</Button>
           </form>
-        ) : null}
+        ) : (
+          <p className="feas-note">You do not have permission to upload documents on this study.</p>
+        )}
         <div className="lead-table-wrap">
           <table className="data-table">
             <thead>
