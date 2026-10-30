@@ -82,6 +82,9 @@ function rangeWindow(range, anchor, from, to) {
     const last = new Date(Number(year), Number(month), 0).getDate();
     return { from: `${year}-${month}-01`, to: `${year}-${month}-${String(last).padStart(2, '0')}` };
   }
+  if (range === 'last_30' || range === '30d') {
+    return { from: shiftIso(day, -29), to: day };
+  }
   return { from: day, to: day };
 }
 

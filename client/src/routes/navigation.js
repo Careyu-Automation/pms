@@ -114,8 +114,8 @@ export const navigation = [
         path: '/tasks',
         icon: 'CheckSquare',
         title: 'Tasks',
-        description: 'Task tracking for delivery work',
-        note: 'Tasks are scheduled on Project Planning & Gantt.',
+        description: 'Daily work history and plan tasks',
+        note: 'Browse daily work as cards over any date range, or open plan tasks from Gantt.',
       },
       {
         id: 'my-checklist',
