@@ -148,11 +148,7 @@ function sheetDate(iso) {
 }
 
 function taskText(row) {
-  const title = String(row.workTitle || '').trim();
-  const body = String(row.description || '').trim();
-  if (!body || body === title) return title || '—';
-  if (!title || title === 'Daily work') return body;
-  return `${title}\n${body}`;
+  return dailyFormat.workDescription(row);
 }
 
 function dependencyText(row) {

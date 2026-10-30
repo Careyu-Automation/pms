@@ -88,13 +88,29 @@ function statusBadgeStyle(status) {
   return STATUS_BADGE[key] || STATUS_BADGE.IN_PROGRESS;
 }
 
+function normalizeWorkText(value) {
+  return String(value || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function workDescription(row) {
-  const title = String(row.workTitle || row.title || '').trim();
-  const body = String(row.description || '').trim();
-  if (body && title && body !== title && title !== 'Daily work') return `${title}\n${body}`;
-  if (body && body !== 'Daily work') return body;
-  if (title && title !== 'Daily work') return title;
-  return '—';
+  const title = normalizeWorkText(row.workTitle || row.title || '');
+  const body = normalizeWorkText(row.description || '');
+  if (!title && !body) return '—';
+  if (!body || body === 'Daily work') return title && title !== 'Daily work' ? title : '—';
+  if (!title || title === 'Daily work' || body === title) return body;
+  // Avoid "Feedback provided :" repeating when the description already starts with the title.
+  const titleKey = title.replace(/[:.\s]+$/g, '').toLowerCase();
+  const bodyKey = body.toLowerCase();
+  if (bodyKey === titleKey || bodyKey.startsWith(`${titleKey}\n`) || bodyKey.startsWith(`${title.toLowerCase()}\n`) || bodyKey.startsWith(`${title.toLowerCase()} `) || bodyKey.startsWith(title.toLowerCase())) {
+    return body;
+  }
+  const firstLine = body.split('\n')[0].trim().toLowerCase();
+  if (firstLine === title.toLowerCase() || firstLine.replace(/[:.\s]+$/g, '') === titleKey) return body;
+  return `${title}\n${body}`;
 }
 
 function groupByEmployee(rows) {

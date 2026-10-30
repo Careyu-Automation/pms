@@ -146,8 +146,8 @@ function cellHtml(content, options = {}) {
     `text-align:${align}`,
     blocked ? 'background:#fffaf0' : 'background:#ffffff',
     wrap
-      ? 'white-space:normal;overflow-wrap:break-word;word-break:normal'
-      : 'white-space:nowrap;overflow-wrap:normal;word-break:keep-all',
+      ? 'white-space:normal;overflow-wrap:anywhere;word-break:break-word;overflow:hidden'
+      : 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal;word-break:keep-all',
     width ? `width:${width}` : '',
     minWidth ? `min-width:${minWidth}` : '',
     maxWidth ? `max-width:${maxWidth}` : '',
@@ -163,7 +163,7 @@ function dailyWorkEmail(snapshot) {
   const groups = dailyFormat.groupByEmployee(rows);
   const columns = dailyFormat.reportColumns();
   const widths = {
-    Project: { width: '18%', minWidth: '120px' },
+    Project: { width: '18%', minWidth: '110px', maxWidth: '160px', wrap: true },
     'Work Description': { width: '34%', minWidth: '180px', maxWidth: '360px', wrap: true },
     Status: { width: '12%', minWidth: '110px' },
     Dependencies: { width: '14%', minWidth: '110px', wrap: true },
