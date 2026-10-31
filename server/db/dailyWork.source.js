@@ -129,7 +129,7 @@ function pushFilter(filters, params, where) {
   }
   if (filters.period === 'MORNING' || filters.period === 'EVENING') {
     params.push(filters.period);
-    where.push(`upper(COALESCE(d.period, '')) = $${params.length}`);
+    where.push(`upper(COALESCE(d.period, 'MORNING')) = $${params.length}`);
   }
   if (filters.q) {
     params.push(`%${filters.q}%`);

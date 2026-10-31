@@ -130,12 +130,18 @@ function statusBadgeHtml(status) {
 function cellHtml(content, options = {}) {
   const {
     wrap = false,
+    nowrap = false,
     width,
     minWidth,
     maxWidth,
     align = 'left',
     blocked = false,
   } = options;
+  const textMode = wrap
+    ? 'white-space:normal;overflow-wrap:anywhere;word-break:break-word;overflow:hidden'
+    : nowrap
+      ? 'white-space:nowrap;overflow:visible;text-overflow:clip;overflow-wrap:normal;word-break:keep-all'
+      : 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal;word-break:keep-all';
   const style = [
     'padding:10px 12px',
     'border:1px solid #d7e2ee',
@@ -145,9 +151,7 @@ function cellHtml(content, options = {}) {
     'color:#102033',
     `text-align:${align}`,
     blocked ? 'background:#fffaf0' : 'background:#ffffff',
-    wrap
-      ? 'white-space:normal;overflow-wrap:anywhere;word-break:break-word;overflow:hidden'
-      : 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal;word-break:keep-all',
+    textMode,
     width ? `width:${width}` : '',
     minWidth ? `min-width:${minWidth}` : '',
     maxWidth ? `max-width:${maxWidth}` : '',
@@ -164,14 +168,13 @@ function dailyWorkEmail(snapshot) {
   const columns = dailyFormat.reportColumns();
   const widths = {
     Project: { width: '14%', minWidth: '100px', maxWidth: '140px', wrap: true },
-    'Work Description': { width: '22%', minWidth: '150px', maxWidth: '280px', wrap: true },
+    'Work Description': { width: '24%', minWidth: '160px', maxWidth: '300px', wrap: true },
     Status: { width: '10%', minWidth: '100px' },
-    Dependencies: { width: '11%', minWidth: '100px', wrap: true },
-    Priority: { width: '7%', minWidth: '70px' },
-    'Start Date': { width: '8%', minWidth: '90px' },
-    'Task Deadline': { width: '8%', minWidth: '90px' },
+    Dependencies: { width: '12%', minWidth: '100px', wrap: true },
+    'Start Date': { width: '11%', minWidth: '110px', nowrap: true },
+    'Task Deadline': { width: '11%', minWidth: '110px', nowrap: true },
     'Logged Hours': { width: '8%', minWidth: '80px' },
-    'Reason For Delay': { width: '12%', minWidth: '110px', wrap: true },
+    'Reason For Delay': { width: '10%', minWidth: '100px', wrap: true },
   };
   const head = columns.map((column) => {
     const meta = widths[column] || {};

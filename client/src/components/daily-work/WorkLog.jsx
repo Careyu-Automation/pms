@@ -227,6 +227,15 @@ function payloadOf(row, stakeholders, reportDate) {
   const task = String(row.task || '').trim();
   const logged = row.loggedHours === '' || row.loggedHours == null ? 0 : Number(row.loggedHours);
   const details = serializeDependencies(row.dependencyKeys || [], stakeholders);
+  const workDate = reportDate || row.workDate;
+  const today = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+  // Saving today's sheet uses the current IST shift so evening entries are not stuck as Morning.
+  const period = workDate === today ? kolkataShift() : (row.period || kolkataShift());
   return {
     id: row.id,
     employeeId: row.employeeId,
@@ -241,8 +250,8 @@ function payloadOf(row, stakeholders, reportDate) {
     dependencyType: (row.dependencyKeys || []).length ? 'EMPLOYEE' : 'NONE',
     dependencyDetails: details,
     nextAction: row.nextAction || '',
-    workDate: reportDate || row.workDate,
-    period: row.period,
+    workDate,
+    period,
     startDate: row.startDate || '',
     deadline: row.deadline || '',
     reasonForDelay: row.reasonForDelay || '',

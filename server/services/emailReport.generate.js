@@ -202,9 +202,32 @@ function dailySubject(iso) {
   return `Daily Work Updates Report — ${String(day).padStart(2, '0')}-${String(month).padStart(2, '0')}-${year}`;
 }
 
+function workKey(row) {
+  if (row.taskId) return `task:${row.taskId}:${row.employeeId}`;
+  return `work:${row.employeeId}:${row.projectId || ''}:${String(row.workTitle || row.description || '').trim().toLowerCase()}`;
+}
+
+/** Evening digest should include the whole day's saved work; keep one row per item (prefer evening). */
+function preferLatestShift(rows) {
+  const best = new Map();
+  rows.forEach((row) => {
+    const key = workKey(row);
+    const current = best.get(key);
+    if (!current) {
+      best.set(key, row);
+      return;
+    }
+    if (current.period !== 'EVENING' && row.period === 'EVENING') best.set(key, row);
+    else if (current.period === row.period && String(row.updatedAt || '') > String(current.updatedAt || '')) best.set(key, row);
+  });
+  return [...best.values()];
+}
+
 async function daily(config, actor, period) {
   // Daily Work emails always include every saved update for the date/period — no team/employee/project filters.
+  // Morning = morning-only. Evening/Full day = all saved updates for that date (so evening edits kept as MORNING still appear).
   const dailyWork = require('./dailyWork.service');
+  const shiftPeriod = config.period === 'EVENING' || config.period === 'MORNING' ? config.period : '';
   const data = await dailyWork.list(actor, {
     range: 'custom',
     date: period.from,
@@ -217,11 +240,12 @@ async function daily(config, actor, period) {
     workType: '',
     status: '',
     priority: '',
-    period: config.period === 'EVENING' || config.period === 'MORNING' ? config.period : '',
+    period: shiftPeriod === 'MORNING' ? 'MORNING' : '',
     savedOnly: true,
     organization: true,
   });
-  const updates = (data.updates || []).filter((row) => row.id);
+  let updates = (data.updates || []).filter((row) => row.id);
+  if (shiftPeriod !== 'MORNING') updates = preferLatestShift(updates);
   const shift = shiftLabel(config.period);
   const groups = dailyFormat.groupByEmployee(updates);
   const reportColumns = dailyFormat.reportColumns();

@@ -146,7 +146,7 @@ function dateLabel(value) {
 }
 
 function reportColumns() {
-  return ['Project', 'Work Description', 'Status', 'Dependencies', 'Priority', 'Start Date', 'Task Deadline', 'Logged Hours', 'Reason For Delay'];
+  return ['Project', 'Work Description', 'Status', 'Dependencies', 'Start Date', 'Task Deadline', 'Logged Hours', 'Reason For Delay'];
 }
 
 function reportRowCells(row) {
@@ -155,7 +155,6 @@ function reportRowCells(row) {
     workDescription(row),
     statusLabel(row.status),
     dependencyText(row),
-    priorityLabel(row.priority),
     dateLabel(row.startDate),
     dateLabel(row.deadline),
     hoursLabel(row),
