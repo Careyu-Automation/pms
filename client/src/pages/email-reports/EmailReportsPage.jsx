@@ -316,10 +316,19 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
   }, [data.defaultToRecipientIds, data.defaultCcRecipientIds, data.defaultRecipientIds]);
 
   function payloadFor(periodValue = period) {
-    const to = toRecipients.map((userId) => ({ kind: 'TO', recipientType: 'USER', userId, email: '', teamId: '', name: '' }));
-    const cc = ccRecipients
-      .filter((userId) => !toRecipients.includes(userId))
-      .map((userId) => ({ kind: 'CC', recipientType: 'USER', userId, email: '', teamId: '', name: '' }));
+    const exactTo = Array.isArray(data.defaultToEmails) ? data.defaultToEmails : [];
+    const exactCc = Array.isArray(data.defaultCcEmails) ? data.defaultCcEmails : [];
+    const useExactEmails = type === 'DAILY_WORK' && exactTo.length;
+    const to = useExactEmails
+      ? exactTo.map((email) => ({ kind: 'TO', recipientType: 'EMAIL', userId: '', email, teamId: '', name: '' }))
+      : toRecipients.map((userId) => ({ kind: 'TO', recipientType: 'USER', userId, email: '', teamId: '', name: '' }));
+    const cc = useExactEmails
+      ? exactCc
+        .filter((email) => !exactTo.map((item) => item.toLowerCase()).includes(String(email).toLowerCase()))
+        .map((email) => ({ kind: 'CC', recipientType: 'EMAIL', userId: '', email, teamId: '', name: '' }))
+      : ccRecipients
+        .filter((userId) => !toRecipients.includes(userId))
+        .map((userId) => ({ kind: 'CC', recipientType: 'USER', userId, email: '', teamId: '', name: '' }));
     const name = type === 'DAILY_WORK' ? dailyReportName(periodValue) : (data.types?.[type] || 'Report');
     return {
       name,

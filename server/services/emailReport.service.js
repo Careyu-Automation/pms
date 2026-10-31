@@ -136,17 +136,54 @@ function matchDirectoryPeople(people, matchers) {
   return found;
 }
 
+const DAILY_WORK_TO_EMAILS = [
+  'robotlead1@gmail.com',
+  'engg.director@careyu.ai',
+];
+
+const DAILY_WORK_CC_EMAILS = [
+  'cto@careyu.ai',
+  'businesshead@careyu.ai',
+  'ceo@careyu.ai',
+  'robottech@careyu.ai',
+  'robotengineer4@careyu.ai',
+  'fsdlead1@careyu.ai',
+  'fsdengg1@careyu.ai',
+];
+
+const DAILY_WORK_EMAIL_ALIASES = {
+  'robotlead1@gmail.com': ['robotlead1@gmail.com', 'robotlead1@careyu.ai'],
+  'engg.director@careyu.ai': ['engg.director@careyu.ai', 'engg1.director@careyu.ai'],
+  'cto@careyu.ai': ['cto@careyu.ai', 'raja@careyu.ai'],
+};
+
+function idsForEmails(people, emails) {
+  const byEmail = new Map((people || []).map((row) => [String(row.email || '').toLowerCase(), row.id]));
+  const found = [];
+  const seen = new Set();
+  emails.forEach((email) => {
+    const candidates = DAILY_WORK_EMAIL_ALIASES[email] || [email];
+    for (const candidate of candidates) {
+      const id = byEmail.get(String(candidate).toLowerCase());
+      if (id && !seen.has(id)) {
+        seen.add(id);
+        found.push(id);
+        return;
+      }
+    }
+  });
+  return found;
+}
+
 function dailyWorkRecipientDefaults(people) {
-  const toIds = matchDirectoryPeople(people, [
-    { keys: ['arivan'], emailPrefix: 'robotlead1@' },
-    { keys: ['sabarigiri'], emailPrefix: 'engg1.director@' },
-    { keys: ['bernard', 'ceo'], emailPrefix: 'ceo@', designation: /\bceo\b/i },
-  ]);
-  const ccIds = matchDirectoryPeople(people, [
-    { keys: ['raja'], emailPrefix: 'raja@' },
-    { keys: ['shradha'], emailPrefix: 'businesshead@' },
-  ]).filter((id) => !toIds.includes(id));
-  return { toIds, ccIds };
+  const toIds = idsForEmails(people, DAILY_WORK_TO_EMAILS);
+  const ccIds = idsForEmails(people, DAILY_WORK_CC_EMAILS).filter((id) => !toIds.includes(id));
+  return {
+    toIds,
+    ccIds,
+    toEmails: [...DAILY_WORK_TO_EMAILS],
+    ccEmails: [...DAILY_WORK_CC_EMAILS],
+  };
 }
 
 async function home(user, filters = {}) {
@@ -193,6 +230,8 @@ async function home(user, filters = {}) {
     defaultRecipientIds: defaults.toIds,
     defaultToRecipientIds: defaults.toIds,
     defaultCcRecipientIds: defaults.ccIds,
+    defaultToEmails: defaults.toEmails,
+    defaultCcEmails: defaults.ccEmails,
     mail: mail.publicSettings(settings),
     access: { canCreate: true, canSettings: isAdmin(user), canSend: true },
   };
