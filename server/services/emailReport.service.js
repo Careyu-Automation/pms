@@ -149,6 +149,7 @@ const DAILY_WORK_CC_EMAILS = [
   'robotengineer4@careyu.ai',
   'fsdlead1@careyu.ai',
   'fsdengg1@careyu.ai',
+  'projects@careyu.ai',
 ];
 
 const DAILY_WORK_EMAIL_ALIASES = {
