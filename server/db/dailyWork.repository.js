@@ -511,11 +511,11 @@ async function openWithoutUpdate(employeeId, day) {
          SELECT 1 FROM daily_work_updates u
          WHERE u.work_item_id = i.id AND u.update_date = $2
        )
-       AND NOT EXISTS (
+       AND EXISTS (
          SELECT 1 FROM daily_work_updates latest
          WHERE latest.work_item_id = i.id
            AND latest.update_date = (SELECT MAX(update_date) FROM daily_work_updates WHERE work_item_id = i.id)
-           AND latest.status = 'COMPLETED'
+           AND latest.status = 'IN_PROGRESS'
        )
      ORDER BY i.title`,
     [employeeId, day],
@@ -859,11 +859,13 @@ function ensureTaskLink() {
 async function assignedForLog(filters, actor) {
   await ensureTaskLink();
   const params = [filters.from, filters.to];
+  // Open assigned work seeds each day automatically. Completed tasks must not return the next day.
+  // In Progress keeps rolling past the original deadline until marked Completed.
   const where = [
     't.assignee_id IS NOT NULL',
-    `t.status <> 'CANCELLED'`,
-    't.end_date >= $1',
+    `t.status IN ('NOT_STARTED', 'IN_PROGRESS', 'BLOCKED', 'ON_HOLD')`,
     't.start_date <= $2',
+    `(t.end_date >= $1 OR t.status = 'IN_PROGRESS')`,
   ];
   if (Array.isArray(filters.employeeIds)) {
     params.push(filters.employeeIds);

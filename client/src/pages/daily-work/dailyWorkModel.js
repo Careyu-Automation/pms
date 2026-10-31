@@ -71,7 +71,7 @@ export function weekdayLabel(iso) {
   return new Intl.DateTimeFormat(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(year, month - 1, day));
 }
 
-function diffDays(fromIso, toIso) {
+export function diffDays(fromIso, toIso) {
   if (!fromIso || !toIso) return 0;
   const [y1, m1, d1] = fromIso.split('-').map(Number);
   const [y2, m2, d2] = toIso.split('-').map(Number);

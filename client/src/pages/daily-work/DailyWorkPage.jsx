@@ -18,7 +18,7 @@ export default function DailyWorkPage() {
   const { push } = useToast();
   const [date, setDate] = useState(isoToday());
   const [teamId, setTeamId] = useState('');
-  const [employeeId, setEmployeeId] = useState('');
+  const [employeeId, setEmployeeId] = useState(() => user?.id || '');
   const [projectId, setProjectId] = useState('');
   const [workStatus, setWorkStatus] = useState('');
   const [status, setStatus] = useState('loading');
@@ -26,6 +26,10 @@ export default function DailyWorkPage() {
   const [dirtyCount, setDirtyCount] = useState(0);
   const [saving, setSaving] = useState(false);
   const sheetRef = useRef(null);
+
+  useEffect(() => {
+    if (!employeeId && user?.id) setEmployeeId(user.id);
+  }, [employeeId, user?.id]);
 
   const load = useCallback((quiet) => {
     if (!quiet) setStatus('loading');
@@ -108,6 +112,14 @@ export default function DailyWorkPage() {
   }
 
   const canFilterPeople = Boolean(payload?.access?.canAssignEmployee);
+  const selectedLookup = (lookups.people || []).find((person) => person.id === employeeId);
+  const selectedPerson = canFilterPeople && employeeId
+    ? {
+      ...user,
+      id: employeeId,
+      fullName: selectedLookup?.fullName || user?.fullName || 'Employee',
+    }
+    : user;
 
   return (
     <PageContainer>
@@ -150,8 +162,7 @@ export default function DailyWorkPage() {
           {canFilterPeople ? (
             <label className="daily-meta-field">
               <span>Employee</span>
-              <select className="select" aria-label="Employee" value={employeeId} onChange={(event) => setEmployeeId(event.target.value)}>
-                <option value="">All employees</option>
+              <select className="select" aria-label="Employee" value={employeeId} onChange={(event) => setEmployeeId(event.target.value || user?.id || '')}>
                 {(lookups.people || []).map((person) => <option key={person.id} value={person.id}>{person.fullName}</option>)}
               </select>
             </label>
@@ -188,7 +199,7 @@ export default function DailyWorkPage() {
             ref={sheetRef}
             rows={status === 'ready' ? updates : []}
             lookups={lookups}
-            user={user}
+            user={selectedPerson}
             canAssign={Boolean(payload?.access?.canAssignEmployee)}
             today={date || payload?.today || isoToday()}
             onSave={saveUpdate}

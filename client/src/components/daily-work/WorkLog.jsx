@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { WORK_STATUS } from '../../pages/daily-work/dailyWorkModel';
+import { WORK_STATUS, diffDays } from '../../pages/daily-work/dailyWorkModel';
 
 const STATUSES = ['NOT_STARTED', 'IN_PROGRESS', 'BLOCKED', 'COMPLETED'];
 
@@ -146,7 +146,10 @@ function formFrom(row, stakeholders) {
     ? row.loggedHours
     : (Number(row.hours) || 0) + ((Number(row.minutes) || 0) / 60);
   return {
-    key: row.id || `task:${row.taskId}:${row.period || 'MORNING'}`,
+    key: row.id
+      || (row.taskId
+        ? `task:${row.taskId}:${row.period || 'MORNING'}`
+        : `seed:${row.employeeId || ''}:${row.projectId || ''}:${row.startDate || ''}:${String(row.workTitle || row.description || '').slice(0, 40)}`),
     id: row.id,
     workDate: row.currentDate || row.workDate,
     period: row.period || 'MORNING',
@@ -180,6 +183,18 @@ function delayed(row) {
   return row.status === 'BLOCKED' || (row.deadline && row.workDate && row.deadline < row.workDate && row.status !== 'COMPLETED');
 }
 
+/** Completed = green; 1 day past deadline = red; 2+ days past = black. */
+function deadlineTone(row) {
+  if (!row.deadline) return '';
+  if (row.status === 'COMPLETED') return 'is-deadline-done';
+  const anchor = row.workDate || '';
+  if (!anchor) return '';
+  const daysLate = diffDays(row.deadline, anchor);
+  if (daysLate >= 2) return 'is-deadline-critical';
+  if (daysLate >= 1) return 'is-deadline-late';
+  return '';
+}
+
 function rowHasContent(row) {
   return Boolean(
     String(row.task || '').trim()
@@ -208,7 +223,7 @@ function validate(row) {
   return fields;
 }
 
-function payloadOf(row, stakeholders) {
+function payloadOf(row, stakeholders, reportDate) {
   const task = String(row.task || '').trim();
   const logged = row.loggedHours === '' || row.loggedHours == null ? 0 : Number(row.loggedHours);
   const details = serializeDependencies(row.dependencyKeys || [], stakeholders);
@@ -226,7 +241,7 @@ function payloadOf(row, stakeholders) {
     dependencyType: (row.dependencyKeys || []).length ? 'EMPLOYEE' : 'NONE',
     dependencyDetails: details,
     nextAction: row.nextAction || '',
-    workDate: row.workDate,
+    workDate: reportDate || row.workDate,
     period: row.period,
     startDate: row.startDate || '',
     deadline: row.deadline || '',
@@ -345,10 +360,15 @@ export const WorkLog = forwardRef(function WorkLog({
   const savingKeys = useRef(new Set());
   const primed = useRef('');
 
-  const forms = useMemo(() => rows.map((row) => {
-    const base = formFrom(row, stakeholders);
-    return edits[base.key] ? { ...base, ...edits[base.key], key: base.key } : base;
-  }), [edits, rows, stakeholders]);
+  const forms = useMemo(() => rows
+    .filter((row) => !user?.id || row.employeeId === user.id)
+    .map((row) => {
+      const base = formFrom(row, stakeholders);
+      const withDate = { ...base, workDate: today || base.workDate };
+      return edits[base.key]
+        ? { ...withDate, ...edits[base.key], key: base.key, workDate: today || edits[base.key].workDate || withDate.workDate }
+        : withDate;
+    }), [edits, rows, stakeholders, today, user?.id]);
 
   const sheetRows = useMemo(() => [...forms, ...drafts], [drafts, forms]);
 
@@ -368,7 +388,7 @@ export const WorkLog = forwardRef(function WorkLog({
     setDirty({});
     setErrors({});
     setNotice('');
-  }, [lookups, today, user]);
+  }, [lookups, today, user, user?.id, user?.fullName]);
 
   function ensureTrailingBlank(list) {
     if (!list.length) return [blankRow(user, lookups, today)];
@@ -409,7 +429,7 @@ export const WorkLog = forwardRef(function WorkLog({
     let saved = 0;
     for (const row of list) {
       if (!rowHasContent(row) && !row.id) continue;
-      const fields = validate(row);
+      const fields = validate({ ...row, workDate: today || row.workDate });
       if (Object.keys(fields).length) {
         setErrors((current) => ({ ...current, [rowIdentity(row)]: fields }));
         failed.push(rowIdentity(row));
@@ -419,7 +439,7 @@ export const WorkLog = forwardRef(function WorkLog({
       if (savingKeys.current.has(id)) continue;
       savingKeys.current.add(id);
       try {
-        await onSave(payloadOf(row, stakeholders));
+        await onSave(payloadOf({ ...row, workDate: today || row.workDate }, stakeholders, today));
         saved += 1;
         setDirty((current) => ({ ...current, [id]: false }));
         setEdits((current) => {
@@ -552,8 +572,43 @@ export const WorkLog = forwardRef(function WorkLog({
             onChange={(dependencyKeys) => patch(key, { dependencyKeys }, draft)}
           />
         ))}
-        {cell(col++, 'workDate', (
-          <input className="daily-cell-input" type="date" aria-label="Report date" value={row.workDate || ''} disabled={locked} onChange={(event) => patch(key, { workDate: event.target.value }, draft)} />
+        {cell(col++, 'startDate', (
+          <input className="daily-cell-input" type="date" aria-label="Start date" value={row.startDate || ''} disabled={locked} onChange={(event) => patch(key, { startDate: event.target.value }, draft)} />
+        ))}
+        {cell(col++, 'deadline', (
+          <input
+            className={`daily-cell-input ${deadlineTone({ ...row, workDate: today || row.workDate })}`.trim()}
+            type="date"
+            aria-label="Task deadline"
+            value={row.deadline || ''}
+            disabled={locked}
+            onChange={(event) => patch(key, { deadline: event.target.value }, draft)}
+          />
+        ))}
+        {cell(col++, 'hours', (
+          <input
+            className="daily-cell-input"
+            type="number"
+            min="0"
+            max="24"
+            step="0.5"
+            aria-label="Logged hours"
+            placeholder="0"
+            value={row.loggedHours}
+            disabled={locked}
+            onChange={(event) => patch(key, { loggedHours: event.target.value }, draft)}
+          />
+        ))}
+        {cell(col++, 'reason', (
+          <textarea
+            className="daily-cell-input"
+            rows={2}
+            aria-label="Reason for delay"
+            placeholder={delayed(row) ? 'Required when delayed / blocked' : 'Optional'}
+            value={row.reasonForDelay}
+            disabled={locked}
+            onChange={(event) => patch(key, { reasonForDelay: event.target.value }, draft)}
+          />
         ))}
         <td data-row={rowIndex} data-col={col} className="daily-actions">
           {fieldErrors.form ? <small className="daily-cell-error">{fieldErrors.form}</small> : null}
@@ -601,6 +656,9 @@ export const WorkLog = forwardRef(function WorkLog({
             <col className="col-status" />
             <col className="col-deps" />
             <col className="col-date" />
+            <col className="col-date" />
+            <col className="col-hours" />
+            <col className="col-reason" />
             <col className="col-actions" />
           </colgroup>
           <thead>
@@ -610,13 +668,16 @@ export const WorkLog = forwardRef(function WorkLog({
               <th>Work Description</th>
               <th>Status</th>
               <th>Dependencies / Blockers</th>
-              <th>Report Date</th>
+              <th>Start Date</th>
+              <th>Task Deadline</th>
+              <th>Logged Hours</th>
+              <th>Reason For Delay</th>
               <th aria-label="Actions" />
             </tr>
           </thead>
           <tbody>
             {!sheetRows.length ? (
-              <tr className="daily-empty"><td colSpan={canAssign ? 7 : 6}>{emptyLabel}</td></tr>
+              <tr className="daily-empty"><td colSpan={canAssign ? 10 : 9}>{emptyLabel}</td></tr>
             ) : sheetRows.map((row, index) => renderRow(row, index, !row.id && String(row.key || '').startsWith('new-')))}
           </tbody>
         </table>

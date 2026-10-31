@@ -129,8 +129,24 @@ function groupByEmployee(rows) {
   });
 }
 
+function hoursLabel(row) {
+  const hours = Number(row.hours || row.loggedHours || 0);
+  const minutes = Number(row.minutes || 0);
+  if ((!Number.isFinite(hours) || hours <= 0) && (!Number.isFinite(minutes) || minutes <= 0)) return '—';
+  if (minutes) return `${Math.floor(hours)}h ${minutes}m`;
+  const rounded = Math.round(hours * 10) / 10;
+  return Number.isInteger(rounded) ? `${rounded}h` : `${rounded}h`;
+}
+
+function dateLabel(value) {
+  const text = String(value || '').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return '—';
+  const [year, month, day] = text.split('-');
+  return `${day}-${month}-${year}`;
+}
+
 function reportColumns() {
-  return ['Project', 'Work Description', 'Status', 'Dependencies', 'Priority', 'Next Action / Remarks'];
+  return ['Project', 'Work Description', 'Status', 'Dependencies', 'Priority', 'Start Date', 'Task Deadline', 'Logged Hours', 'Reason For Delay'];
 }
 
 function reportRowCells(row) {
@@ -140,7 +156,10 @@ function reportRowCells(row) {
     statusLabel(row.status),
     dependencyText(row),
     priorityLabel(row.priority),
-    row.nextAction || row.reasonForDelay || '—',
+    dateLabel(row.startDate),
+    dateLabel(row.deadline),
+    hoursLabel(row),
+    row.reasonForDelay || '—',
   ];
 }
 

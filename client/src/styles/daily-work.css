@@ -489,9 +489,35 @@
   background: color-mix(in srgb, var(--text-primary) 3%, var(--surface));
 }
 
-.daily-cell-input.is-overdue {
+.daily-cell-input.is-overdue,
+.daily-cell-input.is-deadline-late {
   color: #b42318;
   font-weight: 700;
+  color-scheme: light;
+}
+
+.daily-cell-input.is-deadline-done {
+  color: #1f8a4c;
+  font-weight: 700;
+  color-scheme: light;
+}
+
+.daily-cell-input.is-deadline-critical {
+  color: #111827;
+  font-weight: 700;
+  color-scheme: light;
+}
+
+.daily-sheet--compact td:has(.is-deadline-done) {
+  background: color-mix(in srgb, #1f8a4c 10%, #fff);
+}
+
+.daily-sheet--compact td:has(.is-deadline-late) {
+  background: color-mix(in srgb, #b42318 10%, #fff);
+}
+
+.daily-sheet--compact td:has(.is-deadline-critical) {
+  background: color-mix(in srgb, #111827 8%, #fff);
 }
 
 .daily-cell-input,
@@ -1072,14 +1098,14 @@
   border-collapse: collapse;
 }
 
-.daily-sheet--compact col.col-person { width: 11%; }
-.daily-sheet--compact col.col-project { width: 12%; }
-.daily-sheet--compact col.col-task { width: 22%; }
-.daily-sheet--compact col.col-deps { width: 13%; }
-.daily-sheet--compact col.col-status { width: 10%; }
-.daily-sheet--compact col.col-date { width: 9%; }
-.daily-sheet--compact col.col-hours { width: 7%; }
-.daily-sheet--compact col.col-reason { width: 12%; }
+.daily-sheet--compact col.col-person { width: 9%; }
+.daily-sheet--compact col.col-project { width: 10%; }
+.daily-sheet--compact col.col-task { width: 16%; }
+.daily-sheet--compact col.col-deps { width: 10%; }
+.daily-sheet--compact col.col-status { width: 8%; }
+.daily-sheet--compact col.col-date { width: 7.5%; }
+.daily-sheet--compact col.col-hours { width: 6%; }
+.daily-sheet--compact col.col-reason { width: 11%; }
 .daily-sheet--compact col.col-actions { width: 36px; }
 
 .daily-sheet--compact th,

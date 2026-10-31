@@ -121,7 +121,7 @@ const DAILY_DEPENDENCY = {
 };
 
 const DAILY_COLUMNS = ['Person', 'Project', 'Task Description', 'Dependencies', 'Status', 'Start Date', 'Task Deadline', 'Logged Hours', 'Reason for Delay'];
-const EVENING_COLUMNS = [...DAILY_COLUMNS, 'Morning Work', 'Evening Work', 'Progress', 'Next Action'];
+const EVENING_COLUMNS = [...DAILY_COLUMNS, 'Morning Work', 'Evening Work', 'Progress'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function displayDate(iso) {
@@ -172,7 +172,6 @@ function dailyLine(row, shift) {
       row.morningWork || '—',
       row.eveningWork || '—',
       row.progress == null || row.progress === '' ? '—' : `${row.progress}%`,
-      row.nextAction || '—',
     );
   }
   return line;
@@ -250,7 +249,7 @@ async function daily(config, actor, period) {
       { label: 'Blocked entries', value: data.summary.blocked },
       { label: 'Total hours logged', value: data.summary.hoursLabel },
       { label: 'Outstanding blockers or dependencies', value: attentionText(blockers) },
-      { label: 'Next actions requiring attention', value: attentionText(updates.map((row) => row.nextAction)) },
+      { label: 'Delay reasons requiring attention', value: attentionText(updates.map((row) => row.reasonForDelay)) },
     ],
     sections,
     bars: [],

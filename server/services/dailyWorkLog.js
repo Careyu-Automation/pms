@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const ApiError = require('../utils/ApiError');
 const repository = require('../db/dailyWork.repository');
-const { isoToday, rangeWindow } = require('./dailyWorkDelay');
+const { isoToday, rangeWindow, shiftIso } = require('./dailyWorkDelay');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const STATUSES = new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'BLOCKED', 'ON_HOLD']);
@@ -89,6 +89,90 @@ function summarize(rows) {
     research: rows.filter((row) => row.workType === 'RND' || row.workType === 'RESEARCH').length,
     support: rows.filter((row) => ['CUSTOMER_SUPPORT', 'TECHNICAL_SUPPORT', 'SALES_SUPPORT'].includes(row.workType)).length,
   };
+}
+
+function normalizeText(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function workText(row) {
+  const title = normalizeText(row.workTitle);
+  const description = normalizeText(row.description);
+  if (description && title && description !== title && title !== 'daily work') {
+    return description.startsWith(title) ? description : `${title} ${description}`;
+  }
+  return description || title;
+}
+
+function roughlySameWork(a, b) {
+  if (a.employeeId !== b.employeeId) return false;
+  if (a.taskId && b.taskId && a.taskId === b.taskId) return true;
+  if ((a.projectId || '') !== (b.projectId || '')) return false;
+  const left = workText(a);
+  const right = workText(b);
+  if (!left || !right) return false;
+  return left === right || left.includes(right) || right.includes(left);
+}
+
+function preferSeedRow(current, next) {
+  if (!current) return next;
+  const curStart = current.startDate || '';
+  const nextStart = next.startDate || '';
+  if (nextStart > curStart) return next;
+  if (nextStart < curStart) return current;
+  if (next.period === 'EVENING' && current.period !== 'EVENING') return next;
+  if (next.taskId && !current.taskId) return next;
+  if (String(next.updatedAt || '') > String(current.updatedAt || '')) return next;
+  return current;
+}
+
+function asCarriedRow(row, day) {
+  return {
+    ...row,
+    id: '',
+    entryKind: row.taskId ? 'ASSIGNED' : 'CARRIED',
+    currentDate: day,
+    period: 'MORNING',
+    hours: 0,
+    minutes: 0,
+    loggedHours: 0,
+    morningWork: '',
+    eveningWork: '',
+    reasonForDelay: row.reasonForDelay || '',
+    nextAction: '',
+    attachments: [],
+    createdAt: undefined,
+    updatedAt: undefined,
+  };
+}
+
+function isOccupied(row, occupiedRows) {
+  return occupiedRows.some((item) => roughlySameWork(item, row));
+}
+
+/** Prefer the latest In Progress copy of each work item; Completed never rolls forward. */
+function carryForwardInProgress(previousRows, day, occupiedRows) {
+  const latest = [];
+  previousRows.forEach((row) => {
+    if (row.status !== 'IN_PROGRESS') return;
+    const index = latest.findIndex((item) => roughlySameWork(item, row));
+    if (index < 0) latest.push(row);
+    else latest[index] = preferSeedRow(latest[index], row);
+  });
+  return latest
+    .filter((row) => !isOccupied(row, occupiedRows))
+    .map((row) => asCarriedRow(row, day));
+}
+
+/** Keep one unsaved seed row per work item (assigned + carried). */
+function dedupeSeedRows(rows) {
+  const unique = [];
+  rows.forEach((row) => {
+    const index = unique.findIndex((item) => roughlySameWork(item, row));
+    if (index < 0) unique.push(row);
+    else unique[index] = preferSeedRow(unique[index], row);
+  });
+  return unique;
 }
 
 async function buildInput(user, body, current) {
@@ -187,9 +271,9 @@ async function buildInput(user, body, current) {
 }
 
 async function audience(user) {
+  // Daily Work Updates is personal by default. Org roles may browse others via filters;
+  // email digests pass organization: true. Team leads must not see teammates mixed into their sheet.
   if (seesOrganization(user)) return { organization: true, employeeIds: null };
-  const members = await repository.teamAudience(user.id);
-  if (members.length) return { organization: false, employeeIds: [...new Set([user.id, ...members])] };
   return { organization: false, employeeIds: [user.id] };
 }
 
@@ -215,10 +299,10 @@ async function list(user, filters = {}) {
     priority: PRIORITIES.has(filters.priority) ? filters.priority : '',
     q: clean(filters.q, 80),
   }, user);
-  const assigned = await repository.assignedForLog({
-    ...window,
+  const listFilters = {
     organization,
-    employeeIds: scope.employeeIds,
+    employeeIds: organization ? null : scope.employeeIds,
+    period: clean(filters.period, 20).toUpperCase(),
     anchor,
     employeeId: UUID.test(filters.employeeId || '') ? filters.employeeId : '',
     teamId: UUID.test(filters.teamId || '') ? filters.teamId : '',
@@ -228,10 +312,38 @@ async function list(user, filters = {}) {
     status: STATUSES.has(filters.status) ? filters.status : '',
     priority: PRIORITIES.has(filters.priority) ? filters.priority : '',
     q: clean(filters.q, 80),
+  };
+  const assigned = await repository.assignedForLog({
+    ...window,
+    ...listFilters,
+    employeeIds: scope.employeeIds,
   }, user);
   const reported = new Set(rows.filter((row) => row.taskId).map((row) => `${row.taskId}:${row.employeeId}:${row.period || 'MORNING'}`));
-  const pending = filters.period || filters.savedOnly ? [] : assigned.filter((row) => !reported.has(`${row.taskId}:${row.employeeId}:${row.period || 'MORNING'}`));
-  const visible = attachShifts([...rows, ...pending]).map((row) => present(user, row));
+  const skipSeed = Boolean(filters.period || filters.savedOnly);
+  const pendingAssigned = skipSeed
+    ? []
+    : assigned.filter((row) => {
+      if (reported.has(`${row.taskId}:${row.employeeId}:${row.period || 'MORNING'}`)) return false;
+      return !isOccupied(row, rows);
+    });
+
+  let carried = [];
+  const singleDay = window.from === window.to;
+  const allowCarry = !skipSeed && singleDay && (!listFilters.status || listFilters.status === 'IN_PROGRESS');
+  if (allowCarry) {
+    const previousDay = shiftIso(window.from, -1);
+    const previousRows = await repository.logList({
+      from: previousDay,
+      to: previousDay,
+      ...listFilters,
+      status: '',
+      period: '',
+    }, user);
+    carried = carryForwardInProgress(previousRows, window.from, [...rows, ...pendingAssigned]);
+  }
+
+  const seeded = dedupeSeedRows([...pendingAssigned, ...carried]);
+  const visible = attachShifts([...rows, ...seeded]).map((row) => present(user, row));
   visible.sort((a, b) => String(b.currentDate).localeCompare(String(a.currentDate)) || String(a.employeeName).localeCompare(String(b.employeeName)));
   const lookups = await repository.catalog();
   if (!organization) {

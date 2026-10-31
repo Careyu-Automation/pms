@@ -163,12 +163,15 @@ function dailyWorkEmail(snapshot) {
   const groups = dailyFormat.groupByEmployee(rows);
   const columns = dailyFormat.reportColumns();
   const widths = {
-    Project: { width: '18%', minWidth: '110px', maxWidth: '160px', wrap: true },
-    'Work Description': { width: '34%', minWidth: '180px', maxWidth: '360px', wrap: true },
-    Status: { width: '12%', minWidth: '110px' },
-    Dependencies: { width: '14%', minWidth: '110px', wrap: true },
-    Priority: { width: '9%', minWidth: '80px' },
-    'Next Action / Remarks': { width: '13%', minWidth: '110px', wrap: true },
+    Project: { width: '14%', minWidth: '100px', maxWidth: '140px', wrap: true },
+    'Work Description': { width: '22%', minWidth: '150px', maxWidth: '280px', wrap: true },
+    Status: { width: '10%', minWidth: '100px' },
+    Dependencies: { width: '11%', minWidth: '100px', wrap: true },
+    Priority: { width: '7%', minWidth: '70px' },
+    'Start Date': { width: '8%', minWidth: '90px' },
+    'Task Deadline': { width: '8%', minWidth: '90px' },
+    'Logged Hours': { width: '8%', minWidth: '80px' },
+    'Reason For Delay': { width: '12%', minWidth: '110px', wrap: true },
   };
   const head = columns.map((column) => {
     const meta = widths[column] || {};
@@ -190,14 +193,11 @@ function dailyWorkEmail(snapshot) {
   const groupsHtml = groups.map((group) => {
     const body = group.rows.map((row) => {
       const blocked = String(row.status || '').toUpperCase() === 'BLOCKED';
-      const cells = [
-        cellHtml(textHtml(row.projectName || 'No project'), { ...widths.Project, blocked }),
-        cellHtml(textHtml(dailyFormat.workDescription(row)), { ...widths['Work Description'], blocked }),
-        cellHtml(statusBadgeHtml(row.status), { ...widths.Status, blocked }),
-        cellHtml(textHtml(dailyFormat.dependencyText(row)), { ...widths.Dependencies, blocked }),
-        cellHtml(textHtml(dailyFormat.priorityLabel(row.priority)), { ...widths.Priority, blocked }),
-        cellHtml(textHtml(row.nextAction || row.reasonForDelay || '—'), { ...widths['Next Action / Remarks'], blocked }),
-      ];
+      const cells = dailyFormat.reportRowCells(row).map((value, index) => {
+        const column = columns[index];
+        if (column === 'Status') return cellHtml(statusBadgeHtml(row.status), { ...widths.Status, blocked });
+        return cellHtml(textHtml(value), { ...(widths[column] || { wrap: true }), blocked });
+      });
       return `<tr>${cells.join('')}</tr>`;
     }).join('');
     return `

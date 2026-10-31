@@ -17,14 +17,6 @@ import {
 import '../../styles/lead.css';
 import '../../styles/email-reports.css';
 
-const TABS = [
-  ['reports', 'Reports'],
-  ['schedules', 'Schedules'],
-  ['templates', 'Templates'],
-  ['history', 'Email History'],
-  ['settings', 'Email Configuration'],
-];
-
 const EMPTY_SMTP = {
   host: '',
   port: 587,
@@ -303,7 +295,6 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
   const [reportIds, setReportIds] = useState({});
   const [preview, setPreview] = useState(null);
   const [match, setMatch] = useState(null);
-  const [frame, setFrame] = useState('desktop');
   const [busy, setBusy] = useState('');
   const [sendingLock, setSendingLock] = useState(false);
   const [showSmtp, setShowSmtp] = useState(!data.mail?.configured);
@@ -313,9 +304,6 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
   const canConfigure = Boolean(data.access?.canSettings);
   const canSend = Boolean(data.access?.canSend);
   const mailReady = mailConfigured || Boolean(data.mail?.configured);
-  const emptyDaily = type === 'DAILY_WORK' && match?.count === 0;
-  const testDisabled = !canSend || sendingLock || emptyDaily;
-  const bothBusy = busy === 'both';
 
   useEffect(() => {
     setMailConfigured(Boolean(data.mail?.configured));
@@ -491,48 +479,6 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
     }
   }
 
-  async function runSendBoth() {
-    if (sendingLock) return;
-    setShowSmtp(true);
-    onNeedSmtp?.();
-    const ready = await ensureMailReady();
-    if (!ready) {
-      push({
-        tone: 'danger',
-        message: canConfigure
-          ? 'Mail was not sent. Paste the Gmail app password, save SMTP, then try again.'
-          : 'Email is not configured. An administrator needs to save the SMTP settings.',
-      });
-      return;
-    }
-    if (!toRecipients.length) {
-      push({ tone: 'danger', message: 'Choose at least one To recipient.' });
-      return;
-    }
-    setSendingLock(true);
-    setBusy('both');
-    try {
-      const morning = await sendOne('MORNING', { quiet: true });
-      const evening = await sendOne('EVENING', { quiet: true });
-      const sent = [morning, evening].filter((item) => item.ok);
-      const skipped = [morning, evening].filter((item) => item.skipped);
-      if (!sent.length) {
-        push({ tone: 'warning', message: `No morning or evening updates found for ${date}. Nothing was sent.` });
-      } else {
-        push({
-          tone: 'success',
-          message: `Sent ${sent.map((item) => periodLabel(item.period)).join(' and ')} report${sent.length > 1 ? 's' : ''} for ${date}.${skipped.length ? ` Skipped ${skipped.map((item) => periodLabel(item.period).toLowerCase()).join(' and ')} (no updates).` : ''}`,
-        });
-        await onSent();
-      }
-    } catch (error) {
-      push({ tone: 'danger', message: error.message || 'The email could not be delivered.' });
-    } finally {
-      setBusy('');
-      setSendingLock(false);
-    }
-  }
-
   return (
     <section className="report-composer">
       <div className="report-composer__controls">
@@ -570,20 +516,16 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
       {type === 'DAILY_WORK' && match?.count != null ? (
         <p className="reports-note">
           {match.count === 0
-            ? `No saved ${periodLabel(period).toLowerCase()} updates for ${date}. Switch period above, or send both Morning and Evening.`
+            ? `No saved ${periodLabel(period).toLowerCase()} updates for ${date}. Switch period above to try Morning, Evening, or Full day.`
             : `${match.count} saved ${periodLabel(period).toLowerCase()} update${match.count === 1 ? '' : 's'} found for ${date}.`}
         </p>
       ) : null}
       <div className="report-composer__actions">
         <Button variant="secondary" loading={busy === 'preview'} onClick={runPreview}>Preview Report</Button>
-        <Button variant="secondary" onClick={() => setFrame('desktop')} disabled={!preview}>Desktop Preview</Button>
-        <Button variant="secondary" onClick={() => setFrame('mobile')} disabled={!preview}>Mobile Preview</Button>
         <Button variant="secondary" loading={busy === 'excel'} onClick={() => runDownload('excel')}>Download Excel</Button>
         <Button variant="secondary" loading={busy === 'pdf'} onClick={() => runDownload('pdf')}>Download PDF</Button>
-        <Button variant="secondary" loading={busy === 'test'} onClick={() => runSend(true)} disabled={testDisabled}>Send Test Email</Button>
         <Button variant="secondary" loading={busy === 'send-MORNING'} onClick={() => runSend(false, 'MORNING')} disabled={!canSend || sendingLock}>Send Morning</Button>
-        <Button variant="secondary" loading={busy === 'send-EVENING'} onClick={() => runSend(false, 'EVENING')} disabled={!canSend || sendingLock}>Send Evening</Button>
-        <Button variant="primary" loading={bothBusy} onClick={runSendBoth} disabled={!canSend || sendingLock}>Send Morning & Evening</Button>
+        <Button variant="primary" loading={busy === 'send-EVENING'} onClick={() => runSend(false, 'EVENING')} disabled={!canSend || sendingLock}>Send Evening</Button>
       </div>
       {!mailReady && canConfigure && showSmtp ? (
         <div id="email-smtp-setup" className="report-composer__smtp">
@@ -614,26 +556,8 @@ function DailyComposer({ data, push, onSent, onNeedSmtp }) {
         <div className="report-composer__preview">
           <div className="report-composer__preview-head">
             <p className="reports-note">{preview.subject}</p>
-            <div className="report-composer__preview-actions">
-              <Button variant="secondary" onClick={() => setFrame('desktop')}>Desktop</Button>
-              <Button variant="secondary" onClick={() => setFrame('mobile')}>Mobile</Button>
-              <Button variant="secondary" loading={busy === 'pdf'} onClick={() => runDownload('pdf')}>Download PDF</Button>
-              {type === 'DAILY_WORK' ? (
-                <>
-                  <Button variant="secondary" loading={busy === 'send-MORNING'} onClick={() => runSend(false, 'MORNING')} disabled={!canSend || sendingLock}>Send Morning</Button>
-                  <Button variant="secondary" loading={busy === 'send-EVENING'} onClick={() => runSend(false, 'EVENING')} disabled={!canSend || sendingLock}>Send Evening</Button>
-                  <Button variant="primary" loading={bothBusy} onClick={runSendBoth} disabled={!canSend || sendingLock}>
-                    {mailReady ? 'Send Morning & Evening' : 'Save SMTP & Send Both'}
-                  </Button>
-                </>
-              ) : (
-                <Button variant="primary" loading={busy.startsWith('send')} onClick={() => runSend(false)} disabled={!canSend || sendingLock}>
-                  {mailReady ? 'Send Mail' : 'Save SMTP & Send Mail'}
-                </Button>
-              )}
-            </div>
           </div>
-          <div className={frame === 'mobile' ? 'report-frame is-mobile' : 'report-frame'}>
+          <div className="report-frame">
             <iframe title="Report preview" sandbox="" srcDoc={preview.html || ''} />
           </div>
         </div>
@@ -677,14 +601,12 @@ export default function EmailReportsPage() {
   const { push } = useToast();
   const [status, setStatus] = useState('loading');
   const [data, setData] = useState(null);
-  const [tab, setTab] = useState('reports');
-  const [filters, setFilters] = useState({ q: '', type: '', status: '', frequency: '' });
   const [wizard, setWizard] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [run, setRun] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  function load(next = filters) {
+  function load(next = {}) {
     return loadEmailReports(next).then((payload) => {
       setData(payload.data);
       setStatus('ready');
@@ -733,24 +655,14 @@ export default function EmailReportsPage() {
     }
   }
 
-  const reports = data?.reports || [];
   const mailNote = data && !data.mail.configured;
   const canSettings = Boolean(data?.access?.canSettings);
-  const visibleTabs = TABS.filter(([id]) => id !== 'settings' || canSettings);
 
   return (
     <PageContainer>
       <PageHeader
         title="Email Reports"
         description="Preview, generate, and distribute daily work reports."
-        actions={(
-          <div className="reports-actions">
-            <Button variant="secondary" onClick={() => setTab('templates')}>Templates</Button>
-            <Button variant="secondary" onClick={() => setTab('history')}>Email History</Button>
-            {canSettings ? <Button variant="secondary" onClick={() => setTab('settings')}>Email Configuration</Button> : null}
-            <Button onClick={() => openCreate()}>Create Report</Button>
-          </div>
-        )}
       />
       {status === 'loading' ? <div className="reports-skeleton" /> : null}
       {status === 'error' ? <ErrorState title="Unable to load email reports." action={<Button onClick={() => load()}>Retry</Button>} /> : null}
@@ -760,129 +672,20 @@ export default function EmailReportsPage() {
             <p className="reports-note">
               Email is not configured. Preview and download still work.
               {canSettings
-                ? ' Save SMTP in the form on this page (or Email Configuration), then use Send Mail on the preview.'
+                ? ' Save SMTP in the form on this page, then send Morning or Evening.'
                 : ' An administrator needs to save the SMTP settings.'}
             </p>
           ) : null}
-          <div className="reports-tabs" role="tablist">
-            {visibleTabs.map(([id, label]) => <button key={id} type="button" className={tab === id ? 'is-active' : ''} onClick={() => setTab(id)}>{label}</button>)}
-          </div>
-          {tab === 'reports' ? (
-            <DailyComposer
-              data={data}
-              push={push}
-              onSent={() => load()}
-              onNeedSmtp={() => {
-                if (canSettings) {
-                  document.getElementById('email-smtp-setup')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-              }}
-            />
-          ) : null}
-          {tab === 'reports' && data.configured ? (
-            <>
-              <div className="reports-toolbar">
-                <input className="input" placeholder="Search reports..." value={filters.q} onChange={(event) => setFilters({ ...filters, q: event.target.value })} />
-                <select className="select" value={filters.type} onChange={(event) => setFilters({ ...filters, type: event.target.value })}><option value="">Report type</option>{Object.entries(data.types).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-                <select className="select" value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">Status</option><option>ACTIVE</option><option>PAUSED</option><option>DRAFT</option><option>FAILED</option></select>
-                <select className="select" value={filters.frequency} onChange={(event) => setFilters({ ...filters, frequency: event.target.value })}><option value="">Frequency</option><option>MANUAL</option><option>DAILY</option><option>WEEKLY</option><option>MONTHLY</option><option>CUSTOM</option></select>
-                <Button variant="secondary" onClick={() => load(filters)}>Apply</Button>
-              </div>
-              {reports.length ? (
-                <div className="reports-scroll">
-                  <table className="data-table">
-                    <thead><tr><th>Report</th><th>Type</th><th>Scope</th><th>Recipients</th><th>Frequency</th><th>Next run</th><th>Last sent</th><th>Status</th><th>Owner</th><th></th></tr></thead>
-                    <tbody>
-                      {reports.map((report) => (
-                        <tr key={report.id}>
-                          <td>{report.name}</td>
-                          <td>{data.types[report.type] || report.type}</td>
-                          <td>{report.scope}</td>
-                          <td>{report.recipientCount}</td>
-                          <td>{report.frequency}</td>
-                          <td>{stamp(report.nextRunAt)}</td>
-                          <td>{stamp(report.lastSentAt)}</td>
-                          <td><Badge tone={tone(report.status)}>{report.status}</Badge></td>
-                          <td>{report.ownerName}</td>
-                          <td className="reports-row-actions">
-                            <button type="button" onClick={() => openEdit(report.id, 6)}>Preview</button>
-                            <button type="button" onClick={() => setConfirm(report)}>Send now</button>
-                            <button type="button" onClick={() => openEdit(report.id, 1)}>Edit</button>
-                            <button type="button" onClick={() => act(() => duplicateEmailReport(report.id), 'Report duplicated.')}>Duplicate</button>
-                            <button type="button" onClick={() => act(() => setEmailReportStatus(report.id, report.status === 'PAUSED' ? 'ACTIVE' : 'PAUSED'), report.status === 'PAUSED' ? 'Report resumed.' : 'Report paused.')}>{report.status === 'PAUSED' ? 'Resume' : 'Pause'}</button>
-                            <button type="button" onClick={() => act(() => deleteEmailReport(report.id), 'Report deleted.')}>Delete</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : <p className="reports-note">No saved reports match these filters.</p>}
-              {data.upcoming.length ? (
-                <section className="report-composer__history">
-                  <h2>Upcoming scheduled reports</h2>
-                  {data.upcoming.map((item) => <p key={item.id}><strong>{item.name}</strong> · {stamp(item.nextRunAt)} · {item.recipientCount} recipients</p>)}
-                </section>
-              ) : null}
-            </>
-          ) : null}
-          {tab === 'schedules' ? (
-            <div className="reports-scroll">
-              <table className="data-table">
-                <thead><tr><th>Report</th><th>Frequency</th><th>Time</th><th>Timezone</th><th>Next run</th><th>Status</th></tr></thead>
-                <tbody>
-                  {reports.filter((item) => item.frequency !== 'MANUAL').map((item) => (
-                    <tr key={item.id}><td>{item.name}</td><td>{item.frequency}</td><td>{item.sendTime}</td><td>{item.timezone}</td><td>{stamp(item.nextRunAt)}</td><td><Badge tone={tone(item.status)}>{item.status}</Badge></td></tr>
-                  ))}
-                </tbody>
-              </table>
-              {!reports.some((item) => item.frequency !== 'MANUAL') ? <p className="reports-muted">No schedules yet. Create a report and choose Save & Schedule.</p> : null}
-            </div>
-          ) : null}
-          {tab === 'templates' ? (
-            <div className="reports-templates">
-              {data.templates.map((template) => (
-                <article key={template.id}>
-                  <strong>{template.name}</strong>
-                  <span>{data.types[template.type]}</span>
-                  <p>{template.description}</p>
-                  <Button size="sm" onClick={() => openCreate(template)}>Use template</Button>
-                </article>
-              ))}
-            </div>
-          ) : null}
-          {tab === 'settings' && canSettings ? (
-            <SmtpSettingsPanel
-              push={push}
-              onSaved={async () => { await load(); }}
-            />
-          ) : null}
-          {tab === 'history' ? (
-            <div className="reports-scroll">
-              <table className="data-table">
-                <thead><tr><th>Sent at</th><th>Report</th><th>Type</th><th>Status</th><th>Recipients</th><th>Attachment</th><th>Sent by</th><th></th></tr></thead>
-                <tbody>
-                  {data.recent.map((item) => (
-                    <tr key={item.id}>
-                      <td>{stamp(item.startedAt)}</td>
-                      <td>{item.reportName}{item.isTest ? ' (test)' : ''}</td>
-                      <td>{data.types[item.reportType] || item.reportType}</td>
-                      <td><Badge tone={tone(item.status)}>{item.status}</Badge></td>
-                      <td>{item.recipientCount}</td>
-                      <td>{item.attachment || '—'}</td>
-                      <td>{item.sentByName || '—'}</td>
-                      <td className="reports-row-actions">
-                        <button type="button" onClick={() => emailRun(item.id).then((payload) => setRun(payload.data)).catch((error) => push({ tone: 'danger', message: error.message }))}>View</button>
-                        {item.status === 'FAILED' ? <button type="button" onClick={() => act(() => retryEmailRun(item.id), 'Retry queued.')}>Retry</button> : null}
-                        <button type="button" onClick={() => downloadEmailRun(item.id, `${item.reportName}.pdf`).catch((error) => push({ tone: 'danger', message: error.message }))}>Download</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {!data.recent.length ? <p className="reports-muted">No email history yet.</p> : null}
-            </div>
-          ) : null}
+          <DailyComposer
+            data={data}
+            push={push}
+            onSent={() => load()}
+            onNeedSmtp={() => {
+              if (canSettings) {
+                document.getElementById('email-smtp-setup')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }
+            }}
+          />
         </>
       ) : null}
       <Wizard open={Boolean(wizard)} state={wizard} setState={setWizard} options={data?.options} types={data?.types || {}} sections={data?.sections || []} busy={busy} onClose={() => { if (!busy) setWizard(null); }} onSaved={() => { setWizard(null); load(); }} push={push} />
