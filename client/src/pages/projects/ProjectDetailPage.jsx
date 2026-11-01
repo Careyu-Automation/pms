@@ -310,7 +310,7 @@ export default function ProjectDetailPage() {
         <ErrorState
           title="Project not found"
           description="The project you're looking for does not exist or you don't have access."
-          action={<Button onClick={() => navigate('/projects')}>Back to Projects</Button>}
+          action={<Button onClick={() => navigate('/projects')}>Back to Internal Projects</Button>}
         />
       </PageContainer>
     );
@@ -348,7 +348,7 @@ export default function ProjectDetailPage() {
         <header className="pd-header">
           <div>
             <button type="button" className="pd-back" onClick={() => navigate('/projects')}>← Back</button>
-            <p className="pd-crumb"><Link to="/projects">Projects</Link> / {project.title}</p>
+            <p className="pd-crumb"><Link to="/projects">Internal Projects</Link> / {project.title}</p>
             <h1>{project.title}</h1>
             <div className="pd-pills">
               <Badge tone={meta.tone}>{meta.label}</Badge>

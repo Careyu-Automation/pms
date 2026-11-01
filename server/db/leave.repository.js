@@ -91,7 +91,16 @@ async function findType(id) {
   return result.rows[0] ? mapType(result.rows[0]) : null;
 }
 
+const PRIMARY_LEAVE_CODE = 'CASUAL';
+const PRIMARY_LEAVE_ENTITLEMENT = 12;
+
 async function ensureBalances(userId, year) {
+  await query(
+    `UPDATE leave_types
+     SET default_annual_allocation = $1
+     WHERE code = $2 AND default_annual_allocation IS DISTINCT FROM $1`,
+    [PRIMARY_LEAVE_ENTITLEMENT, PRIMARY_LEAVE_CODE],
+  );
   await query(
     `INSERT INTO leave_balances (user_id, leave_type_id, year, allocated_days)
      SELECT $1, t.id, $2, t.default_annual_allocation
@@ -99,6 +108,18 @@ async function ensureBalances(userId, year) {
      WHERE t.is_active = TRUE
      ON CONFLICT (user_id, leave_type_id, year) DO NOTHING`,
     [userId, year],
+  );
+  // Keep the displayed annual category at the 12-day entitlement without wiping history.
+  await query(
+    `UPDATE leave_balances b
+     SET allocated_days = t.default_annual_allocation
+     FROM leave_types t
+     WHERE b.leave_type_id = t.id
+       AND b.user_id = $1
+       AND b.year = $2
+       AND t.code = $3
+       AND b.allocated_days IS DISTINCT FROM t.default_annual_allocation`,
+    [userId, year, PRIMARY_LEAVE_CODE],
   );
 }
 
@@ -126,7 +147,8 @@ async function balances(userId, year) {
       allocatedDays: allocated,
       usedDays: used,
       pendingDays: pending,
-      availableDays: Math.max(0, allocated - used - pending),
+      // Pending requests do not reduce remaining balance; approval validates against remaining.
+      availableDays: Math.max(0, allocated - used),
     };
   });
 }
@@ -587,6 +609,8 @@ async function directory(admin, teamIds) {
 }
 
 module.exports = {
+  PRIMARY_LEAVE_CODE,
+  PRIMARY_LEAVE_ENTITLEMENT,
   withTransaction,
   calendar,
   addHoliday,

@@ -127,6 +127,7 @@ function preferSeedRow(current, next) {
 }
 
 function asCarriedRow(row, day) {
+  // Surface the same open main task on a new day without cloning yesterday's activity text.
   return {
     ...row,
     id: '',
@@ -136,10 +137,13 @@ function asCarriedRow(row, day) {
     hours: 0,
     minutes: 0,
     loggedHours: 0,
+    description: '',
+    workTitle: row.workTitle || row.taskTitle || 'Daily work',
     morningWork: '',
     eveningWork: '',
-    reasonForDelay: row.reasonForDelay || '',
+    reasonForDelay: '',
     nextAction: '',
+    activities: [],
     attachments: [],
     createdAt: undefined,
     updatedAt: undefined,
@@ -241,6 +245,13 @@ async function buildInput(user, body, current) {
   if (delayed && reasonForDelay.length < 2) {
     throw new ApiError(400, 'Explain why this work is delayed.', { fields: { reasonForDelay: 'A reason is required when work is blocked or overdue.' } });
   }
+  const activities = (Array.isArray(body.activities) ? body.activities : [])
+    .map((item) => ({
+      description: clean(item?.description, 4000),
+      hours: Number(item?.hours) || 0,
+      minutes: Number(item?.minutes) || 0,
+    }))
+    .filter((item) => item.description.length >= 1);
   return {
     employeeId,
     projectId: projectId || null,
@@ -252,6 +263,7 @@ async function buildInput(user, body, current) {
     status,
     priority,
     updateDate,
+    completionDate: status === 'COMPLETED' ? updateDate : null,
     nextAction: clean(body.nextAction, 500),
     hours,
     minutes,
@@ -267,6 +279,7 @@ async function buildInput(user, body, current) {
     reasonForDelay,
     morningWork: clean(body.morningWork, 4000),
     eveningWork: clean(body.eveningWork, 4000),
+    activities,
   };
 }
 
@@ -394,12 +407,14 @@ async function create(user, body) {
     if (linked?.updateId) {
       await repository.saveLog(client, linked.updateId, input);
       await repository.syncTimeEntry(client, linked.updateId, input);
+      await repository.replaceActivities(client, linked.updateId, { ...input, workItemId: linked.itemId }, input.activities);
       await repository.syncAssignedTask(client, input.taskId, input);
       await repository.addActivity(client, linked.itemId, linked.updateId, user.id, `${user.fullName} updated ${input.workTitle}`);
       return linked.updateId;
     }
     const updateId = await repository.insertLog(client, { ...input, workItemId: linked?.itemId || null });
     await repository.syncTimeEntry(client, updateId, input);
+    await repository.replaceActivities(client, updateId, { ...input, workItemId: linked?.itemId || null }, input.activities);
     if (input.taskId) await repository.syncAssignedTask(client, input.taskId, input);
     await repository.addActivity(client, linked?.itemId || null, updateId, user.id, `${user.fullName} added ${input.workTitle}`);
     return updateId;
@@ -414,6 +429,7 @@ async function update(id, user, body) {
   await repository.withTransaction(async (client) => {
     await repository.saveLog(client, current.id, input);
     await repository.syncTimeEntry(client, current.id, { ...input, createdById: current.createdById || user.id });
+    await repository.replaceActivities(client, current.id, input, input.activities);
     if (input.status !== current.status) {
       await repository.addActivity(client, null, current.id, user.id, `${user.fullName} changed status to ${STATUS_LABEL[input.status]}`);
     }

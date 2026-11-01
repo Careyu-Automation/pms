@@ -49,7 +49,10 @@ export function StudyHeader({
   lead, study, statusInfo, dirty, access, editing, busy,
   onBack, onStart, onEdit, onCancelEdit, onSave, onSubmit, onApprove, onChanges, onReject, onProceed, onUploadTab,
 }) {
-  const submitLabel = study.submittedAt ? 'Resubmit to PM' : 'Submit to PM';
+  const submitLabel = access.canPrepareReview
+    ? (study.submittedAt ? 'Mark ready for review again' : 'Mark ready for review')
+    : (study.submittedAt ? 'Resubmit to PM' : 'Submit to PM');
+  const canAdvance = Boolean(access.canSubmit || access.canPrepareReview);
   const canAssess = Boolean(access.canEditAssessment || access.canEditStudy);
   const solutionInfo = solutionStatusMeta(study);
   return (
@@ -77,7 +80,7 @@ export function StudyHeader({
         {access.canSave ? <Button onClick={onSave} loading={busy === 'save'} disabled={Boolean(busy) || !dirty}>Save Changes</Button> : null}
         {dirty && canAssess ? <Button variant="secondary" onClick={onCancelEdit} disabled={Boolean(busy)}>Discard changes</Button> : null}
         {access.canUpload ? <Button variant="secondary" onClick={onUploadTab} disabled={Boolean(busy)}>Upload Document</Button> : null}
-        {access.canSubmit ? <Button onClick={onSubmit} disabled={Boolean(busy) || dirty}>{submitLabel}</Button> : null}
+        {canAdvance ? <Button onClick={onSubmit} disabled={Boolean(busy) || dirty}>{submitLabel}</Button> : null}
         {access.canRequestChanges ? <Button variant="secondary" onClick={onChanges} disabled={Boolean(busy)}>Request Changes</Button> : null}
         {access.canReject ? <Button variant="danger" onClick={onReject} disabled={Boolean(busy)}>Reject</Button> : null}
         {access.canApprove ? <Button onClick={onApprove} loading={busy === 'approve'} disabled={Boolean(busy)}>Approve</Button> : null}
@@ -563,13 +566,18 @@ export function FeasibilitySolutionPanel({
   const steps = NEXT_STEPS[study.decision] || [];
   const solutionInfo = solutionStatusMeta(study);
   const documents = study.documents || [];
-  const submitLabel = study.submittedAt ? 'Resubmit to PM' : 'Submit to PM';
+  const submitLabel = access.canPrepareReview
+    ? (study.submittedAt ? 'Mark ready for review again' : 'Mark ready for review')
+    : (study.submittedAt ? 'Resubmit to PM' : 'Submit to PM');
+  const canAdvance = Boolean(access.canSubmit || access.canPrepareReview);
 
   return (
     <div className="feas-stack">
       <Section
         title="Feasibility Solution"
-        description="Capture the proposed solution package, attach supporting files, and submit to the project manager for review."
+        description={access.canPrepareReview
+          ? 'Capture the proposed solution package, attach supporting files, and mark it ready for review when complete.'
+          : 'Capture the proposed solution package, attach supporting files, and submit to the project manager for review.'}
         actions={<Badge tone={solutionInfo.tone}>{solutionInfo.label}</Badge>}
       >
         <dl className="lead-read feas-solution-meta">
@@ -772,12 +780,15 @@ export function FeasibilitySolutionPanel({
         </div>
       </Section>
 
-      <Section title="Actions" description="Save your work, submit to the project manager, or continue after approval.">
+      <Section title="Actions" description={access.canPrepareReview
+        ? 'Save your work, mark ready for review, then approve or request changes.'
+        : 'Save your work, submit to the project manager, or continue after approval.'}
+      >
         <div className="feas-solution-actions">
           {access.canSave ? (
             <Button onClick={onSave} loading={busy === 'save'} disabled={Boolean(busy) || !dirty}>Save Solution</Button>
           ) : null}
-          {access.canSubmit ? (
+          {canAdvance ? (
             <Button className="feas-submit-pm" onClick={onSubmit} disabled={Boolean(busy) || dirty} loading={busy === 'submit'}>
               {submitLabel}
             </Button>

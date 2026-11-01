@@ -21,6 +21,7 @@ export default function DailyWorkPage() {
   const [employeeId, setEmployeeId] = useState(() => user?.id || '');
   const [projectId, setProjectId] = useState('');
   const [workStatus, setWorkStatus] = useState('');
+  const [sheetMode, setSheetMode] = useState('active');
   const [status, setStatus] = useState('loading');
   const [payload, setPayload] = useState(null);
   const [dirtyCount, setDirtyCount] = useState(0);
@@ -190,6 +191,13 @@ export default function DailyWorkPage() {
               <option value="ON_HOLD">On hold</option>
             </select>
           </label>
+          <div className="daily-meta-field daily-sheet-tabs" role="tablist" aria-label="Daily work views">
+            <span>View</span>
+            <div>
+              <button type="button" role="tab" className={sheetMode === 'active' ? 'is-active' : ''} aria-selected={sheetMode === 'active'} onClick={() => setSheetMode('active')}>Active</button>
+              <button type="button" role="tab" className={sheetMode === 'completed' ? 'is-active' : ''} aria-selected={sheetMode === 'completed'} onClick={() => setSheetMode('completed')}>Completed</button>
+            </div>
+          </div>
         </div>
 
         {status === 'error' ? (
@@ -202,11 +210,14 @@ export default function DailyWorkPage() {
             user={selectedPerson}
             canAssign={Boolean(payload?.access?.canAssignEmployee)}
             today={date || payload?.today || isoToday()}
+            sheetMode={sheetMode}
             onSave={saveUpdate}
             onDelete={removeUpdate}
             onDirty={setDirtyCount}
             onReload={() => load(true)}
-            emptyLabel={status === 'ready' ? 'No updates for this date yet.' : 'Loading daily work updates...'}
+            emptyLabel={status === 'ready'
+              ? (sheetMode === 'completed' ? 'No completed main tasks for this date.' : 'No active main tasks for this date yet.')
+              : 'Loading daily work updates...'}
           />
         )}
       </div>

@@ -161,6 +161,18 @@ const removeListedTask = asyncHandler(async (req, res) => {
   sendSuccess(res, { message: 'Task removed.' });
 });
 
+const acceptTask = asyncHandler(async (req, res) => {
+  assertId(req.params.taskId, 'Task id');
+  const task = await planning.acceptTask(req.params.taskId, req.user);
+  sendSuccess(res, { message: 'Task accepted.', data: { task } });
+});
+
+const rejectTask = asyncHandler(async (req, res) => {
+  assertId(req.params.taskId, 'Task id');
+  const task = await planning.rejectTask(req.params.taskId, req.user, req.body || {});
+  sendSuccess(res, { message: 'Task rejected.', data: { task } });
+});
+
 module.exports = {
   getPlan,
   createPhase,
@@ -179,6 +191,8 @@ module.exports = {
   createNamedTask,
   updateListedTask,
   removeListedTask,
+  acceptTask,
+  rejectTask,
   getTask,
   logTime,
   removeTime,

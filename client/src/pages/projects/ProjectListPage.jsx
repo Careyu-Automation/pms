@@ -11,7 +11,7 @@ import '../../styles/feasibility.css';
 import '../../styles/projects.css';
 
 export default function ProjectListPage() {
-  useDocumentTitle('Projects');
+  useDocumentTitle('Internal Projects');
   const { push } = useToast();
   const [rows, setRows] = useState([]);
   const [managers, setManagers] = useState([]);
@@ -40,7 +40,7 @@ export default function ProjectListPage() {
   return (
     <PageContainer>
       {status === 'loading' ? <div className="lead-skeleton" aria-hidden="true" /> : null}
-      {status === 'error' ? <ErrorState title="Projects could not be loaded." action={<Button onClick={load}>Retry</Button>} /> : null}
+      {status === 'error' ? <ErrorState title="Internal Projects could not be loaded." action={<Button onClick={load}>Retry</Button>} /> : null}
       {status === 'ready' ? (
         <ProjectWorkspace
           projects={rows}

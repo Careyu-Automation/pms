@@ -581,6 +581,12 @@ function mapLog(row) {
     status: row.status,
     priority: row.priority || 'MEDIUM',
     currentDate: isoDate(row.update_date),
+    startDate: isoDate(row.task_start || row.start_date),
+    deadline: isoDate(row.task_deadline || row.linked_deadline),
+    completionDate: isoDate(row.completion_date),
+    reasonForDelay: row.reason_for_delay || '',
+    delayStatus: row.delay_status || '',
+    assignmentStatus: row.assignment_status || 'ACCEPTED',
     nextAction: row.next_action || '',
     hours: Number(row.hours) || 0,
     minutes: Number(row.minutes) || 0,
@@ -593,13 +599,17 @@ function mapLog(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     attachments: row.attachments || [],
+    activities: Array.isArray(row.activities) ? row.activities : [],
   };
 }
 
 const LOG_COLUMNS = `
   d.id, d.employee_id, d.project_id, d.product_id, d.team_id, d.update_date, d.description,
   d.status, d.priority, d.created_by, d.created_at, d.updated_at, d.hours, d.minutes,
-  d.next_action, d.dependency_type, d.dependency_details, i.task_id, tsk.progress AS task_progress,
+  d.next_action, d.dependency_type, d.dependency_details, d.task_deadline, d.completion_date,
+  d.reason_for_delay, d.delay_status, i.task_id, tsk.progress AS task_progress,
+  tsk.start_date AS task_start, tsk.end_date AS linked_deadline,
+  COALESCE(tsk.assignment_status, 'ACCEPTED') AS assignment_status,
   COALESCE(NULLIF(d.work_title, ''), i.title, 'Work update') AS work_title,
   COALESCE(NULLIF(d.work_type, ''), CASE WHEN d.project_id IS NULL THEN 'INTERNAL' ELSE 'PROJECT_WORK' END) AS work_type,
   emp.full_name AS employee_name,
@@ -673,7 +683,12 @@ async function logList(filters, actor) {
     list.push({ id: file.id, name: file.original_name, mimeType: file.mime_type, size: file.size_bytes });
     grouped.set(file.update_id, list);
   });
-  return result.rows.map((row) => mapLog({ ...row, attachments: grouped.get(row.id) || [] }));
+  const activities = await listActivitiesForUpdates(ids);
+  return result.rows.map((row) => mapLog({
+    ...row,
+    attachments: grouped.get(row.id) || [],
+    activities: activities.get(row.id) || [],
+  }));
 }
 
 async function findLog(id) {
@@ -864,6 +879,7 @@ async function assignedForLog(filters, actor) {
   const where = [
     't.assignee_id IS NOT NULL',
     `t.status IN ('NOT_STARTED', 'IN_PROGRESS', 'BLOCKED', 'ON_HOLD')`,
+    `COALESCE(t.assignment_status, 'ACCEPTED') = 'ACCEPTED'`,
     't.start_date <= $2',
     `(t.end_date >= $1 OR t.status = 'IN_PROGRESS')`,
   ];
@@ -996,6 +1012,7 @@ async function linkAssignedTask(client, taskId, input) {
 
 async function syncAssignedTask(client, taskId, input) {
   if (await updatesAreView()) return source.syncTask(client, taskId, input);
+  await query('ALTER TABLE project_tasks ADD COLUMN IF NOT EXISTS completion_date DATE');
   const status = {
     NOT_STARTED: 'NOT_STARTED',
     IN_PROGRESS: 'IN_PROGRESS',
@@ -1004,12 +1021,112 @@ async function syncAssignedTask(client, taskId, input) {
     ON_HOLD: 'ON_HOLD',
   }[input.status];
   if (!status && input.progress == null) return;
+  const completionDate = status === 'COMPLETED'
+    ? (input.completionDate || input.updateDate || null)
+    : null;
   if (status && input.progress != null) {
-    await client.query('UPDATE project_tasks SET status = $2, progress = $3 WHERE id = $1', [taskId, status, input.progress]);
+    await client.query(
+      'UPDATE project_tasks SET status = $2, progress = $3, completion_date = $4 WHERE id = $1',
+      [taskId, status, input.progress, completionDate],
+    );
     return;
   }
-  if (status) await client.query('UPDATE project_tasks SET status = $2 WHERE id = $1', [taskId, status]);
-  else await client.query('UPDATE project_tasks SET progress = $2 WHERE id = $1', [taskId, input.progress]);
+  if (status) {
+    await client.query(
+      'UPDATE project_tasks SET status = $2, completion_date = $3 WHERE id = $1',
+      [taskId, status, completionDate],
+    );
+    return;
+  }
+  await client.query('UPDATE project_tasks SET progress = $2 WHERE id = $1', [taskId, input.progress]);
+}
+
+let activitiesReady = false;
+
+async function ensureActivitiesTable() {
+  if (activitiesReady) return;
+  if (await updatesAreView()) {
+    activitiesReady = true;
+    return;
+  }
+  await query(`
+    CREATE TABLE IF NOT EXISTS daily_work_activities (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      work_item_id UUID REFERENCES daily_work_items (id) ON DELETE CASCADE,
+      update_id UUID REFERENCES daily_work_updates (id) ON DELETE CASCADE,
+      employee_id UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+      work_date DATE NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      hours SMALLINT NOT NULL DEFAULT 0,
+      minutes SMALLINT NOT NULL DEFAULT 0,
+      sort_order SMALLINT NOT NULL DEFAULT 0,
+      created_by UUID REFERENCES users (id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await query('CREATE INDEX IF NOT EXISTS daily_work_activities_update_idx ON daily_work_activities (update_id, sort_order)');
+  await query('CREATE INDEX IF NOT EXISTS daily_work_activities_employee_date_idx ON daily_work_activities (employee_id, work_date)');
+  activitiesReady = true;
+}
+
+async function listActivitiesForUpdates(updateIds) {
+  await ensureActivitiesTable();
+  if (!updateIds.length || await updatesAreView()) return new Map();
+  const result = await query(
+    `SELECT id, update_id, work_item_id, employee_id, work_date, description, hours, minutes, sort_order
+     FROM daily_work_activities
+     WHERE update_id = ANY($1::uuid[])
+     ORDER BY sort_order, created_at`,
+    [updateIds],
+  );
+  const map = new Map();
+  result.rows.forEach((row) => {
+    const list = map.get(row.update_id) || [];
+    list.push({
+      id: row.id,
+      updateId: row.update_id,
+      workItemId: row.work_item_id,
+      employeeId: row.employee_id,
+      workDate: isoDate(row.work_date),
+      description: row.description || '',
+      hours: Number(row.hours) || 0,
+      minutes: Number(row.minutes) || 0,
+      sortOrder: Number(row.sort_order) || 0,
+    });
+    map.set(row.update_id, list);
+  });
+  return map;
+}
+
+async function replaceActivities(client, updateId, input, activities) {
+  await ensureActivitiesTable();
+  if (await updatesAreView()) return;
+  await client.query('DELETE FROM daily_work_activities WHERE update_id = $1', [updateId]);
+  const rows = Array.isArray(activities) ? activities : [];
+  for (let index = 0; index < rows.length; index += 1) {
+    const activity = rows[index] || {};
+    const description = String(activity.description || '').trim();
+    if (!description) continue;
+    const hours = Math.max(0, Math.min(24, Number(activity.hours) || 0));
+    const minutes = Math.max(0, Math.min(59, Number(activity.minutes) || 0));
+    await client.query(
+      `INSERT INTO daily_work_activities (
+         work_item_id, update_id, employee_id, work_date, description, hours, minutes, sort_order, created_by
+       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [
+        input.workItemId || null,
+        updateId,
+        input.employeeId,
+        input.updateDate,
+        description.slice(0, 4000),
+        hours,
+        minutes,
+        index,
+        input.createdById || null,
+      ],
+    );
+  }
 }
 
 module.exports = {
@@ -1036,6 +1153,9 @@ module.exports = {
   assignedForLog,
   linkAssignedTask,
   syncAssignedTask,
+  ensureActivitiesTable,
+  listActivitiesForUpdates,
+  replaceActivities,
   teamAudience: source.teamAudience,
   updatesAreView,
   findLog,

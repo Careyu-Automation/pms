@@ -13,7 +13,7 @@ import { useToast } from '../../context/ToastContext';
 import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { usePageMeta } from '../../hooks/usePageMeta';
 import { ApiError } from '../../services/api';
-import { createLead, getLead, submitLead, updateLead, uploadLeadDocuments } from '../../services/leads.service';
+import { createLead, getLead, listLeads, submitLead, updateLead, uploadLeadDocuments } from '../../services/leads.service';
 import { formatDate } from '../../utils/format';
 import '../../styles/lead.css';
 
@@ -39,14 +39,30 @@ export default function LeadFormPage({ mode }) {
   const { user } = useAuth();
   const { push } = useToast();
   const [lead, setLead] = useState(null);
-  const [status, setStatus] = useState(mode === 'create' ? 'ready' : 'loading');
+  const [canCreate, setCanCreate] = useState(mode !== 'create');
+  const [status, setStatus] = useState('loading');
   const [busy, setBusy] = useState(null);
   const [errors, setErrors] = useState(location.state?.errors || {});
   const [pendingSubmit, setPendingSubmit] = useState(null);
 
   useEffect(() => {
-    if (mode !== 'edit') return undefined;
     let active = true;
+    if (mode === 'create') {
+      setStatus('loading');
+      listLeads()
+        .then((payload) => {
+          if (!active) return;
+          const allowed = Boolean(payload.data.access?.canCreate);
+          setCanCreate(allowed);
+          setStatus(allowed ? 'ready' : 'forbidden');
+        })
+        .catch((error) => {
+          if (!active) return;
+          setStatus('error');
+          push({ tone: 'danger', message: error.message });
+        });
+      return () => { active = false; };
+    }
     setStatus('loading');
     getLead(leadId)
       .then((payload) => {
@@ -141,6 +157,16 @@ export default function LeadFormPage({ mode }) {
   }
 
   if (status === 'loading') return <Loader label="Loading lead" />;
+  if (status === 'forbidden' || (mode === 'create' && !canCreate)) {
+    return (
+      <PageContainer>
+        <ErrorState
+          title="Only the Business Head or Engineering Director can create a lead."
+          action={<Button onClick={() => navigate('/lead-pipeline')}>Back to pipeline</Button>}
+        />
+      </PageContainer>
+    );
+  }
   if (status === 'error') {
     return (
       <PageContainer>

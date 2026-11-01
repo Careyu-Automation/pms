@@ -496,7 +496,12 @@ const STATEMENTS = [
      k.created_at,
      COALESCE(k.updated_at, k.created_at) AS updated_at,
      ''::text AS tags,
-     NULL::uuid AS product_id
+     NULL::uuid AS product_id,
+     CASE WHEN creator.user_key IS NOT NULL THEN pms_app.app_uuid('user', k.created_by_id) ELSE NULL END AS assigned_by,
+     'ACCEPTED'::varchar(40) AS assignment_status,
+     COALESCE(k.updated_at, k.created_at) AS accepted_at,
+     NULL::timestamptz AS rejected_at,
+     ''::text AS rejection_reason
    FROM public.tasks k
    JOIN public.users assignee ON assignee.user_key = k.assigned_to_id
    LEFT JOIN public.teams tm ON tm.record_key = k.team_id

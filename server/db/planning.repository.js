@@ -33,6 +33,12 @@ function mapTask(row) {
     description: row.description || '',
     assigneeId: row.assignee_id,
     assignee: row.assignee_name || '',
+    assignedById: row.assigned_by || null,
+    assignedBy: row.assigned_by_name || '',
+    assignmentStatus: row.assignment_status || 'ACCEPTED',
+    acceptedAt: row.accepted_at || null,
+    rejectedAt: row.rejected_at || null,
+    rejectionReason: row.rejection_reason || '',
     teamCode: row.team_code || '',
     priority: row.priority,
     status: row.status,
@@ -52,6 +58,25 @@ function mapTask(row) {
     source: row.product_id ? 'product' : 'project',
     updatedAt: row.updated_at,
   };
+}
+
+let assignmentColumnsReady = false;
+
+async function ensureAssignmentColumns() {
+  if (assignmentColumnsReady) return;
+  if (!(await projectTasksWritable())) {
+    assignmentColumnsReady = true;
+    return;
+  }
+  await query('ALTER TABLE project_tasks ADD COLUMN IF NOT EXISTS assigned_by UUID');
+  await query(`ALTER TABLE project_tasks ADD COLUMN IF NOT EXISTS assignment_status VARCHAR(40) NOT NULL DEFAULT 'ACCEPTED'`);
+  await query('ALTER TABLE project_tasks ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ');
+  await query('ALTER TABLE project_tasks ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMPTZ');
+  await query(`ALTER TABLE project_tasks ADD COLUMN IF NOT EXISTS rejection_reason TEXT NOT NULL DEFAULT ''`);
+  await query('ALTER TABLE project_tasks DROP CONSTRAINT IF EXISTS project_tasks_assignment_status_check');
+  await query(`ALTER TABLE project_tasks ADD CONSTRAINT project_tasks_assignment_status_check
+    CHECK (assignment_status IN ('PENDING_ACCEPTANCE', 'ACCEPTED', 'REJECTED'))`);
+  assignmentColumnsReady = true;
 }
 
 function mapPhase(row) {
@@ -91,11 +116,13 @@ const TASK_SELECT = `
     pr.product_code,
     pr.name AS product_name,
     u.full_name AS assignee_name,
+    assigner.full_name AS assigned_by_name,
     COALESCE(logged.actual_hours, 0) AS actual_hours
   FROM project_tasks t
   LEFT JOIN projects p ON p.id = t.project_id
   LEFT JOIN products pr ON pr.id = t.product_id
   LEFT JOIN users u ON u.id = t.assignee_id
+  LEFT JOIN users assigner ON assigner.id = t.assigned_by
   LEFT JOIN (
     SELECT task_id, SUM(hours) AS actual_hours
     FROM project_time_entries
@@ -140,6 +167,7 @@ async function listPhases(projectId) {
 }
 
 async function listTasks(filters = {}) {
+  await ensureAssignmentColumns();
   const clauses = [];
   const params = [];
   if (filters.projectId) {
@@ -164,6 +192,7 @@ async function listTasks(filters = {}) {
 }
 
 async function findTask(id) {
+  await ensureAssignmentColumns();
   const result = await query(`${TASK_SELECT} WHERE t.id = $1`, [id]);
   return result.rows[0] ? mapTask(result.rows[0]) : null;
 }
@@ -279,21 +308,54 @@ async function deleteSourceTask(id) {
 }
 
 async function insertTask(projectId, input, actorId) {
+  await ensureAssignmentColumns();
   if (!(await projectTasksWritable())) return insertSourceTask(projectId, input, actorId);
   const code = await nextTaskCode();
   const order = await query('SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM project_tasks WHERE project_id = $1', [projectId]);
+  const assignment = assignmentPayload(input, actorId);
   const result = await query(
     `INSERT INTO project_tasks (
       project_id, phase_id, task_code, title, description, assignee_id, team_code, priority, status,
-      start_date, end_date, estimated_hours, progress, sort_order, created_by, tags
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,
+      start_date, end_date, estimated_hours, progress, sort_order, created_by, tags,
+      assigned_by, assignment_status, accepted_at, rejected_at, rejection_reason
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING id`,
     [
       projectId, input.phaseId, code, input.title, input.description, input.assigneeId, input.teamCode,
       input.priority, input.status, input.startDate, input.endDate, input.estimatedHours, input.progress,
       order.rows[0].next, actorId, input.tags || '',
+      assignment.assignedBy, assignment.assignmentStatus, assignment.acceptedAt, assignment.rejectedAt, assignment.rejectionReason,
     ],
   );
   return result.rows[0].id;
+}
+
+function assignmentPayload(input, actorId) {
+  if (input.assignmentStatus) {
+    return {
+      assignedBy: input.assignedBy || actorId || null,
+      assignmentStatus: input.assignmentStatus,
+      acceptedAt: input.acceptedAt || null,
+      rejectedAt: input.rejectedAt || null,
+      rejectionReason: input.rejectionReason || '',
+    };
+  }
+  const assigneeId = input.assigneeId || null;
+  if (!assigneeId || assigneeId === actorId) {
+    return {
+      assignedBy: actorId || null,
+      assignmentStatus: 'ACCEPTED',
+      acceptedAt: new Date(),
+      rejectedAt: null,
+      rejectionReason: '',
+    };
+  }
+  return {
+    assignedBy: actorId || null,
+    assignmentStatus: 'PENDING_ACCEPTANCE',
+    acceptedAt: null,
+    rejectedAt: null,
+    rejectionReason: '',
+  };
 }
 
 async function projectTasksWritable() {
@@ -350,17 +412,35 @@ async function updateSourceTask(id, projectId, input) {
 }
 
 async function updateTask(id, projectId, input) {
+  await ensureAssignmentColumns();
   if (!(await projectTasksWritable())) return updateSourceTask(id, projectId, input);
+  const assignment = input.assignmentStatus
+    ? assignmentPayload(input, input.assignedBy)
+    : null;
   const result = await query(
-    `UPDATE project_tasks SET
-      phase_id = $3, title = $4, description = $5, assignee_id = $6, team_code = $7, priority = $8,
-      status = $9, start_date = $10, end_date = $11, estimated_hours = $12, progress = $13, tags = $14, updated_at = NOW()
-     WHERE id = $1 AND project_id = $2 RETURNING id`,
-    [
-      id, projectId, input.phaseId, input.title, input.description, input.assigneeId, input.teamCode,
-      input.priority, input.status, input.startDate, input.endDate, input.estimatedHours, input.progress,
-      input.tags || '',
-    ],
+    assignment
+      ? `UPDATE project_tasks SET
+          phase_id = $3, title = $4, description = $5, assignee_id = $6, team_code = $7, priority = $8,
+          status = $9, start_date = $10, end_date = $11, estimated_hours = $12, progress = $13, tags = $14,
+          assigned_by = $15, assignment_status = $16, accepted_at = $17, rejected_at = $18, rejection_reason = $19,
+          updated_at = NOW()
+         WHERE id = $1 AND project_id = $2 RETURNING id`
+      : `UPDATE project_tasks SET
+          phase_id = $3, title = $4, description = $5, assignee_id = $6, team_code = $7, priority = $8,
+          status = $9, start_date = $10, end_date = $11, estimated_hours = $12, progress = $13, tags = $14, updated_at = NOW()
+         WHERE id = $1 AND project_id = $2 RETURNING id`,
+    assignment
+      ? [
+        id, projectId, input.phaseId, input.title, input.description, input.assigneeId, input.teamCode,
+        input.priority, input.status, input.startDate, input.endDate, input.estimatedHours, input.progress,
+        input.tags || '', assignment.assignedBy, assignment.assignmentStatus, assignment.acceptedAt,
+        assignment.rejectedAt, assignment.rejectionReason,
+      ]
+      : [
+        id, projectId, input.phaseId, input.title, input.description, input.assigneeId, input.teamCode,
+        input.priority, input.status, input.startDate, input.endDate, input.estimatedHours, input.progress,
+        input.tags || '',
+      ],
   );
   return result.rows[0] || null;
 }
@@ -432,34 +512,75 @@ async function addActivity(projectId, actorId, action, comment, productId = null
 }
 
 async function insertProductTask(productId, input, actorId) {
+  await ensureAssignmentColumns();
   const code = await nextTaskCode();
   const order = await query('SELECT COALESCE(MAX(sort_order), 0) + 1 AS next FROM project_tasks WHERE product_id = $1', [productId]);
+  const assignment = assignmentPayload(input, actorId);
   const result = await query(
     `INSERT INTO project_tasks (
       product_id, task_code, title, description, assignee_id, team_code, priority, status,
-      start_date, end_date, estimated_hours, progress, sort_order, created_by, tags
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+      start_date, end_date, estimated_hours, progress, sort_order, created_by, tags,
+      assigned_by, assignment_status, accepted_at, rejected_at, rejection_reason
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING id`,
     [
       productId, code, input.title, input.description, input.assigneeId, input.teamCode,
       input.priority, input.status, input.startDate, input.endDate, input.estimatedHours, input.progress,
       order.rows[0].next, actorId, input.tags || '',
+      assignment.assignedBy, assignment.assignmentStatus, assignment.acceptedAt, assignment.rejectedAt, assignment.rejectionReason,
     ],
   );
   return result.rows[0].id;
 }
 
 async function updateTaskById(id, input) {
+  await ensureAssignmentColumns();
   if (!(await projectTasksWritable())) return updateSourceTask(id, null, input);
+  const assignment = input.assignmentStatus
+    ? assignmentPayload(input, input.assignedBy)
+    : null;
+  const result = await query(
+    assignment
+      ? `UPDATE project_tasks SET
+          phase_id = $2, title = $3, description = $4, assignee_id = $5, team_code = $6, priority = $7,
+          status = $8, start_date = $9, end_date = $10, estimated_hours = $11, progress = $12, tags = $13,
+          assigned_by = $14, assignment_status = $15, accepted_at = $16, rejected_at = $17, rejection_reason = $18,
+          updated_at = NOW()
+         WHERE id = $1 RETURNING id`
+      : `UPDATE project_tasks SET
+          phase_id = $2, title = $3, description = $4, assignee_id = $5, team_code = $6, priority = $7,
+          status = $8, start_date = $9, end_date = $10, estimated_hours = $11, progress = $12, tags = $13, updated_at = NOW()
+         WHERE id = $1 RETURNING id`,
+    assignment
+      ? [
+        id, input.phaseId, input.title, input.description, input.assigneeId, input.teamCode,
+        input.priority, input.status, input.startDate, input.endDate, input.estimatedHours, input.progress,
+        input.tags || '', assignment.assignedBy, assignment.assignmentStatus, assignment.acceptedAt,
+        assignment.rejectedAt, assignment.rejectionReason,
+      ]
+      : [
+        id, input.phaseId, input.title, input.description, input.assigneeId, input.teamCode,
+        input.priority, input.status, input.startDate, input.endDate, input.estimatedHours, input.progress,
+        input.tags || '',
+      ],
+  );
+  return result.rows[0] || null;
+}
+
+async function respondAssignment(id, fields) {
+  await ensureAssignmentColumns();
+  if (!(await projectTasksWritable())) {
+    throw Object.assign(new Error('Assignment acceptance requires a writable project_tasks table.'), { status: 501 });
+  }
   const result = await query(
     `UPDATE project_tasks SET
-      phase_id = $2, title = $3, description = $4, assignee_id = $5, team_code = $6, priority = $7,
-      status = $8, start_date = $9, end_date = $10, estimated_hours = $11, progress = $12, tags = $13, updated_at = NOW()
-     WHERE id = $1 RETURNING id`,
-    [
-      id, input.phaseId, input.title, input.description, input.assigneeId, input.teamCode,
-      input.priority, input.status, input.startDate, input.endDate, input.estimatedHours, input.progress,
-      input.tags || '',
-    ],
+      assignment_status = $2,
+      accepted_at = $3,
+      rejected_at = $4,
+      rejection_reason = $5,
+      updated_at = NOW()
+     WHERE id = $1
+     RETURNING id`,
+    [id, fields.assignmentStatus, fields.acceptedAt, fields.rejectedAt, fields.rejectionReason || ''],
   );
   return result.rows[0] || null;
 }
@@ -573,6 +694,7 @@ module.exports = {
   insertProductTask,
   updateTask,
   updateTaskById,
+  respondAssignment,
   deleteTask,
   deleteTaskById,
   insertDependency,

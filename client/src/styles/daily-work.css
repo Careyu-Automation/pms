@@ -1305,3 +1305,36 @@
     overflow-x: auto;
   }
 }
+
+.daily-sheet-tabs > div {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+.daily-sheet-tabs button {
+  border: 1px solid var(--border, #d5dde8);
+  background: #fff;
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+}
+.daily-sheet-tabs button.is-active {
+  background: color-mix(in srgb, var(--primary, #1d4f91) 12%, #fff);
+  border-color: var(--primary, #1d4f91);
+  color: var(--primary, #1d4f91);
+}
+.daily-task-stack {
+  display: grid;
+  gap: 0.35rem;
+}
+.daily-activity-input {
+  border-left: 3px solid color-mix(in srgb, var(--primary, #1d4f91) 35%, #fff);
+}
+.daily-add-activity {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border, #d5dde8);
+  background: #fff;
+  cursor: pointer;
+  line-height: 1;
+}

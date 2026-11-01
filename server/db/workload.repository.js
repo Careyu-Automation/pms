@@ -121,6 +121,7 @@ async function tasks(userIds, start, end, projectId) {
      LEFT JOIN products pr ON pr.id = t.product_id
      WHERE t.assignee_id = ANY($1::uuid[])
        AND t.status <> 'CANCELLED'
+       AND COALESCE(t.assignment_status, 'ACCEPTED') = 'ACCEPTED'
        AND (
          (t.start_date <= $3 AND t.end_date >= $2)
          OR (t.status <> 'COMPLETED' AND t.end_date < CURRENT_DATE)

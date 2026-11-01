@@ -91,15 +91,17 @@ async function overview(actor) {
     repository.listLeave({ userId: actor.id, status: 'PENDING' }),
     repository.listPermissions({ userId: actor.id, status: 'PENDING' }),
   ]);
-  const available = balanceRows.reduce((sum, row) => sum + row.availableDays, 0);
-  const used = balanceRows.reduce((sum, row) => sum + row.usedDays, 0);
+  const primary = balanceRows.find((row) => row.code === repository.PRIMARY_LEAVE_CODE) || null;
+  const primaryBalances = primary ? [primary] : [];
   return {
     year,
     types,
-    balances: balanceRows,
+    balances: primaryBalances,
+    allBalances: balanceRows,
     summary: {
-      availableDays: available,
-      usedDays: used,
+      availableDays: primary ? primary.availableDays : 0,
+      usedDays: primary ? primary.usedDays : 0,
+      entitlementDays: primary ? primary.allocatedDays : repository.PRIMARY_LEAVE_ENTITLEMENT,
       pendingRequests: counts.pendingRequests,
       approvedDays: counts.approvedDays,
     },
@@ -295,6 +297,11 @@ async function approveLeave(actor, id, body) {
   if (request.status !== 'PENDING') throw new ApiError(400, 'Only a pending request can be approved.');
   const year = Number(request.startDate.slice(0, 4));
   const comment = String(body.comment || '').trim().slice(0, 2000);
+  const rows = await repository.balances(request.userId, year);
+  const balanceRow = rows.find((item) => item.leaveTypeId === request.leaveTypeId);
+  if (!balanceRow || balanceRow.availableDays < request.durationDays) {
+    throw new ApiError(400, 'Insufficient leave balance to approve this request.');
+  }
   await repository.withTransaction(async (client) => {
     await repository.approveBalance(client, request.userId, request.leaveTypeId, year, request.durationDays);
     await repository.reviewLeave(client, id, { status: 'APPROVED', actorId: actor.id, approvalComment: comment, rejectionReason: '' });

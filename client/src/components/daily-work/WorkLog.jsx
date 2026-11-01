@@ -135,6 +135,7 @@ function blankRow(user, lookups, today) {
     priority: 'MEDIUM',
     taskId: '',
     entryKind: 'MANUAL',
+    activities: [],
   };
 }
 
@@ -174,6 +175,12 @@ function formFrom(row, stakeholders) {
     priority: row.priority || 'MEDIUM',
     taskId: row.taskId || '',
     entryKind: row.entryKind || 'MANUAL',
+    activities: Array.isArray(row.activities) ? row.activities.map((item) => ({
+      id: item.id || '',
+      description: item.description || '',
+      hours: item.hours || 0,
+      minutes: item.minutes || 0,
+    })) : [],
     canDelete: Boolean(row.access?.canDelete),
     canEdit: row.access ? row.access.canEdit : true,
   };
@@ -262,6 +269,14 @@ function payloadOf(row, stakeholders, reportDate) {
     minutes: 0,
     progress: row.progress === '' || row.progress == null ? null : Number(row.progress),
     taskId: row.taskId || '',
+    activities: (row.activities || [])
+      .map((item) => ({
+        id: item.id || undefined,
+        description: String(item.description || '').trim(),
+        hours: Number(item.hours) || 0,
+        minutes: Number(item.minutes) || 0,
+      }))
+      .filter((item) => item.description),
   };
 }
 
@@ -355,7 +370,7 @@ function DependencySelect({ value, options, disabled, onChange }) {
 }
 
 export const WorkLog = forwardRef(function WorkLog({
-  rows, lookups, user, canAssign, today, onSave, onDelete, onDirty, onReload, emptyLabel,
+  rows, lookups, user, canAssign, today, onSave, onDelete, onDirty, onReload, emptyLabel, sheetMode = 'active',
 }, ref) {
   const stakeholders = useMemo(() => resolveStakeholders(lookups.people || []), [lookups.people]);
   const [drafts, setDrafts] = useState(() => [blankRow(user, lookups, today)]);
@@ -371,15 +386,39 @@ export const WorkLog = forwardRef(function WorkLog({
 
   const forms = useMemo(() => rows
     .filter((row) => !user?.id || row.employeeId === user.id)
+    .filter((row) => (sheetMode === 'completed' ? row.status === 'COMPLETED' : row.status !== 'COMPLETED'))
     .map((row) => {
       const base = formFrom(row, stakeholders);
       const withDate = { ...base, workDate: today || base.workDate };
       return edits[base.key]
         ? { ...withDate, ...edits[base.key], key: base.key, workDate: today || edits[base.key].workDate || withDate.workDate }
         : withDate;
-    }), [edits, rows, stakeholders, today, user?.id]);
+    }), [edits, rows, sheetMode, stakeholders, today, user?.id]);
 
-  const sheetRows = useMemo(() => [...forms, ...drafts], [drafts, forms]);
+  const sheetRows = useMemo(
+    () => (sheetMode === 'completed' ? forms : [...forms, ...drafts]),
+    [drafts, forms, sheetMode],
+  );
+
+  function addActivity(key, draft) {
+    const target = draft
+      ? drafts.find((item) => item.key === key)
+      : forms.find((item) => item.key === key);
+    if (!target) return;
+    const activities = [...(target.activities || []), { id: '', description: '', hours: 0, minutes: 0 }];
+    patch(key, { activities }, draft);
+  }
+
+  function patchActivity(key, index, fields, draft) {
+    const target = draft
+      ? drafts.find((item) => item.key === key)
+      : forms.find((item) => item.key === key);
+    if (!target) return;
+    const activities = (target.activities || []).map((item, activityIndex) => (
+      activityIndex === index ? { ...item, ...fields } : item
+    ));
+    patch(key, { activities }, draft);
+  }
 
   const dirtyCount = Object.values(dirty).filter(Boolean).length
     + drafts.filter((row) => rowHasContent(row)).length;
@@ -558,15 +597,34 @@ export const WorkLog = forwardRef(function WorkLog({
           </select>
         ))}
         {cell(col++, 'task', (
-          <textarea
-            className="daily-cell-input"
-            rows={2}
-            aria-label="Work description"
-            placeholder="Describe the work performed"
-            value={row.task}
-            disabled={locked}
-            onChange={(event) => patch(key, { task: event.target.value }, draft)}
-          />
+          <div className="daily-task-stack">
+            <textarea
+              className="daily-cell-input"
+              rows={2}
+              aria-label="Work description"
+              placeholder="Main task / work description"
+              value={row.task}
+              disabled={locked}
+              onChange={(event) => patch(key, { task: event.target.value }, draft)}
+            />
+            {(row.activities || []).map((activity, activityIndex) => (
+              <textarea
+                key={`${key}-activity-${activityIndex}`}
+                className="daily-cell-input daily-activity-input"
+                rows={2}
+                aria-label={`Sub-activity ${activityIndex + 1}`}
+                placeholder="Daily sub-activity"
+                value={activity.description || ''}
+                disabled={locked}
+                onChange={(event) => patchActivity(key, activityIndex, { description: event.target.value }, draft)}
+              />
+            ))}
+            {!locked ? (
+              <button type="button" className="daily-add-activity" onClick={() => addActivity(key, draft)} title="Add sub-activity">
+                +
+              </button>
+            ) : null}
+          </div>
         ))}
         {cell(col++, 'status', (
           <select className="daily-status" aria-label="Status" value={row.status} disabled={locked} onChange={(event) => patch(key, { status: event.target.value }, draft)}>

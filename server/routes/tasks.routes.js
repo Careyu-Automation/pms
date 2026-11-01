@@ -9,6 +9,8 @@ router.get('/', planning.listTasks);
 router.post('/', planning.createNamedTask);
 router.get('/:taskId', planning.getTask);
 router.patch('/:taskId', planning.updateListedTask);
+router.post('/:taskId/accept', planning.acceptTask);
+router.post('/:taskId/reject', planning.rejectTask);
 router.delete('/:taskId', planning.removeListedTask);
 
 module.exports = router;

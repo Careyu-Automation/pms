@@ -169,20 +169,19 @@ export default function LeavePage() {
       {summary ? (
         <>
           <section className="leave-cards">
-            <article><span>Available</span><strong>{formatAmount(summary.availableDays)} days</strong></article>
+            <article><span>Entitlement</span><strong>{formatAmount(summary.entitlementDays ?? 12)} days</strong></article>
+            <article><span>Remaining</span><strong>{formatAmount(summary.availableDays)} days</strong></article>
             <article><span>Used</span><strong>{formatAmount(summary.usedDays)} days</strong></article>
             <article><span>Pending</span><strong>{summary.pendingRequests} {summary.pendingRequests === 1 ? 'request' : 'requests'}</strong></article>
-            <article><span>Approved</span><strong>{formatAmount(summary.approvedDays)} days</strong></article>
           </section>
           {balances.length ? (
             <section className="leave-balances">
               {balances.map((item) => (
                 <div key={item.id}>
                   <strong>{item.name}</strong>
-                  <span>Allocated {formatAmount(item.allocatedDays)}</span>
+                  <span>Entitlement {formatAmount(item.allocatedDays)}</span>
                   <span>Used {formatAmount(item.usedDays)}</span>
-                  <span>Pending {formatAmount(item.pendingDays)}</span>
-                  <span>Available {formatAmount(item.availableDays)}</span>
+                  <span>Remaining {formatAmount(item.availableDays)}</span>
                 </div>
               ))}
             </section>

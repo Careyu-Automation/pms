@@ -196,7 +196,9 @@ async function submit(id, body, user) {
   if (body && Object.keys(body).length) await save(id, body, user, { silent: true });
   const current = await getOrThrow(id);
   const access = buildAccess(user, current);
-  if (!access.canSubmit) throw new ApiError(403, 'You cannot submit this feasibility study.');
+  if (!access.canSubmit && !access.canPrepareReview) {
+    throw new ApiError(403, 'You cannot submit this feasibility study.');
+  }
   if (current.status === 'UNDER_REVIEW') {
     throw new ApiError(409, 'This feasibility study is already waiting for PM review.');
   }
@@ -205,6 +207,7 @@ async function submit(id, body, user) {
     throw new ApiError(422, Object.values(fields)[0], { fields });
   }
   const today = new Date().toISOString().slice(0, 10);
+  const prepareOwnReview = Boolean(access.canPrepareReview);
   await repository.setStatus(id, 'UNDER_REVIEW', {
     prepared_by: user.id,
     prepared_at: new Date(),
@@ -216,11 +219,16 @@ async function submit(id, body, user) {
     approved_at: null,
     completion_date: current.completionDate || today,
   });
-  await repository.addActivity(id, user.id, current.submittedAt ? 'Resubmitted to PM' : 'Submitted to PM');
+  const activity = prepareOwnReview
+    ? (current.submittedAt ? 'Marked ready for review again' : 'Marked ready for review')
+    : (current.submittedAt ? 'Resubmitted to PM' : 'Submitted to PM');
+  await repository.addActivity(id, user.id, activity);
   const workflow = require('./workflow.service');
   await workflow.markLead(current.leadId, 'FEASIBILITY_SUBMITTED', 'Feasibility Review', user.id, 'Feasibility submitted');
-  const pms = await workflow.usersByKind(['PM']);
-  await workflow.notify(pms, `Feasibility submitted: ${current.lead?.title || 'Lead'}`, 'A feasibility study is waiting for PM approval.', `/feasibility-studies/${id}`);
+  if (!prepareOwnReview) {
+    const pms = await workflow.usersByKind(['PM']);
+    await workflow.notify(pms, `Feasibility submitted: ${current.lead?.title || 'Lead'}`, 'A feasibility study is waiting for PM approval.', `/feasibility-studies/${id}`);
+  }
   return present(await getOrThrow(id), user);
 }
 

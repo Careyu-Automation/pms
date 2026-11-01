@@ -94,7 +94,7 @@ export default function PlanningPage() {
       .catch((error) => {
         console.error(error);
         setProjectStatus('error');
-        push({ tone: 'danger', message: error.message || 'Projects could not be loaded.' });
+        push({ tone: 'danger', message: error.message || 'Internal Projects could not be loaded.' });
       });
   }, [push]);
 
@@ -209,7 +209,7 @@ export default function PlanningPage() {
     <PageContainer>
       <header className="plan-head">
         <div className="plan-head__copy">
-          <p className="plan-crumb">Projects / Project Planning & Gantt</p>
+          <p className="plan-crumb">Internal Projects / Project Planning & Gantt</p>
           <h1>Project Planning & Gantt</h1>
           <p>Plan, schedule and track project execution.</p>
         </div>

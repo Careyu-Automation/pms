@@ -509,7 +509,11 @@ export default function FeasibilityDetailPage() {
         ) : null}
       </div>
 
-      <Modal open={submitOpen} title="Submit to PM?" onClose={() => setSubmitOpen(false)}>
+      <Modal
+        open={submitOpen}
+        title={access.canPrepareReview ? 'Mark ready for review?' : 'Submit to PM?'}
+        onClose={() => setSubmitOpen(false)}
+      >
         <div className="lead-confirm">
           <dl>
             <div><dt>Lead ID</dt><dd>{lead.leadCode || '—'}</dd></div>
@@ -524,12 +528,20 @@ export default function FeasibilityDetailPage() {
             <div><dt>POC / validation</dt><dd>{pocInfo.label}</dd></div>
           </dl>
           {(counts.pendingCriticalInputs > 0 || counts.openCriticalRisks > 0) ? (
-            <p className="feas-note">Outstanding items above will still be visible to the PM. Resolve critical blockers if this decision is Feasible.</p>
+            <p className="feas-note">Outstanding items above will still be visible during review. Resolve critical blockers if this decision is Feasible.</p>
           ) : null}
-          <p>Submission locks the feasibility solution for PM review, records history, and notifies project managers.</p>
+          <p>
+            {access.canPrepareReview
+              ? 'This locks the feasibility solution for review. You can then approve or request changes.'
+              : 'Submission locks the feasibility solution for PM review, records history, and notifies project managers.'}
+          </p>
           <div className="lead-confirm__actions">
             <Button variant="secondary" onClick={() => setSubmitOpen(false)}>Cancel</Button>
-            <Button onClick={onSubmit} loading={busy === 'submit'}>{study.submittedAt ? 'Resubmit to PM' : 'Submit to PM'}</Button>
+            <Button onClick={onSubmit} loading={busy === 'submit'}>
+              {access.canPrepareReview
+                ? (study.submittedAt ? 'Mark ready for review again' : 'Mark ready for review')
+                : (study.submittedAt ? 'Resubmit to PM' : 'Submit to PM')}
+            </Button>
           </div>
         </div>
       </Modal>

@@ -193,7 +193,7 @@ export const router = createBrowserRouter([
               { path: '/projects/:projectId', element: <ProjectDetailPage />, handle: {
                 title: 'Project',
                 description: 'Project created from an approved solution costing.',
-                crumbs: [{ label: 'Projects', path: '/projects' }, { label: 'Project' }],
+                crumbs: [{ label: 'Internal Projects', path: '/projects' }, { label: 'Project' }],
               } },
               { path: '/tasks/:taskId', element: <TaskDetailPage />, handle: {
                 title: 'Task',

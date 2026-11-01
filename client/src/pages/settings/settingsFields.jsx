@@ -127,5 +127,5 @@ export const LANDING = [
   ['/my-assigned-work', 'My Assigned Work'],
   ['/daily-work-updates', 'Daily Work Updates'],
   ['/lead-pipeline', 'Lead Pipeline'],
-  ['/projects', 'Projects'],
+  ['/projects', 'Internal Projects'],
 ];

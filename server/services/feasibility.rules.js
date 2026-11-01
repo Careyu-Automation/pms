@@ -389,6 +389,8 @@ function buildAccess(user, study) {
     || leadStatus === 'PROCUREMENT_APPROVED'
     || ['COSTING', 'COSTING_SUBMITTED', 'COSTING_CHANGES_REQUESTED', 'COSTING_APPROVED', 'QUOTATION', 'QUOTATION_SENT', 'NEGOTIATION', 'WON', 'CONVERTED'].includes(leadStatus);
   const procurementPending = feasible && !procurementDone && ['FEASIBILITY_APPROVED', 'PROCUREMENT_SUBMITTED', ''].includes(leadStatus);
+  const isReviewer = pm || orgViewer;
+  const canAdvanceToReview = started && !locked && (pm || orgViewer || owner || studyTeamLead);
 
   return {
     canStart: !started && (pm || orgViewer || teamLeadRole || owner || studyTeamLead),
@@ -402,10 +404,12 @@ function buildAccess(user, study) {
     canEditCommunications: !hardLocked && staff,
     canManageCustomerInputs: !hardLocked && (pm || orgViewer || owner || studyTeamLead || teamLeadRole),
     canUpdateCustomerInputs: !hardLocked && staff,
-    canSubmit: started && !locked && (pm || orgViewer || owner || studyTeamLead),
-    canApprove: study.status === 'UNDER_REVIEW' && (pm || orgViewer),
-    canRequestChanges: study.status === 'UNDER_REVIEW' && (pm || orgViewer),
-    canReject: study.status === 'UNDER_REVIEW' && (pm || orgViewer),
+    // Non-reviewers submit to PM; reviewers mark ready for review (no submit-to-self).
+    canSubmit: canAdvanceToReview && !isReviewer,
+    canPrepareReview: canAdvanceToReview && isReviewer,
+    canApprove: study.status === 'UNDER_REVIEW' && isReviewer,
+    canRequestChanges: study.status === 'UNDER_REVIEW' && isReviewer,
+    canReject: study.status === 'UNDER_REVIEW' && isReviewer,
     canProceed: (pm || orgViewer) && feasible && procurementDone,
     procurementPending: Boolean(procurementPending),
     procurementHref: '/procurement-requests',

@@ -16,7 +16,7 @@ import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 import { usePageMeta } from '../../hooks/usePageMeta';
 import { listProjects } from '../../services/costing.service';
 import { TEAMS as PLAN_TEAMS } from '../../components/planning/planningModel';
-import { createNamedTask, createProductTask, createTask, listMyTasks, updateListedTask } from '../../services/planning.service';
+import { acceptTask, createNamedTask, createProductTask, createTask, listMyTasks, rejectTask, updateListedTask } from '../../services/planning.service';
 import { listProducts } from '../../services/products.service';
 import { formatDate } from '../../utils/format';
 import '../../styles/lead.css';
@@ -121,6 +121,8 @@ export default function MyAssignedWorkPage() {
   const [projectTitle, setProjectTitle] = useState('');
   const [catalog, setCatalog] = useState({ projects: [], products: [] });
   const [busy, setBusy] = useState(false);
+  const [rejecting, setRejecting] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   const filters = useMemo(() => ({
     q: query,
@@ -219,10 +221,44 @@ export default function MyAssignedWorkPage() {
   }
 
   async function changeStatus(task, status) {
-    if (busy || status === task.status) return;
+    if (busy || status === task.status || task.assignmentStatus === 'PENDING_ACCEPTANCE') return;
     setBusy(true);
     try {
       await updateListedTask(task.id, { status, progress: status === 'COMPLETED' ? 100 : task.progress });
+      await load(false);
+    } catch (error) {
+      push({ tone: 'danger', message: error.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onAccept(task) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await acceptTask(task.id);
+      push({ tone: 'success', message: 'Task accepted.' });
+      await load(false);
+    } catch (error) {
+      push({ tone: 'danger', message: error.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onRejectConfirm() {
+    if (!rejecting || busy) return;
+    if (rejectReason.trim().length < 2) {
+      push({ tone: 'warning', message: 'A rejection reason is required.' });
+      return;
+    }
+    setBusy(true);
+    try {
+      await rejectTask(rejecting.id, rejectReason.trim());
+      setRejecting(null);
+      setRejectReason('');
+      push({ tone: 'success', message: 'Task rejected.' });
       await load(false);
     } catch (error) {
       push({ tone: 'danger', message: error.message });
@@ -239,9 +275,11 @@ export default function MyAssignedWorkPage() {
   }
 
   const summary = data.summary;
+  const pendingTasks = data.tasks.filter((task) => task.assignmentStatus === 'PENDING_ACCEPTANCE');
   const owners = ownerType === 'product' ? catalog.products : catalog.projects;
   const kpis = [
     ['My Tasks', summary.total, 'Total'],
+    ['Pending Acceptance', summary.pendingAcceptance || pendingTasks.length, ''],
     ['In Progress', summary.inProgress, ''],
     ['Due Today', summary.dueToday, ''],
     ['Overdue', summary.overdue, ''],
@@ -269,7 +307,7 @@ export default function MyAssignedWorkPage() {
             description="Tasks assigned to you from projects and products will appear here."
           />
           <div className="mywork-empty-actions">
-            <Link className="btn btn--secondary" to="/projects">View Projects</Link>
+            <Link className="btn btn--secondary" to="/projects">View Internal Projects</Link>
             <Link className="btn btn--secondary" to="/tasks">View Tasks</Link>
           </div>
         </div>
@@ -322,6 +360,37 @@ export default function MyAssignedWorkPage() {
               <button type="button" className={view === 'list' ? 'is-active' : ''} onClick={() => setView('list')}><List size={16} /> List</button>
             </div>
           </div>
+
+          {pendingTasks.length ? (
+            <section className="mywork-section">
+              <h2>Pending Acceptance ({pendingTasks.length})</h2>
+              <div className="mywork-scroll">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Task</th><th>Project / Product</th><th>Assigned by</th><th>Due</th><th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingTasks.map((task) => (
+                      <tr key={`pending-${task.id}`}>
+                        <td><strong>{task.title}</strong></td>
+                        <td>{sourceName(task)}</td>
+                        <td>{task.assignedBy || '—'}</td>
+                        <td>{formatDate(task.endDate)}</td>
+                        <td>
+                          <div className="mywork-actions">
+                            <Button size="sm" onClick={() => onAccept(task)} disabled={busy}>Accept</Button>
+                            <Button size="sm" variant="secondary" onClick={() => { setRejecting(task); setRejectReason(''); }} disabled={busy}>Reject</Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
 
           <section className="mywork-section">
             <h2>Today&apos;s Work</h2>
@@ -405,15 +474,28 @@ export default function MyAssignedWorkPage() {
                                 <em>{task.source === 'product' ? 'Product' : 'Project'}</em>
                               </div>
                             </td>
-                            <td onClick={(event) => event.stopPropagation()}><StatusSelect task={task} busy={busy} onChange={changeStatus} /></td>
+                            <td onClick={(event) => event.stopPropagation()}>
+                              {task.assignmentStatus === 'PENDING_ACCEPTANCE'
+                                ? <Badge tone="warning">Pending Acceptance</Badge>
+                                : <StatusSelect task={task} busy={busy} onChange={changeStatus} />}
+                            </td>
                             <td><Badge tone={priority.tone}>{priority.label}</Badge></td>
                             <td>{task.overdue ? lateLabel(task) : formatDate(task.endDate)}</td>
                             <td><Progress value={task.progress} /></td>
                             <td><div>Estimated: {hoursText(task.estimatedHours)}</div><div>Actual: {hoursText(task.actualHours)}</div></td>
                             <td onClick={(event) => event.stopPropagation()}>
                               <div className="mywork-actions">
-                                <Button size="sm" variant="secondary" onClick={() => navigate(`/tasks/${task.id}`)}>Open</Button>
-                                {manage ? <Button size="sm" variant="secondary" onClick={() => { setForm(taskToForm(task)); setEditing(task); }}>Edit</Button> : null}
+                                {task.assignmentStatus === 'PENDING_ACCEPTANCE' ? (
+                                  <>
+                                    <Button size="sm" onClick={() => onAccept(task)} disabled={busy}>Accept</Button>
+                                    <Button size="sm" variant="secondary" onClick={() => { setRejecting(task); setRejectReason(''); }} disabled={busy}>Reject</Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Button size="sm" variant="secondary" onClick={() => navigate(`/tasks/${task.id}`)}>Open</Button>
+                                    {manage ? <Button size="sm" variant="secondary" onClick={() => { setForm(taskToForm(task)); setEditing(task); }}>Edit</Button> : null}
+                                  </>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -509,6 +591,21 @@ export default function MyAssignedWorkPage() {
             onCancel={() => setEditing(null)}
             onSubmit={submitEdit}
           />
+        ) : null}
+      </Modal>
+      <Modal open={Boolean(rejecting)} title="Reject assignment?" onClose={() => { if (!busy) { setRejecting(null); setRejectReason(''); } }}>
+        {rejecting ? (
+          <div className="lead-confirm">
+            <p>Reject <strong>{rejecting.title}</strong>? The assigner will be notified.</p>
+            <label className="field">
+              <span className="field__label">Reason</span>
+              <textarea className="input" rows={3} value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} />
+            </label>
+            <div className="lead-confirm__actions">
+              <Button variant="secondary" onClick={() => { setRejecting(null); setRejectReason(''); }} disabled={busy}>Cancel</Button>
+              <Button variant="danger" onClick={onRejectConfirm} loading={busy}>Reject</Button>
+            </div>
+          </div>
         ) : null}
       </Modal>
     </PageContainer>

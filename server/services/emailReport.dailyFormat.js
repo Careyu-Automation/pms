@@ -99,18 +99,29 @@ function normalizeWorkText(value) {
 function workDescription(row) {
   const title = normalizeWorkText(row.workTitle || row.title || '');
   const body = normalizeWorkText(row.description || '');
-  if (!title && !body) return '—';
-  if (!body || body === 'Daily work') return title && title !== 'Daily work' ? title : '—';
-  if (!title || title === 'Daily work' || body === title) return body;
-  // Avoid "Feedback provided :" repeating when the description already starts with the title.
-  const titleKey = title.replace(/[:.\s]+$/g, '').toLowerCase();
-  const bodyKey = body.toLowerCase();
-  if (bodyKey === titleKey || bodyKey.startsWith(`${titleKey}\n`) || bodyKey.startsWith(`${title.toLowerCase()}\n`) || bodyKey.startsWith(`${title.toLowerCase()} `) || bodyKey.startsWith(title.toLowerCase())) {
-    return body;
+  const activityLines = (Array.isArray(row.activities) ? row.activities : [])
+    .map((item) => normalizeWorkText(item?.description || ''))
+    .filter(Boolean);
+  let main = '';
+  if (!title && !body) main = '';
+  else if (!body || body === 'Daily work') main = title && title !== 'Daily work' ? title : '';
+  else if (!title || title === 'Daily work' || body === title) main = body;
+  else {
+    // Avoid "Feedback provided :" repeating when the description already starts with the title.
+    const titleKey = title.replace(/[:.\s]+$/g, '').toLowerCase();
+    const bodyKey = body.toLowerCase();
+    if (bodyKey === titleKey || bodyKey.startsWith(`${titleKey}\n`) || bodyKey.startsWith(`${title.toLowerCase()}\n`) || bodyKey.startsWith(`${title.toLowerCase()} `) || bodyKey.startsWith(title.toLowerCase())) {
+      main = body;
+    } else {
+      const firstLine = body.split('\n')[0].trim().toLowerCase();
+      if (firstLine === title.toLowerCase() || firstLine.replace(/[:.\s]+$/g, '') === titleKey) main = body;
+      else main = `${title}\n${body}`;
+    }
   }
-  const firstLine = body.split('\n')[0].trim().toLowerCase();
-  if (firstLine === title.toLowerCase() || firstLine.replace(/[:.\s]+$/g, '') === titleKey) return body;
-  return `${title}\n${body}`;
+  if (!main && !activityLines.length) return '—';
+  if (!activityLines.length) return main;
+  const activities = activityLines.map((line) => `• ${line}`).join('\n');
+  return main ? `${main}\n${activities}` : activities;
 }
 
 function groupByEmployee(rows) {

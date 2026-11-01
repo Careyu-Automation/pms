@@ -53,7 +53,7 @@ export const navigation = [
   },
   {
     id: 'projects',
-    label: 'Projects',
+    label: 'Internal Projects',
     defaultOpen: true,
     items: [
       {
@@ -67,10 +67,10 @@ export const navigation = [
       },
       {
         id: 'projects',
-        label: 'Projects',
+        label: 'Internal Projects',
         path: '/projects',
         icon: 'FolderKanban',
-        title: 'Projects',
+        title: 'Internal Projects',
         description: 'Plan, track, and execute converted projects.',
         note: 'Includes planning and execution projects linked to leads and orders.',
       },
@@ -114,8 +114,8 @@ export const navigation = [
         path: '/tasks',
         icon: 'CheckSquare',
         title: 'Tasks',
-        description: 'Daily work history and plan tasks',
-        note: 'Browse daily work as cards over any date range, or open plan tasks from Gantt.',
+        description: 'Employee-wise daily work monitor across projects and tasks.',
+        note: 'Filter by employee, project, status, and date range.',
       },
       {
         id: 'my-checklist',

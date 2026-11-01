@@ -176,7 +176,62 @@ function weekBounds() {
 }
 
 function isOpen(task) {
-  return task.status !== 'COMPLETED' && task.status !== 'CANCELLED';
+  return task.status !== 'COMPLETED' && task.status !== 'CANCELLED'
+    && task.assignmentStatus !== 'REJECTED'
+    && task.assignmentStatus !== 'PENDING_ACCEPTANCE';
+}
+
+function isAccepted(task) {
+  return !task.assignmentStatus || task.assignmentStatus === 'ACCEPTED';
+}
+
+function canOverrideAssignment(user) {
+  const code = user?.role?.code || '';
+  return ['admin', 'super_admin', 'project_manager', 'management'].includes(code);
+}
+
+function assignmentForChange(user, input, current) {
+  const nextAssignee = input.assigneeId || null;
+  const previousAssignee = current?.assigneeId || null;
+  if (!current) {
+    if (!nextAssignee || nextAssignee === user.id) {
+      return {
+        ...input,
+        assignedBy: user.id,
+        assignmentStatus: 'ACCEPTED',
+        acceptedAt: new Date(),
+        rejectedAt: null,
+        rejectionReason: '',
+      };
+    }
+    return {
+      ...input,
+      assignedBy: user.id,
+      assignmentStatus: 'PENDING_ACCEPTANCE',
+      acceptedAt: null,
+      rejectedAt: null,
+      rejectionReason: '',
+    };
+  }
+  if (nextAssignee === previousAssignee) return input;
+  if (!nextAssignee || nextAssignee === user.id) {
+    return {
+      ...input,
+      assignedBy: user.id,
+      assignmentStatus: 'ACCEPTED',
+      acceptedAt: new Date(),
+      rejectedAt: null,
+      rejectionReason: '',
+    };
+  }
+  return {
+    ...input,
+    assignedBy: user.id,
+    assignmentStatus: 'PENDING_ACCEPTANCE',
+    acceptedAt: null,
+    rejectedAt: null,
+    rejectionReason: '',
+  };
 }
 
 function matchesAssigned(task, query) {
@@ -245,11 +300,16 @@ function sourceOptions(tasks) {
 async function listTasks(user, query = {}) {
   if (query.scope === 'mine') {
     const tasks = await repository.listTasks({ assigneeId: user.id });
+    const visible = tasks.filter((task) => task.assignmentStatus !== 'REJECTED');
+    const active = visible.filter((task) => isAccepted(task));
     return {
-      tasks: tasks.filter((task) => matchesAssigned(task, query)),
-      summary: summarizeAssigned(tasks),
-      highlights: highlightsFor(tasks),
-      ...sourceOptions(tasks),
+      tasks: visible.filter((task) => matchesAssigned(task, query)),
+      summary: {
+        ...summarizeAssigned(active),
+        pendingAcceptance: visible.filter((task) => task.assignmentStatus === 'PENDING_ACCEPTANCE').length,
+      },
+      highlights: highlightsFor(active),
+      ...sourceOptions(visible),
       people: await people(),
     };
   }
@@ -391,17 +451,25 @@ async function createNamedTask(user, body) {
   const projectId = await repository.projectUuid(title);
   const existing = await repository.findProjectHeader(projectId);
   if (existing) return createTask(projectId, user, body);
-  const input = await taskInput(null, { ...body, phaseId: '' });
+  const input = assignmentForChange(user, await taskInput(null, { ...body, phaseId: '' }), null);
   await teamService.assertCanAssign(user, input.teamCode);
   const id = await repository.insertTask(projectId, { ...input, projectTitle: title }, user.id);
   if (!id) throw new ApiError(400, 'The task could not be saved.');
+  if (input.assigneeId && input.assigneeId !== user.id) {
+    await notifyAssignee(
+      input.assigneeId,
+      `New task assigned: ${input.title}`,
+      `${user.fullName || 'A teammate'} assigned you a task for acceptance.`,
+      '/my-assigned-work',
+    );
+  }
   return repository.findTask(id);
 }
 
 async function createTask(projectId, user, body) {
   assertPlan(user);
   await requireProject(projectId);
-  const input = await taskInput(projectId, body);
+  const input = assignmentForChange(user, await taskInput(projectId, body), null);
   await teamService.assertCanAssign(user, input.teamCode);
   const id = await repository.insertTask(projectId, input, user.id);
   const name = await assigneeName(input.assigneeId);
@@ -415,7 +483,7 @@ async function createTask(projectId, user, body) {
     await notifyAssignee(
       input.assigneeId,
       `New task assigned: ${input.title}`,
-      `${user.fullName || 'A teammate'} assigned you a task.`,
+      `${user.fullName || 'A teammate'} assigned you a task for acceptance.`,
       '/my-assigned-work',
     );
   }
@@ -427,7 +495,11 @@ async function updateTask(projectId, taskId, user, body) {
   assertPlan(user);
   const current = await repository.findTask(taskId);
   if (!current || current.projectId !== projectId) throw new ApiError(404, 'Task not found.');
-  const input = await taskInput(projectId, { ...current, ...body, phaseId: body.phaseId === undefined ? current.phaseId : body.phaseId }, current);
+  const input = assignmentForChange(
+    user,
+    await taskInput(projectId, { ...current, ...body, phaseId: body.phaseId === undefined ? current.phaseId : body.phaseId }, current),
+    current,
+  );
   await teamService.assertCanAssign(user, input.teamCode);
   const updated = await repository.updateTask(taskId, projectId, input);
   if (!updated) throw new ApiError(404, 'Task not found.');
@@ -456,7 +528,7 @@ async function logTaskChanges(owner, user, current, input) {
       await notifyAssignee(
         input.assigneeId,
         `Task assigned: ${input.title}`,
-        `${user.fullName || 'A teammate'} assigned you a task.`,
+        `${user.fullName || 'A teammate'} assigned you a task for acceptance.`,
         '/my-assigned-work',
       );
     }
@@ -470,7 +542,7 @@ async function createProductTask(productId, user, body) {
   const productRepository = require('../db/product.repository');
   const product = await productRepository.findById(productId);
   if (!product) throw new ApiError(404, 'Product not found.');
-  const input = await taskInput(null, body);
+  const input = assignmentForChange(user, await taskInput(null, body), null);
   const id = await repository.insertProductTask(productId, input, user.id);
   const name = await assigneeName(input.assigneeId);
   await repository.addActivity(
@@ -484,7 +556,7 @@ async function createProductTask(productId, user, body) {
     await notifyAssignee(
       input.assigneeId,
       `New task assigned: ${input.title}`,
-      `${user.fullName || 'A teammate'} assigned you a task.`,
+      `${user.fullName || 'A teammate'} assigned you a task for acceptance.`,
       '/my-assigned-work',
     );
   }
@@ -495,10 +567,80 @@ async function updateProductTask(productId, taskId, user, body) {
   assertPlan(user);
   const current = await repository.findTask(taskId);
   if (!current || current.productId !== productId) throw new ApiError(404, 'Task not found.');
-  const input = await taskInput(null, { ...current, ...body, phaseId: '' }, current);
+  const input = assignmentForChange(user, await taskInput(null, { ...current, ...body, phaseId: '' }, current), current);
   const updated = await repository.updateTaskById(taskId, input);
   if (!updated) throw new ApiError(404, 'Task not found.');
   await logTaskChanges({ projectId: null, productId }, user, current, input);
+  return repository.findTask(taskId);
+}
+
+async function acceptTask(taskId, user) {
+  const current = await repository.findTask(taskId);
+  if (!current) throw new ApiError(404, 'Task not found.');
+  if (current.assignmentStatus !== 'PENDING_ACCEPTANCE') {
+    throw new ApiError(400, 'This task is not waiting for acceptance.');
+  }
+  if (current.assigneeId !== user.id && !canOverrideAssignment(user)) {
+    throw new ApiError(403, 'Only the assignee can accept this task.');
+  }
+  const updated = await repository.respondAssignment(taskId, {
+    assignmentStatus: 'ACCEPTED',
+    acceptedAt: new Date(),
+    rejectedAt: null,
+    rejectionReason: '',
+  });
+  if (!updated) throw new ApiError(404, 'Task not found.');
+  await repository.addActivity(
+    current.projectId,
+    user.id,
+    `${user.fullName || 'Assignee'} accepted ${current.title}`,
+    current.title,
+    current.productId,
+  );
+  if (current.assignedById && current.assignedById !== user.id) {
+    await notifyAssignee(
+      current.assignedById,
+      `Task accepted: ${current.title}`,
+      `${user.fullName || 'Assignee'} accepted the assignment.`,
+      current.projectId ? `/projects/${current.projectId}` : '/my-assigned-work',
+    );
+  }
+  return repository.findTask(taskId);
+}
+
+async function rejectTask(taskId, user, body = {}) {
+  const current = await repository.findTask(taskId);
+  if (!current) throw new ApiError(404, 'Task not found.');
+  if (current.assignmentStatus !== 'PENDING_ACCEPTANCE') {
+    throw new ApiError(400, 'This task is not waiting for acceptance.');
+  }
+  if (current.assigneeId !== user.id && !canOverrideAssignment(user)) {
+    throw new ApiError(403, 'Only the assignee can reject this task.');
+  }
+  const reason = cleanText(body.reason || body.rejectionReason, 2000);
+  if (reason.length < 2) throw new ApiError(400, 'A rejection reason is required.');
+  const updated = await repository.respondAssignment(taskId, {
+    assignmentStatus: 'REJECTED',
+    acceptedAt: null,
+    rejectedAt: new Date(),
+    rejectionReason: reason,
+  });
+  if (!updated) throw new ApiError(404, 'Task not found.');
+  await repository.addActivity(
+    current.projectId,
+    user.id,
+    `${user.fullName || 'Assignee'} rejected ${current.title}`,
+    reason,
+    current.productId,
+  );
+  if (current.assignedById && current.assignedById !== user.id) {
+    await notifyAssignee(
+      current.assignedById,
+      `Task rejected: ${current.title}`,
+      `${user.fullName || 'Assignee'} rejected the assignment: ${reason}`,
+      current.projectId ? `/projects/${current.projectId}` : '/my-assigned-work',
+    );
+  }
   return repository.findTask(taskId);
 }
 
@@ -725,6 +867,8 @@ module.exports = {
   createProductTask,
   patchTask,
   removeOwnedTask,
+  acceptTask,
+  rejectTask,
   logTime,
   removeTime,
   addDocuments,

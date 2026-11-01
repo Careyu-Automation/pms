@@ -1,20 +1,39 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FileUp, Plus } from 'lucide-react';
+import { listLeads } from '../../services/leads.service';
 
-const ACTIONS = [
-  { label: 'Create Lead', to: '/lead-pipeline/create', primary: true },
-  { label: 'Active Projects', to: '/projects/active' },
-  { label: 'Add Task', to: '/tasks' },
-  { label: 'Upload Drawing', to: '/projects', upload: true },
-  { label: 'Upload BOM', to: '/solution-costing', upload: true },
+const BASE_ACTIONS = [
+  { id: 'active-projects', label: 'Active Projects', to: '/projects/active' },
+  { id: 'add-task', label: 'Add Task', to: '/tasks' },
+  { id: 'upload-drawing', label: 'Upload Drawing', to: '/projects', upload: true },
+  { id: 'upload-bom', label: 'Upload BOM', to: '/solution-costing', upload: true },
 ];
 
 export function QuickActions() {
+  const [canCreateLead, setCanCreateLead] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    listLeads()
+      .then((payload) => {
+        if (active) setCanCreateLead(Boolean(payload.data.access?.canCreate));
+      })
+      .catch(() => {
+        if (active) setCanCreateLead(false);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const actions = canCreateLead
+    ? [{ id: 'create-lead', label: 'Create Lead', to: '/lead-pipeline/create', primary: true }, ...BASE_ACTIONS]
+    : BASE_ACTIONS;
+
   return (
     <div className="quick-actions" aria-label="Quick actions">
-      {ACTIONS.map((action) => (
+      {actions.map((action) => (
         <Link
-          key={action.label}
+          key={action.id}
           to={action.to}
           className={action.primary ? 'btn btn--primary btn--sm' : 'btn btn--secondary btn--sm'}
         >

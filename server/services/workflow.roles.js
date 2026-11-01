@@ -67,7 +67,7 @@ function seesOrganization(user) {
 
 function canCreateLead(user) {
   const kind = actorKind(user);
-  return kind === 'BH' || kind === 'ED' || kind === 'ADMIN' || kind === 'CEO';
+  return kind === 'BH' || kind === 'ED';
 }
 
 function leadSource(user) {

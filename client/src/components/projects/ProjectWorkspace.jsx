@@ -170,7 +170,7 @@ export function ProjectWorkspace({
       ['Completed', summary?.completed ?? 0],
     ]
     : [
-      ['Total Projects', summary?.total ?? projects.length],
+      ['Total Internal Projects', summary?.total ?? projects.length],
       ['Planning', summary?.planning ?? 0],
       ['Not Started', summary?.notStarted ?? 0],
       ['In Progress', summary?.inProgress ?? 0],
@@ -275,8 +275,8 @@ export function ProjectWorkspace({
     <div className="project-board">
       <header className="project-board__head">
         <div>
-          <p className="project-board__crumb">Projects</p>
-          <h1>{activeMode ? 'Active Projects' : 'Projects'}</h1>
+          <p className="project-board__crumb">Internal Projects</p>
+          <h1>{activeMode ? 'Active Projects' : 'Internal Projects'}</h1>
           <p>
             {activeMode
               ? 'Confirmed orders that have completed payment confirmation and project activation.'
@@ -300,7 +300,7 @@ export function ProjectWorkspace({
           </article>
         ))}
       </section>
-      <p className="project-board__count">{filtered.length === projects.length ? `${projects.length} Projects` : `Showing ${filtered.length} of ${projects.length} projects`}</p>
+      <p className="project-board__count">{filtered.length === projects.length ? `${projects.length} Internal Projects` : `Showing ${filtered.length} of ${projects.length} internal projects`}</p>
       <div className="project-filters">
         <input className="input" placeholder="Search project, order, customer, lead..." value={query} onChange={(event) => setQuery(event.target.value)} />
         <select className="select" value={projectStatus} onChange={(event) => setProjectStatus(event.target.value)}>
@@ -330,7 +330,7 @@ export function ProjectWorkspace({
               : 'Create a project for evaluation, feasibility, costing, and quotation work before order conversion.'}
           />
           {activeMode ? (
-            <Button onClick={() => navigate('/projects')}>Open Projects</Button>
+            <Button onClick={() => navigate('/projects')}>Open Internal Projects</Button>
           ) : allowCreate ? (
             <Button onClick={openCreate}><Plus size={16} /> New Project</Button>
           ) : null}

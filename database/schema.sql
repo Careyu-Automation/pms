@@ -1027,6 +1027,26 @@ CREATE TABLE IF NOT EXISTS daily_work_updates (
 );
 
 CREATE INDEX IF NOT EXISTS daily_work_updates_employee_idx ON daily_work_updates (employee_id, update_date);
+
+CREATE TABLE IF NOT EXISTS daily_work_activities (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  work_item_id UUID REFERENCES daily_work_items (id) ON DELETE CASCADE,
+  update_id UUID REFERENCES daily_work_updates (id) ON DELETE CASCADE,
+  employee_id UUID NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+  work_date DATE NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  hours SMALLINT NOT NULL DEFAULT 0,
+  minutes SMALLINT NOT NULL DEFAULT 0,
+  sort_order SMALLINT NOT NULL DEFAULT 0,
+  created_by UUID REFERENCES users (id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS daily_work_activities_update_idx ON daily_work_activities (update_id, sort_order);
+CREATE INDEX IF NOT EXISTS daily_work_activities_employee_date_idx ON daily_work_activities (employee_id, work_date);
+
+ALTER TABLE project_tasks ADD COLUMN IF NOT EXISTS completion_date DATE;
 CREATE INDEX IF NOT EXISTS daily_work_updates_date_idx ON daily_work_updates (update_date);
 CREATE INDEX IF NOT EXISTS daily_work_updates_item_idx ON daily_work_updates (work_item_id, update_date DESC);
 CREATE INDEX IF NOT EXISTS daily_work_updates_status_idx ON daily_work_updates (status);
@@ -2095,6 +2115,18 @@ ALTER TABLE project_tasks DROP CONSTRAINT IF EXISTS project_tasks_status_check;
 ALTER TABLE project_tasks ADD CONSTRAINT project_tasks_status_check CHECK (status IN (
   'NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'AT_RISK', 'ON_HOLD', 'CANCELLED', 'BLOCKED'
 ));
+
+ALTER TABLE project_tasks ADD COLUMN IF NOT EXISTS assigned_by UUID REFERENCES users (id) ON DELETE SET NULL;
+ALTER TABLE project_tasks ADD COLUMN IF NOT EXISTS assignment_status VARCHAR(40) NOT NULL DEFAULT 'ACCEPTED';
+ALTER TABLE project_tasks ADD COLUMN IF NOT EXISTS accepted_at TIMESTAMPTZ;
+ALTER TABLE project_tasks ADD COLUMN IF NOT EXISTS rejected_at TIMESTAMPTZ;
+ALTER TABLE project_tasks ADD COLUMN IF NOT EXISTS rejection_reason TEXT NOT NULL DEFAULT '';
+ALTER TABLE project_tasks DROP CONSTRAINT IF EXISTS project_tasks_assignment_status_check;
+ALTER TABLE project_tasks ADD CONSTRAINT project_tasks_assignment_status_check
+  CHECK (assignment_status IN ('PENDING_ACCEPTANCE', 'ACCEPTED', 'REJECTED'));
+UPDATE project_tasks
+SET accepted_at = COALESCE(accepted_at, updated_at, created_at)
+WHERE assignment_status = 'ACCEPTED' AND accepted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS daily_work_types (
   code VARCHAR(40) PRIMARY KEY,

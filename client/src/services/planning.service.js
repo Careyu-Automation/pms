@@ -89,3 +89,11 @@ export function deleteOwnedTask(taskId) {
 export function updateListedTask(taskId, body) {
   return api(`/tasks/${taskId}`, { method: 'PATCH', body });
 }
+
+export function acceptTask(taskId) {
+  return api(`/tasks/${taskId}/accept`, { method: 'POST', body: {} });
+}
+
+export function rejectTask(taskId, reason) {
+  return api(`/tasks/${taskId}/reject`, { method: 'POST', body: { reason } });
+}

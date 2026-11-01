@@ -33,6 +33,7 @@ export default function LeadPipelinePage() {
   const navigate = useNavigate();
   const { push } = useToast();
   const [leads, setLeads] = useState([]);
+  const [canCreate, setCanCreate] = useState(false);
   const [status, setStatus] = useState('loading');
   const [pendingDelete, setPendingDelete] = useState(null);
   const [pendingSubmit, setPendingSubmit] = useState(null);
@@ -43,6 +44,7 @@ export default function LeadPipelinePage() {
     return listLeads()
       .then((payload) => {
         setLeads(payload.data.leads);
+        setCanCreate(Boolean(payload.data.access?.canCreate));
         setStatus('ready');
       })
       .catch((error) => {
@@ -101,12 +103,12 @@ export default function LeadPipelinePage() {
       <PageHeader
         title={meta.title}
         description="Business and engineering inputs move through PM review, feasibility, costing, quotation, and order conversion."
-        actions={(
+        actions={canCreate ? (
           <Button onClick={() => navigate('/lead-pipeline/create')}>
             <Plus size={16} strokeWidth={1.75} aria-hidden="true" />
             Create Lead
           </Button>
-        )}
+        ) : null}
       />
 
       {status === 'loading' ? <div className="lead-skeleton" aria-hidden="true" /> : null}
@@ -136,12 +138,16 @@ export default function LeadPipelinePage() {
         <div className="lead-section lead-empty">
           <EmptyState
             title="No leads yet"
-            description="Create the first lead and save it as a draft until it is ready for the project manager."
+            description={canCreate
+              ? 'Create the first lead and save it as a draft until it is ready for the project manager.'
+              : 'Leads will appear here when the Business Head or Engineering Director creates them.'}
           />
-          <Button onClick={() => navigate('/lead-pipeline/create')}>
-            <Plus size={16} strokeWidth={1.75} aria-hidden="true" />
-            Create Lead
-          </Button>
+          {canCreate ? (
+            <Button onClick={() => navigate('/lead-pipeline/create')}>
+              <Plus size={16} strokeWidth={1.75} aria-hidden="true" />
+              Create Lead
+            </Button>
+          ) : null}
         </div>
       ) : null}
 
