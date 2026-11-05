@@ -107,9 +107,9 @@ function textHtml(value) {
   return escapeHtml(value).replace(/\r?\n/g, '<br>');
 }
 
-function clampedTextHtml(value, lines = 4) {
+function clampedTextHtml(value, lines = 3) {
   const safe = textHtml(value);
-  return `<div style="display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:${lines};max-height:${Math.round(lines * 1.45 * 13)}px;overflow:hidden;line-height:1.45">${safe}</div>`;
+  return `<div style="max-height:${Math.round(lines * 1.4 * 13)}px;overflow:hidden;line-height:1.4;word-break:normal;overflow-wrap:break-word">${safe}</div>`;
 }
 
 function prettyDate(iso) {
@@ -138,28 +138,28 @@ function cellHtml(content, options = {}) {
     nowrap = false,
     width,
     minWidth,
-    maxWidth,
     align = 'left',
     blocked = false,
   } = options;
+  // Formal wrap: break only at word boundaries. Never use overflow-wrap:anywhere
+  // (that stacks one word/letter per line in narrow fixed columns).
   const textMode = wrap
-    ? 'white-space:normal;overflow-wrap:anywhere;word-break:break-word;overflow:hidden'
+    ? 'white-space:normal;overflow-wrap:break-word;word-break:normal;overflow:hidden'
     : nowrap
-      ? 'white-space:nowrap;overflow:visible;text-overflow:clip;overflow-wrap:normal;word-break:keep-all'
+      ? 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal;word-break:keep-all'
       : 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal;word-break:keep-all';
   const style = [
-    'padding:10px 12px',
+    'padding:8px 10px',
     'border:1px solid #d7e2ee',
     'font-size:13px',
-    'line-height:1.45',
-    'vertical-align:top',
+    'line-height:1.4',
+    'vertical-align:middle',
     'color:#102033',
     `text-align:${align}`,
     blocked ? 'background:#fffaf0' : 'background:#ffffff',
     textMode,
     width ? `width:${width}` : '',
     minWidth ? `min-width:${minWidth}` : '',
-    maxWidth ? `max-width:${maxWidth}` : '',
   ].filter(Boolean).join(';');
   return `<td style="${style}">${content}</td>`;
 }
@@ -172,20 +172,20 @@ function dailyWorkEmail(snapshot) {
   const groups = dailyFormat.groupByEmployee(rows);
   const columns = dailyFormat.reportColumns();
   const widths = {
-    Project: { width: '12%', minWidth: '90px', maxWidth: '130px', wrap: true },
-    Milestone: { width: '10%', minWidth: '80px', maxWidth: '120px', wrap: true },
-    Work: { width: '24%', minWidth: '160px', maxWidth: '320px', wrap: true, clamp: 4 },
-    Status: { width: '9%', minWidth: '90px' },
-    'Dependencies / Blockers': { width: '12%', minWidth: '100px', wrap: true },
-    'Start Date': { width: '9%', minWidth: '100px', nowrap: true },
-    'Task Deadline': { width: '9%', minWidth: '100px', nowrap: true },
-    'Logged Hours': { width: '7%', minWidth: '70px' },
-    'Reason For Delay': { width: '10%', minWidth: '90px', wrap: true },
+    Project: { width: '140px', minWidth: '140px', wrap: true, clamp: 2 },
+    Milestone: { width: '220px', minWidth: '220px', wrap: true, clamp: 3 },
+    Work: { width: '280px', minWidth: '280px', wrap: true, clamp: 3 },
+    Status: { width: '110px', minWidth: '110px', nowrap: true },
+    Dependencies: { width: '130px', minWidth: '130px', wrap: true, clamp: 2 },
+    Start: { width: '96px', minWidth: '96px', nowrap: true },
+    Deadline: { width: '96px', minWidth: '96px', nowrap: true },
+    Hours: { width: '64px', minWidth: '64px', nowrap: true },
+    'Delay Reason': { width: '130px', minWidth: '130px', wrap: true, clamp: 2 },
   };
   const head = columns.map((column) => {
     const meta = widths[column] || {};
     const style = [
-      'padding:10px 12px',
+      'padding:8px 10px',
       'border:1px solid #bfcfe3',
       'background:#0356c5',
       'color:#ffffff',
@@ -197,6 +197,7 @@ function dailyWorkEmail(snapshot) {
       'text-overflow:ellipsis',
       'word-break:keep-all',
       'overflow-wrap:normal',
+      'vertical-align:middle',
       meta.width ? `width:${meta.width}` : '',
       meta.minWidth ? `min-width:${meta.minWidth}` : '',
     ].filter(Boolean).join(';');
@@ -221,17 +222,19 @@ function dailyWorkEmail(snapshot) {
           <div style="font-size:16px;font-weight:700;color:#021e45;letter-spacing:.01em">${escapeHtml(group.employeeName)}</div>
           <div style="font-size:12px;color:#5b6b80;margin-top:2px">${group.rows.length} update${group.rows.length === 1 ? '' : 's'}</div>
         </div>
-        <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #c5d0dc;table-layout:fixed">
-          <thead><tr>${head}</tr></thead>
-          <tbody>${body}</tbody>
-        </table>
+        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+          <table role="presentation" cellpadding="0" cellspacing="0" style="width:1266px;min-width:1266px;border-collapse:collapse;border:1px solid #c5d0dc;table-layout:fixed">
+            <thead><tr>${head}</tr></thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>
       </div>`;
   }).join('');
 
   const empty = `<p style="margin:12px 0;padding:14px 12px;border:1px solid #d9d9d9;background:#fff8e1;color:#5b5346">No daily work updates were found for ${escapeHtml(when)} (${escapeHtml(shift)}).</p>`;
 
   return `<!doctype html><html><body style="margin:0;padding:0;background:#f3f6fb;font-family:Calibri,Segoe UI,Arial,sans-serif;color:#102033;font-size:14px;line-height:1.5">
-    <div style="max-width:980px;margin:0 auto;background:#ffffff">
+    <div style="max-width:1280px;margin:0 auto;background:#ffffff">
       <div style="padding:18px 22px;background:linear-gradient(135deg,#0356c5 0%,#033b88 100%);color:#ffffff">
         <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.9">CareYu Automation</div>
         <div style="margin-top:4px;font-size:22px;font-weight:700">Daily Work Updates Report</div>

@@ -2,8 +2,8 @@ const { STATUS_LABEL } = require('./dailyWork.service');
 const { dependencyText, statusLabel } = require('./emailReport.dailyFormat');
 
 const COLUMNS = [
-  'PERSON', 'PROJECT', 'MILESTONE', 'TASK DESCRIPTION', 'DEPENDENCIES / BLOCKERS', 'STATUS',
-  'START DATE', 'TASK DEADLINE', 'LOGGED HOURS', 'REASON FOR DELAY', 'TEAM', 'WORK TYPE',
+  'PERSON', 'PROJECT', 'MILESTONE', 'WORK', 'DEPENDENCIES', 'STATUS',
+  'START', 'DEADLINE', 'HOURS', 'DELAY REASON', 'TEAM', 'WORK TYPE',
   'MORNING WORK', 'EVENING WORK', 'PROGRESS', 'NEXT ACTION', 'PRIORITY', 'REPORT DATE', 'PERIOD',
 ];
 

@@ -491,18 +491,17 @@ label.is-invalid .input {
 }
 
 .reports-preview--daily .data-table {
-  /* Match Daily Work Updates sheet: Project … Reason For Delay */
-  min-width: 1100px;
-  width: 100%;
+  min-width: 1266px;
+  width: 1266px;
   table-layout: fixed;
 }
 
 .reports-preview--daily .data-table th,
 .reports-preview--daily .data-table td {
-  padding: 10px 12px;
+  padding: 8px 10px;
   border: 1px solid #d7e2ee;
-  vertical-align: top;
-  line-height: 1.45;
+  vertical-align: middle;
+  line-height: 1.4;
   background: #fff;
   color: #102033;
 }
@@ -511,92 +510,92 @@ label.is-invalid .input {
   background: #0356c5;
   color: #fff;
   white-space: nowrap;
-}
-
-.reports-preview--daily .data-table td {
-  white-space: normal;
-  overflow-wrap: break-word;
-  word-break: normal;
-}
-
-.reports-preview--daily .data-table th {
   overflow: hidden;
   text-overflow: ellipsis;
   word-break: keep-all;
   overflow-wrap: normal;
 }
 
+.reports-preview--daily .data-table td {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  overflow: hidden;
+}
+
 /* 1 Project */
 .reports-preview--daily .data-table th:nth-child(1),
 .reports-preview--daily .data-table td:nth-child(1) {
-  width: 12%;
+  width: 140px;
+  max-height: 2.8em;
 }
 
 /* 2 Milestone */
 .reports-preview--daily .data-table th:nth-child(2),
 .reports-preview--daily .data-table td:nth-child(2) {
-  width: 10%;
+  width: 220px;
 }
 
-/* 3 Work (collapsed Work Description) */
+.reports-preview--daily .data-table td:nth-child(2) {
+  max-height: 4.2em;
+}
+
+/* 3 Work */
 .reports-preview--daily .data-table th:nth-child(3),
 .reports-preview--daily .data-table td:nth-child(3) {
-  width: 24%;
+  width: 280px;
 }
 
 .reports-preview--daily .data-table td:nth-child(3) {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  overflow: hidden;
-  max-height: 5.8em;
+  max-height: 4.2em;
 }
 
 /* 4 Status */
 .reports-preview--daily .data-table th:nth-child(4),
 .reports-preview--daily .data-table td:nth-child(4) {
-  width: 9%;
-  min-width: 100px;
+  width: 110px;
   white-space: nowrap;
   overflow-wrap: normal;
   word-break: keep-all;
 }
 
-/* 5 Dependencies / Blockers */
+/* 5 Dependencies */
 .reports-preview--daily .data-table th:nth-child(5),
 .reports-preview--daily .data-table td:nth-child(5) {
-  width: 12%;
+  width: 130px;
+  max-height: 2.8em;
 }
 
-/* 6 Start Date */
+/* 6 Start */
 .reports-preview--daily .data-table th:nth-child(6),
 .reports-preview--daily .data-table td:nth-child(6) {
-  width: 9%;
+  width: 96px;
   white-space: nowrap;
   overflow-wrap: normal;
   word-break: keep-all;
 }
 
-/* 7 Task Deadline */
+/* 7 Deadline */
 .reports-preview--daily .data-table th:nth-child(7),
 .reports-preview--daily .data-table td:nth-child(7) {
-  width: 9%;
+  width: 96px;
   white-space: nowrap;
   overflow-wrap: normal;
   word-break: keep-all;
 }
 
-/* 8 Logged Hours */
+/* 8 Hours */
 .reports-preview--daily .data-table th:nth-child(8),
 .reports-preview--daily .data-table td:nth-child(8) {
-  width: 7%;
+  width: 64px;
   white-space: nowrap;
 }
 
-/* 9 Reason For Delay */
+/* 9 Delay Reason */
 .reports-preview--daily .data-table th:nth-child(9),
 .reports-preview--daily .data-table td:nth-child(9) {
-  width: 10%;
+  width: 130px;
+  max-height: 2.8em;
 }
 
 .reports-preview--daily .data-table .status-badge {
