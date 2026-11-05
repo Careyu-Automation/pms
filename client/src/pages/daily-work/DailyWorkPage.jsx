@@ -92,9 +92,15 @@ export default function DailyWorkPage() {
   }
 
   async function removeUpdate(id) {
-    await deleteDailyWork(id);
-    push({ tone: 'success', message: 'Daily work update deleted.' });
-    await load(true);
+    if (!id) throw new Error('This row has no saved update to delete.');
+    try {
+      await deleteDailyWork(id);
+      push({ tone: 'success', message: 'Daily work update deleted.' });
+      await load(true);
+    } catch (error) {
+      push({ tone: 'danger', message: error.message || 'Delete failed.' });
+      throw error;
+    }
   }
 
   function exportFile(kind) {

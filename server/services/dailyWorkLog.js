@@ -72,7 +72,8 @@ function present(user, row) {
     ...row,
     access: {
       canEdit: editable,
-      canDelete: editable && Boolean(row.id) && row.entryKind !== 'ASSIGNED',
+      // Saved rows can be deleted by the owner/org editor. Unsaved seeds are dismissed in the UI.
+      canDelete: editable && Boolean(row.id),
       canSetMilestoneDeadline: canSetMilestoneDeadline(user),
     },
   };

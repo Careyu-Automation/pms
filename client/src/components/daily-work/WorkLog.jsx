@@ -382,8 +382,9 @@ export const WorkLog = forwardRef(function WorkLog({
   const [edits, setEdits] = useState({});
   const [dirty, setDirty] = useState({});
   const [errors, setErrors] = useState({});
-  const [confirmId, setConfirmId] = useState('');
   const [editingKeys, setEditingKeys] = useState({});
+  const [dismissedKeys, setDismissedKeys] = useState({});
+  const [deletingKey, setDeletingKey] = useState('');
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
   const scroller = useRef(null);
@@ -399,7 +400,8 @@ export const WorkLog = forwardRef(function WorkLog({
       return edits[base.key]
         ? { ...withDate, ...edits[base.key], key: base.key, workDate: today || edits[base.key].workDate || withDate.workDate }
         : withDate;
-    }), [edits, rows, sheetMode, stakeholders, today, user?.id]);
+    })
+    .filter((row) => !dismissedKeys[row.key]), [dismissedKeys, edits, rows, sheetMode, stakeholders, today, user?.id]);
 
   const sheetRows = useMemo(
     () => (sheetMode === 'completed' ? forms : [...forms, ...drafts]),
@@ -442,7 +444,8 @@ export const WorkLog = forwardRef(function WorkLog({
     setDirty({});
     setErrors({});
     setEditingKeys({});
-    setConfirmId('');
+    setDismissedKeys({});
+    setDeletingKey('');
     setNotice('');
   }, [lookups, today, user, user?.id, user?.fullName]);
 
@@ -461,7 +464,8 @@ export const WorkLog = forwardRef(function WorkLog({
       setDirty({});
       setErrors({});
       setEditingKeys({});
-      setConfirmId('');
+      setDismissedKeys({});
+      setDeletingKey('');
       setNotice('');
     },
   }));
@@ -574,8 +578,47 @@ export const WorkLog = forwardRef(function WorkLog({
     const locked = row.canEdit === false || (!draft && !isEditing);
     const scheduleLocked = locked || !(row.canSetMilestoneDeadline || canSetMilestoneDeadline);
     const canEditRow = row.canEdit !== false;
-    const canDeleteRow = Boolean(draft || row.canDelete);
+    const canDeleteRow = Boolean(draft || row.canDelete || row.id || !draft);
     const statusOptions = STATUSES.includes(row.status) ? STATUSES : [...STATUSES, row.status].filter(Boolean);
+
+    async function deleteRow() {
+      if (deletingKey) return;
+      const label = String(row.task || row.workTitle || 'this row').trim() || 'this row';
+      if (!window.confirm(`Delete ${label}?`)) return;
+      setDeletingKey(key);
+      setNotice('Deleting…');
+      try {
+        if (draft) {
+          setDrafts((current) => ensureTrailingBlank(current.filter((item) => item.key !== row.key)));
+          setNotice('Row removed.');
+          return;
+        }
+        if (row.id) {
+          await onDelete(row.id);
+          setEditingKeys((current) => {
+            const next = { ...current };
+            delete next[key];
+            return next;
+          });
+          setNotice('Row deleted.');
+          return;
+        }
+        // Unsaved assigned/carried seed — dismiss from this sheet only.
+        setDismissedKeys((current) => ({ ...current, [key]: true }));
+        setEdits((current) => {
+          const next = { ...current };
+          delete next[key];
+          return next;
+        });
+        setDirty((current) => ({ ...current, [key]: false }));
+        setNotice('Unsaved row removed from this sheet.');
+      } catch (error) {
+        setErrors((current) => ({ ...current, [key]: { form: error.message || 'Delete failed.' } }));
+        setNotice(error.message || 'Delete failed.');
+      } finally {
+        setDeletingKey('');
+      }
+    }
     const cell = (col, className, node) => (
       <td
         key={col}
@@ -709,80 +752,51 @@ export const WorkLog = forwardRef(function WorkLog({
         ))}
         <td data-row={rowIndex} data-col={col} className="daily-actions">
           {fieldErrors.form ? <small className="daily-cell-error">{fieldErrors.form}</small> : null}
-          {confirmId === key ? (
-            <div className="daily-inline-confirm">
-              <button type="button" className="daily-action-btn" onClick={() => setConfirmId('')}>Cancel</button>
-              <button
-                type="button"
-                className="daily-action-btn is-danger"
-                onClick={() => {
-                  if (draft) {
-                    setDrafts((current) => ensureTrailingBlank(current.filter((item) => item.key !== row.key)));
-                    setConfirmId('');
-                    return;
-                  }
-                  onDelete(row.id).then(() => {
-                    setConfirmId('');
-                    setEditingKeys((current) => {
-                      const next = { ...current };
-                      delete next[key];
-                      return next;
-                    });
-                  }).catch((error) => {
-                    setErrors((current) => ({ ...current, [key]: { form: error.message } }));
-                    setConfirmId('');
+          <div className="daily-action-btns">
+            <button
+              type="button"
+              className={`daily-action-btn${isEditing && !draft ? ' is-active' : ''}`}
+              disabled={!canEditRow || draft || Boolean(deletingKey)}
+              title={draft ? 'New rows are already editable' : (canEditRow ? 'Edit this row' : 'You cannot edit this row')}
+              onClick={() => {
+                if (!canEditRow || draft) return;
+                if (isEditing) {
+                  setEditingKeys((current) => {
+                    const next = { ...current };
+                    delete next[key];
+                    return next;
                   });
-                }}
-              >
-                Confirm
-              </button>
-            </div>
-          ) : (
-            <div className="daily-action-btns">
-              <button
-                type="button"
-                className={`daily-action-btn${isEditing && !draft ? ' is-active' : ''}`}
-                disabled={!canEditRow || draft}
-                title={draft ? 'New rows are already editable' : (canEditRow ? 'Edit this row' : 'You cannot edit this row')}
-                onClick={() => {
-                  if (!canEditRow || draft) return;
-                  if (isEditing) {
-                    setEditingKeys((current) => {
-                      const next = { ...current };
-                      delete next[key];
-                      return next;
-                    });
-                    setEdits((current) => {
-                      const next = { ...current };
-                      delete next[key];
-                      return next;
-                    });
-                    setDirty((current) => ({ ...current, [key]: false }));
-                    setErrors((current) => ({ ...current, [key]: {} }));
-                    return;
-                  }
-                  setEditingKeys((current) => ({ ...current, [key]: true }));
-                  setNotice('');
-                  requestAnimationFrame(() => focusAt(rowIndex, canAssign ? 2 : 1));
-                }}
-              >
-                {isEditing && !draft ? 'Cancel' : 'Edit'}
-              </button>
-              <button
-                type="button"
-                className="daily-action-btn is-danger"
-                disabled={!canDeleteRow || (draft && !rowHasContent(row))}
-                title={canDeleteRow ? 'Delete this row' : 'You cannot delete this row'}
-                onClick={() => {
-                  if (!canDeleteRow) return;
-                  if (draft && !rowHasContent(row)) return;
-                  setConfirmId(key);
-                }}
-              >
-                Delete
-              </button>
-            </div>
-          )}
+                  setEdits((current) => {
+                    const next = { ...current };
+                    delete next[key];
+                    return next;
+                  });
+                  setDirty((current) => ({ ...current, [key]: false }));
+                  setErrors((current) => ({ ...current, [key]: {} }));
+                  return;
+                }
+                setEditingKeys((current) => ({ ...current, [key]: true }));
+                setNotice('');
+                requestAnimationFrame(() => focusAt(rowIndex, canAssign ? 2 : 1));
+              }}
+            >
+              {isEditing && !draft ? 'Cancel' : 'Edit'}
+            </button>
+            <button
+              type="button"
+              className="daily-action-btn is-danger"
+              disabled={!canDeleteRow || (draft && !rowHasContent(row)) || deletingKey === key}
+              title={canDeleteRow ? 'Delete this row' : 'You cannot delete this row'}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (!canDeleteRow || (draft && !rowHasContent(row)) || deletingKey) return;
+                deleteRow();
+              }}
+            >
+              {deletingKey === key ? '…' : 'Delete'}
+            </button>
+          </div>
         </td>
       </tr>
     );
