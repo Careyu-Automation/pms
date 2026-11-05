@@ -157,7 +157,19 @@ function dateLabel(value) {
 }
 
 function reportColumns() {
-  return ['Project', 'Milestone', 'Work Description', 'Status', 'Dependencies', 'Start Date', 'Task Deadline', 'Logged Hours', 'Reason For Delay'];
+  // Keep in sync with Daily Work Updates sheet (WorkLog.jsx), minus Actions.
+  // "Work" is the collapsed header for Work Description so email/preview tables stay readable.
+  return [
+    'Project',
+    'Milestone',
+    'Work',
+    'Status',
+    'Dependencies / Blockers',
+    'Start Date',
+    'Task Deadline',
+    'Logged Hours',
+    'Reason For Delay',
+  ];
 }
 
 function reportRowCells(row) {

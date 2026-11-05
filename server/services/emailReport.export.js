@@ -107,6 +107,11 @@ function textHtml(value) {
   return escapeHtml(value).replace(/\r?\n/g, '<br>');
 }
 
+function clampedTextHtml(value, lines = 4) {
+  const safe = textHtml(value);
+  return `<div style="display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:${lines};max-height:${Math.round(lines * 1.45 * 13)}px;overflow:hidden;line-height:1.45">${safe}</div>`;
+}
+
 function prettyDate(iso) {
   const text = String(iso || '').slice(0, 10);
   const [year, month, day] = text.split('-').map(Number);
@@ -167,14 +172,15 @@ function dailyWorkEmail(snapshot) {
   const groups = dailyFormat.groupByEmployee(rows);
   const columns = dailyFormat.reportColumns();
   const widths = {
-    Project: { width: '14%', minWidth: '100px', maxWidth: '140px', wrap: true },
-    'Work Description': { width: '24%', minWidth: '160px', maxWidth: '300px', wrap: true },
-    Status: { width: '10%', minWidth: '100px' },
-    Dependencies: { width: '12%', minWidth: '100px', wrap: true },
-    'Start Date': { width: '11%', minWidth: '110px', nowrap: true },
-    'Task Deadline': { width: '11%', minWidth: '110px', nowrap: true },
-    'Logged Hours': { width: '8%', minWidth: '80px' },
-    'Reason For Delay': { width: '10%', minWidth: '100px', wrap: true },
+    Project: { width: '12%', minWidth: '90px', maxWidth: '130px', wrap: true },
+    Milestone: { width: '10%', minWidth: '80px', maxWidth: '120px', wrap: true },
+    Work: { width: '24%', minWidth: '160px', maxWidth: '320px', wrap: true, clamp: 4 },
+    Status: { width: '9%', minWidth: '90px' },
+    'Dependencies / Blockers': { width: '12%', minWidth: '100px', wrap: true },
+    'Start Date': { width: '9%', minWidth: '100px', nowrap: true },
+    'Task Deadline': { width: '9%', minWidth: '100px', nowrap: true },
+    'Logged Hours': { width: '7%', minWidth: '70px' },
+    'Reason For Delay': { width: '10%', minWidth: '90px', wrap: true },
   };
   const head = columns.map((column) => {
     const meta = widths[column] || {};
@@ -187,6 +193,10 @@ function dailyWorkEmail(snapshot) {
       'font-weight:700',
       'text-align:left',
       'white-space:nowrap',
+      'overflow:hidden',
+      'text-overflow:ellipsis',
+      'word-break:keep-all',
+      'overflow-wrap:normal',
       meta.width ? `width:${meta.width}` : '',
       meta.minWidth ? `min-width:${meta.minWidth}` : '',
     ].filter(Boolean).join(';');
@@ -198,8 +208,10 @@ function dailyWorkEmail(snapshot) {
       const blocked = String(row.status || '').toUpperCase() === 'BLOCKED';
       const cells = dailyFormat.reportRowCells(row).map((value, index) => {
         const column = columns[index];
+        const meta = widths[column] || { wrap: true };
         if (column === 'Status') return cellHtml(statusBadgeHtml(row.status), { ...widths.Status, blocked });
-        return cellHtml(textHtml(value), { ...(widths[column] || { wrap: true }), blocked });
+        if (meta.clamp) return cellHtml(clampedTextHtml(value, meta.clamp), { ...meta, blocked });
+        return cellHtml(textHtml(value), { ...meta, blocked });
       });
       return `<tr>${cells.join('')}</tr>`;
     }).join('');

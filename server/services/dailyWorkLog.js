@@ -250,26 +250,13 @@ async function buildInput(user, body, current) {
   const minutes = totalMinutes % 60;
   const startDate = cleanDate(body.startDate || current?.startDate);
   const canAssignSchedule = canSetMilestoneDeadline(user);
-  const requestedDeadline = cleanDate(body.deadline || body.taskDeadline);
-  const requestedMilestone = clean(body.milestone, 200);
-  if (!canAssignSchedule && current) {
-    const changingDeadline = requestedDeadline && requestedDeadline !== cleanDate(current.deadline);
-    const clearingDeadline = Object.prototype.hasOwnProperty.call(body, 'deadline')
-      && !requestedDeadline
-      && Boolean(cleanDate(current.deadline));
-    const changingMilestone = Object.prototype.hasOwnProperty.call(body, 'milestone')
-      && requestedMilestone !== clean(current.milestone, 200);
-    if (changingDeadline || clearingDeadline || changingMilestone) {
-      throw new ApiError(403, 'Only the Project Manager or Engineering Director can set milestone and task deadline.', {
-        fields: { deadline: 'Only PM or Engineering Director can set this.', milestone: 'Only PM or Engineering Director can set this.' },
-      });
-    }
-  }
+  // Milestone is optional. Only PM / Engineering Director may set or change it / deadline;
+  // other roles keep whatever is already stored and are never blocked for leaving it blank.
   const deadline = canAssignSchedule
-    ? (requestedDeadline || (current ? cleanDate(current.deadline) : ''))
+    ? cleanDate(body.deadline || body.taskDeadline || current?.deadline)
     : cleanDate(current?.deadline);
   const milestone = canAssignSchedule
-    ? requestedMilestone
+    ? clean(body.milestone, 200)
     : clean(current?.milestone, 200);
   if (startDate && deadline && deadline < startDate) {
     throw new ApiError(400, 'The deadline cannot be before the start date.', { fields: { deadline: 'The deadline cannot be before the start date.' } });

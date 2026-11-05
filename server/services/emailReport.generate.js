@@ -120,8 +120,6 @@ const DAILY_DEPENDENCY = {
   OTHER: 'Other',
 };
 
-const DAILY_COLUMNS = ['Person', 'Project', 'Task Description', 'Dependencies', 'Status', 'Start Date', 'Task Deadline', 'Logged Hours', 'Reason for Delay'];
-const EVENING_COLUMNS = [...DAILY_COLUMNS, 'Morning Work', 'Evening Work', 'Progress'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function displayDate(iso) {
@@ -131,50 +129,8 @@ function displayDate(iso) {
   return new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(year, month - 1, day));
 }
 
-function hoursText(row) {
-  const logged = row.loggedHours != null && row.loggedHours !== ''
-    ? Number(row.loggedHours)
-    : (Number(row.hours) || 0) + ((Number(row.minutes) || 0) / 60);
-  if (!Number.isFinite(logged)) return '—';
-  const rounded = Math.round(logged * 10) / 10;
-  return `${rounded} hrs`;
-}
-
-function sheetDate(iso) {
-  const text = String(iso || '').slice(0, 10);
-  const [year, month, day] = text.split('-');
-  if (!year || !month || !day) return '—';
-  return `${day}-${month}-${year}`;
-}
-
-function taskText(row) {
-  return dailyFormat.workDescription(row);
-}
-
 function dependencyText(row) {
   return dailyFormat.dependencyText(row);
-}
-
-function dailyLine(row, shift) {
-  const line = [
-    row.employeeName || '—',
-    row.projectName || 'No project',
-    taskText(row),
-    dependencyText(row),
-    dailyFormat.statusLabel(row.status),
-    sheetDate(row.startDate),
-    sheetDate(row.deadline),
-    hoursText(row),
-    row.reasonForDelay || '—',
-  ];
-  if (shift !== 'Morning') {
-    line.push(
-      row.morningWork || '—',
-      row.eveningWork || '—',
-      row.progress == null || row.progress === '' ? '—' : `${row.progress}%`,
-    );
-  }
-  return line;
 }
 
 function attentionText(values) {

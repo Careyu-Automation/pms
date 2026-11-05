@@ -234,7 +234,7 @@ function validate(row) {
   return fields;
 }
 
-function payloadOf(row, stakeholders, reportDate) {
+function payloadOf(row, stakeholders, reportDate, options = {}) {
   const task = String(row.task || '').trim();
   const logged = row.loggedHours === '' || row.loggedHours == null ? 0 : Number(row.loggedHours);
   const details = serializeDependencies(row.dependencyKeys || [], stakeholders);
@@ -247,7 +247,8 @@ function payloadOf(row, stakeholders, reportDate) {
   }).format(new Date());
   // Saving today's sheet uses the current IST shift so evening entries are not stuck as Morning.
   const period = workDate === today ? kolkataShift() : (row.period || kolkataShift());
-  return {
+  const canSetSchedule = Boolean(options.canSetMilestoneDeadline || row.canSetMilestoneDeadline);
+  const payload = {
     id: row.id,
     employeeId: row.employeeId,
     teamId: row.teamId || '',
@@ -263,9 +264,7 @@ function payloadOf(row, stakeholders, reportDate) {
     nextAction: row.nextAction || '',
     workDate,
     period,
-    milestone: row.milestone || '',
     startDate: row.startDate || '',
-    deadline: row.deadline || '',
     reasonForDelay: row.reasonForDelay || '',
     morningWork: row.morningWork || '',
     eveningWork: row.eveningWork || '',
@@ -283,6 +282,12 @@ function payloadOf(row, stakeholders, reportDate) {
       }))
       .filter((item) => item.description),
   };
+  // Milestone is optional. Only PM / ED send schedule fields; others leave them unchanged on the server.
+  if (canSetSchedule) {
+    payload.milestone = row.milestone || '';
+    payload.deadline = row.deadline || '';
+  }
+  return payload;
 }
 
 function rowIdentity(row) {
@@ -501,7 +506,12 @@ export const WorkLog = forwardRef(function WorkLog({
       if (savingKeys.current.has(id)) continue;
       savingKeys.current.add(id);
       try {
-        await onSave(payloadOf({ ...row, workDate: today || row.workDate }, stakeholders, today));
+        await onSave(payloadOf(
+          { ...row, workDate: today || row.workDate },
+          stakeholders,
+          today,
+          { canSetMilestoneDeadline: canSetMilestoneDeadline || row.canSetMilestoneDeadline },
+        ));
         saved += 1;
         setDirty((current) => ({ ...current, [id]: false }));
         setEditingKeys((current) => {
@@ -662,9 +672,10 @@ export const WorkLog = forwardRef(function WorkLog({
           <input
             className="daily-cell-input"
             aria-label="Milestone"
-            placeholder={scheduleLocked ? 'Set by PM / ED' : 'Milestone'}
+            placeholder={scheduleLocked ? 'Optional · set by PM / ED' : 'Optional'}
             value={row.milestone || ''}
             disabled={scheduleLocked}
+            required={false}
             onChange={(event) => patch(key, { milestone: event.target.value }, draft)}
           />
         ))}

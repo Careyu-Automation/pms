@@ -2,9 +2,9 @@ const { STATUS_LABEL } = require('./dailyWork.service');
 const { dependencyText, statusLabel } = require('./emailReport.dailyFormat');
 
 const COLUMNS = [
-  'PERSON', 'PROJECT', 'TASK DESCRIPTION', 'DEPENDENCIES', 'STATUS', 'START DATE', 'TASK DEADLINE',
-  'LOGGED HOURS', 'REASON FOR DELAY', 'TEAM', 'WORK TYPE', 'MORNING WORK', 'EVENING WORK',
-  'PROGRESS', 'NEXT ACTION', 'PRIORITY', 'REPORT DATE', 'PERIOD',
+  'PERSON', 'PROJECT', 'MILESTONE', 'TASK DESCRIPTION', 'DEPENDENCIES / BLOCKERS', 'STATUS',
+  'START DATE', 'TASK DEADLINE', 'LOGGED HOURS', 'REASON FOR DELAY', 'TEAM', 'WORK TYPE',
+  'MORNING WORK', 'EVENING WORK', 'PROGRESS', 'NEXT ACTION', 'PRIORITY', 'REPORT DATE', 'PERIOD',
 ];
 
 function escapeXml(value) {
@@ -21,6 +21,7 @@ function excel(rows) {
     return [
       row.employeeName,
       row.projectName || 'No project',
+      row.milestone || '',
       row.description || row.workTitle,
       dependencyText(row),
       statusLabel(row.status) || STATUS_LABEL[row.status] || row.status,
