@@ -1011,6 +1011,7 @@ CREATE TABLE IF NOT EXISTS daily_work_updates (
   delay_status VARCHAR(30) NOT NULL,
   reason_for_delay TEXT NOT NULL DEFAULT '',
   remarks TEXT NOT NULL DEFAULT '',
+  milestone VARCHAR(200) NOT NULL DEFAULT '',
   created_by UUID REFERENCES users (id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -1027,6 +1028,7 @@ CREATE TABLE IF NOT EXISTS daily_work_updates (
 );
 
 CREATE INDEX IF NOT EXISTS daily_work_updates_employee_idx ON daily_work_updates (employee_id, update_date);
+ALTER TABLE daily_work_updates ADD COLUMN IF NOT EXISTS milestone VARCHAR(200) NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS daily_work_activities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

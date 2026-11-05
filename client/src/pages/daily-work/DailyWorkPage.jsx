@@ -209,6 +209,7 @@ export default function DailyWorkPage() {
             lookups={lookups}
             user={selectedPerson}
             canAssign={Boolean(payload?.access?.canAssignEmployee)}
+            canSetMilestoneDeadline={Boolean(payload?.access?.canSetMilestoneDeadline)}
             today={date || payload?.today || isoToday()}
             sheetMode={sheetMode}
             onSave={saveUpdate}

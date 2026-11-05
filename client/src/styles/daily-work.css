@@ -1106,7 +1106,66 @@
 .daily-sheet--compact col.col-date { width: 7.5%; }
 .daily-sheet--compact col.col-hours { width: 6%; }
 .daily-sheet--compact col.col-reason { width: 11%; }
-.daily-sheet--compact col.col-actions { width: 36px; }
+.daily-sheet--compact col.col-actions { width: 8.5rem; min-width: 7.5rem; }
+
+.daily-sheet--compact td.daily-actions {
+  overflow: visible;
+  min-width: 7.5rem;
+}
+
+.daily-action-btns,
+.daily-inline-confirm {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
+  justify-content: center;
+  align-items: center;
+}
+
+.daily-sheet .daily-actions .daily-action-btn,
+.daily-action-btn {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #9eb6d6 !important;
+  background: #fff !important;
+  color: #123a6b !important;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem !important;
+  font-size: 0.7rem !important;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+  width: auto !important;
+  min-width: 3.2rem;
+  text-decoration: none;
+}
+
+.daily-action-btn:hover:not(:disabled) {
+  border-color: var(--primary, #1d4f91) !important;
+  background: color-mix(in srgb, var(--primary, #1d4f91) 8%, #fff) !important;
+}
+
+.daily-sheet .daily-actions .daily-action-btn.is-danger,
+.daily-action-btn.is-danger {
+  color: #9b1c1c !important;
+  border-color: #e2a0a0 !important;
+}
+
+.daily-action-btn.is-danger:hover:not(:disabled) {
+  background: #fff1f1 !important;
+}
+
+.daily-action-btn.is-active {
+  border-color: var(--primary, #1d4f91) !important;
+  background: color-mix(in srgb, var(--primary, #1d4f91) 12%, #fff) !important;
+}
+
+.daily-action-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 
 .daily-sheet--compact th,
 .daily-sheet--compact td {
@@ -1337,4 +1396,10 @@
   background: #fff;
   cursor: pointer;
   line-height: 1;
+}
+
+.daily-sheet .col-milestone { width: 9rem; min-width: 8rem; }
+.daily-sheet td.milestone input:disabled {
+  opacity: 0.85;
+  cursor: not-allowed;
 }

@@ -137,7 +137,7 @@ function matchDirectoryPeople(people, matchers) {
 }
 
 const DAILY_WORK_TO_EMAILS = [
-  'robotlead1@gmail.com',
+  'robotlead1@careyu.ai',
   'engg.director@careyu.ai',
 ];
 
@@ -153,7 +153,7 @@ const DAILY_WORK_CC_EMAILS = [
 ];
 
 const DAILY_WORK_EMAIL_ALIASES = {
-  'robotlead1@gmail.com': ['robotlead1@gmail.com', 'robotlead1@careyu.ai'],
+  'robotlead1@careyu.ai': ['robotlead1@careyu.ai', 'robotlead1@gmail.com'],
   'engg.director@careyu.ai': ['engg.director@careyu.ai', 'engg1.director@careyu.ai'],
   'cto@careyu.ai': ['cto@careyu.ai', 'raja@careyu.ai'],
 };

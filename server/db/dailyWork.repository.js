@@ -583,6 +583,7 @@ function mapLog(row) {
     currentDate: isoDate(row.update_date),
     startDate: isoDate(row.task_start || row.start_date),
     deadline: isoDate(row.task_deadline || row.linked_deadline),
+    milestone: row.milestone || '',
     completionDate: isoDate(row.completion_date),
     reasonForDelay: row.reason_for_delay || '',
     delayStatus: row.delay_status || '',
@@ -607,7 +608,7 @@ const LOG_COLUMNS = `
   d.id, d.employee_id, d.project_id, d.product_id, d.team_id, d.update_date, d.description,
   d.status, d.priority, d.created_by, d.created_at, d.updated_at, d.hours, d.minutes,
   d.next_action, d.dependency_type, d.dependency_details, d.task_deadline, d.completion_date,
-  d.reason_for_delay, d.delay_status, i.task_id, tsk.progress AS task_progress,
+  d.reason_for_delay, d.delay_status, d.milestone, i.task_id, tsk.progress AS task_progress,
   tsk.start_date AS task_start, tsk.end_date AS linked_deadline,
   COALESCE(tsk.assignment_status, 'ACCEPTED') AS assignment_status,
   COALESCE(NULLIF(d.work_title, ''), i.title, 'Work update') AS work_title,
@@ -621,6 +622,7 @@ const LOG_COLUMNS = `
 
 async function logList(filters, actor) {
   if (await updatesAreView()) return source.list(filters, actor);
+  await ensureMilestoneColumn();
   const params = [filters.from, filters.to];
   const where = ['d.update_date BETWEEN $1 AND $2'];
   if (Array.isArray(filters.employeeIds)) {
@@ -705,21 +707,36 @@ async function findLog(id) {
   });
 }
 
+let milestoneColumnReady = false;
+
+async function ensureMilestoneColumn() {
+  if (milestoneColumnReady) return;
+  if (await updatesAreView()) {
+    milestoneColumnReady = true;
+    return;
+  }
+  await query(`ALTER TABLE daily_work_updates ADD COLUMN IF NOT EXISTS milestone VARCHAR(200) NOT NULL DEFAULT ''`);
+  milestoneColumnReady = true;
+}
+
 async function insertLog(client, input) {
   if (await updatesAreView()) return source.insert(client, input);
+  await ensureMilestoneColumn();
   const result = await client.query(
     `INSERT INTO daily_work_updates (
        work_item_id, employee_id, project_id, product_id, team_id, work_type, work_title,
        description, status, priority, update_date, task_deadline, completion_date,
        delay_days, delay_status, reason_for_delay, remarks, next_action, hours, minutes,
-       dependency_type, dependency_details, created_by
+       dependency_type, dependency_details, created_by, milestone
      ) VALUES (
-       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NULL,NULL,0,'ON_TIME','','',$12,$13,$14,$15,$16,$17
+       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,0,'ON_TIME',$14,'',$15,$16,$17,$18,$19,$20,$21
      ) RETURNING id`,
     [
       input.workItemId || null, input.employeeId, input.projectId, input.productId, input.teamId, input.workType, input.workTitle,
-      input.description, input.status, input.priority, input.updateDate, input.nextAction,
-      input.hours, input.minutes, input.dependencyType, input.dependencyDetails, input.createdById,
+      input.description, input.status, input.priority, input.updateDate,
+      input.deadline || null, input.completionDate || null, input.reasonForDelay || '',
+      input.nextAction, input.hours, input.minutes, input.dependencyType, input.dependencyDetails, input.createdById,
+      input.milestone || '',
     ],
   );
   return result.rows[0].id;
@@ -727,16 +744,19 @@ async function insertLog(client, input) {
 
 async function saveLog(client, id, input) {
   if (await updatesAreView()) return source.save(client, id, input);
+  await ensureMilestoneColumn();
   await client.query(
     `UPDATE daily_work_updates SET
        employee_id = $2, project_id = $3, product_id = $4, team_id = $5, work_type = $6, work_title = $7,
        description = $8, status = $9, priority = $10, update_date = $11, next_action = $12,
-       hours = $13, minutes = $14, dependency_type = $15, dependency_details = $16
+       hours = $13, minutes = $14, dependency_type = $15, dependency_details = $16,
+       task_deadline = $17, completion_date = $18, reason_for_delay = $19, milestone = $20
      WHERE id = $1`,
     [
       id, input.employeeId, input.projectId, input.productId, input.teamId, input.workType, input.workTitle,
       input.description, input.status, input.priority, input.updateDate, input.nextAction,
       input.hours, input.minutes, input.dependencyType, input.dependencyDetails,
+      input.deadline || null, input.completionDate || null, input.reasonForDelay || '', input.milestone || '',
     ],
   );
 }

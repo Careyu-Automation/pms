@@ -124,6 +124,7 @@ function blankRow(user, lookups, today) {
     dependencyType: '',
     dependencyDetails: '',
     status: 'NOT_STARTED',
+    milestone: '',
     startDate: today,
     deadline: '',
     loggedHours: '',
@@ -164,6 +165,7 @@ function formFrom(row, stakeholders) {
     dependencyType: row.dependencyType || '',
     dependencyDetails: row.dependencyDetails || '',
     status: row.status || 'IN_PROGRESS',
+    milestone: row.milestone || '',
     startDate: row.startDate || '',
     deadline: row.deadline || '',
     loggedHours: logged ? String(Math.round(Number(logged) * 10) / 10) : '',
@@ -183,6 +185,7 @@ function formFrom(row, stakeholders) {
     })) : [],
     canDelete: Boolean(row.access?.canDelete),
     canEdit: row.access ? row.access.canEdit : true,
+    canSetMilestoneDeadline: Boolean(row.access?.canSetMilestoneDeadline),
   };
 }
 
@@ -209,6 +212,7 @@ function rowHasContent(row) {
     || (row.dependencyKeys || []).length
     || String(row.loggedHours || '').trim()
     || String(row.reasonForDelay || '').trim()
+    || String(row.milestone || '').trim()
     || row.deadline
     || (row.status && row.status !== 'NOT_STARTED' && row.status !== 'IN_PROGRESS'),
   );
@@ -259,6 +263,7 @@ function payloadOf(row, stakeholders, reportDate) {
     nextAction: row.nextAction || '',
     workDate,
     period,
+    milestone: row.milestone || '',
     startDate: row.startDate || '',
     deadline: row.deadline || '',
     reasonForDelay: row.reasonForDelay || '',
@@ -370,7 +375,7 @@ function DependencySelect({ value, options, disabled, onChange }) {
 }
 
 export const WorkLog = forwardRef(function WorkLog({
-  rows, lookups, user, canAssign, today, onSave, onDelete, onDirty, onReload, emptyLabel, sheetMode = 'active',
+  rows, lookups, user, canAssign, canSetMilestoneDeadline = false, today, onSave, onDelete, onDirty, onReload, emptyLabel, sheetMode = 'active',
 }, ref) {
   const stakeholders = useMemo(() => resolveStakeholders(lookups.people || []), [lookups.people]);
   const [drafts, setDrafts] = useState(() => [blankRow(user, lookups, today)]);
@@ -378,6 +383,7 @@ export const WorkLog = forwardRef(function WorkLog({
   const [dirty, setDirty] = useState({});
   const [errors, setErrors] = useState({});
   const [confirmId, setConfirmId] = useState('');
+  const [editingKeys, setEditingKeys] = useState({});
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState('');
   const scroller = useRef(null);
@@ -435,6 +441,8 @@ export const WorkLog = forwardRef(function WorkLog({
     setEdits({});
     setDirty({});
     setErrors({});
+    setEditingKeys({});
+    setConfirmId('');
     setNotice('');
   }, [lookups, today, user, user?.id, user?.fullName]);
 
@@ -452,6 +460,8 @@ export const WorkLog = forwardRef(function WorkLog({
       setEdits({});
       setDirty({});
       setErrors({});
+      setEditingKeys({});
+      setConfirmId('');
       setNotice('');
     },
   }));
@@ -490,6 +500,11 @@ export const WorkLog = forwardRef(function WorkLog({
         await onSave(payloadOf({ ...row, workDate: today || row.workDate }, stakeholders, today));
         saved += 1;
         setDirty((current) => ({ ...current, [id]: false }));
+        setEditingKeys((current) => {
+          const next = { ...current };
+          delete next[id];
+          return next;
+        });
         setEdits((current) => {
           const next = { ...current };
           delete next[id];
@@ -555,7 +570,11 @@ export const WorkLog = forwardRef(function WorkLog({
   function renderRow(row, rowIndex, draft) {
     const key = rowIdentity(row);
     const fieldErrors = errors[key] || {};
-    const locked = row.canEdit === false;
+    const isEditing = Boolean(draft || editingKeys[key] || dirty[key]);
+    const locked = row.canEdit === false || (!draft && !isEditing);
+    const scheduleLocked = locked || !(row.canSetMilestoneDeadline || canSetMilestoneDeadline);
+    const canEditRow = row.canEdit !== false;
+    const canDeleteRow = Boolean(draft || row.canDelete);
     const statusOptions = STATUSES.includes(row.status) ? STATUSES : [...STATUSES, row.status].filter(Boolean);
     const cell = (col, className, node) => (
       <td
@@ -595,6 +614,16 @@ export const WorkLog = forwardRef(function WorkLog({
               <option key={project.id} value={project.id}>{project.label || (project.code ? `${project.code} · ${project.name}` : project.name)}</option>
             ))}
           </select>
+        ))}
+        {cell(col++, 'milestone', (
+          <input
+            className="daily-cell-input"
+            aria-label="Milestone"
+            placeholder={scheduleLocked ? 'Set by PM / ED' : 'Milestone'}
+            value={row.milestone || ''}
+            disabled={scheduleLocked}
+            onChange={(event) => patch(key, { milestone: event.target.value }, draft)}
+          />
         ))}
         {cell(col++, 'task', (
           <div className="daily-task-stack">
@@ -648,7 +677,8 @@ export const WorkLog = forwardRef(function WorkLog({
             type="date"
             aria-label="Task deadline"
             value={row.deadline || ''}
-            disabled={locked}
+            disabled={scheduleLocked}
+            title={scheduleLocked ? 'Only Project Manager or Engineering Director can set task deadline' : undefined}
             onChange={(event) => patch(key, { deadline: event.target.value }, draft)}
           />
         ))}
@@ -681,28 +711,77 @@ export const WorkLog = forwardRef(function WorkLog({
           {fieldErrors.form ? <small className="daily-cell-error">{fieldErrors.form}</small> : null}
           {confirmId === key ? (
             <div className="daily-inline-confirm">
-              <button type="button" onClick={() => setConfirmId('')}>Cancel</button>
+              <button type="button" className="daily-action-btn" onClick={() => setConfirmId('')}>Cancel</button>
               <button
                 type="button"
+                className="daily-action-btn is-danger"
                 onClick={() => {
                   if (draft) {
                     setDrafts((current) => ensureTrailingBlank(current.filter((item) => item.key !== row.key)));
                     setConfirmId('');
                     return;
                   }
-                  onDelete(row.id).then(() => setConfirmId('')).catch((error) => {
+                  onDelete(row.id).then(() => {
+                    setConfirmId('');
+                    setEditingKeys((current) => {
+                      const next = { ...current };
+                      delete next[key];
+                      return next;
+                    });
+                  }).catch((error) => {
                     setErrors((current) => ({ ...current, [key]: { form: error.message } }));
                     setConfirmId('');
                   });
                 }}
               >
-                Delete
+                Confirm
               </button>
             </div>
           ) : (
-            (draft && rowHasContent(row)) || row.canDelete
-              ? <button type="button" className="daily-row-delete" aria-label="Delete row" onClick={() => setConfirmId(key)}>×</button>
-              : null
+            <div className="daily-action-btns">
+              <button
+                type="button"
+                className={`daily-action-btn${isEditing && !draft ? ' is-active' : ''}`}
+                disabled={!canEditRow || draft}
+                title={draft ? 'New rows are already editable' : (canEditRow ? 'Edit this row' : 'You cannot edit this row')}
+                onClick={() => {
+                  if (!canEditRow || draft) return;
+                  if (isEditing) {
+                    setEditingKeys((current) => {
+                      const next = { ...current };
+                      delete next[key];
+                      return next;
+                    });
+                    setEdits((current) => {
+                      const next = { ...current };
+                      delete next[key];
+                      return next;
+                    });
+                    setDirty((current) => ({ ...current, [key]: false }));
+                    setErrors((current) => ({ ...current, [key]: {} }));
+                    return;
+                  }
+                  setEditingKeys((current) => ({ ...current, [key]: true }));
+                  setNotice('');
+                  requestAnimationFrame(() => focusAt(rowIndex, canAssign ? 2 : 1));
+                }}
+              >
+                {isEditing && !draft ? 'Cancel' : 'Edit'}
+              </button>
+              <button
+                type="button"
+                className="daily-action-btn is-danger"
+                disabled={!canDeleteRow || (draft && !rowHasContent(row))}
+                title={canDeleteRow ? 'Delete this row' : 'You cannot delete this row'}
+                onClick={() => {
+                  if (!canDeleteRow) return;
+                  if (draft && !rowHasContent(row)) return;
+                  setConfirmId(key);
+                }}
+              >
+                Delete
+              </button>
+            </div>
           )}
         </td>
       </tr>
@@ -712,13 +791,14 @@ export const WorkLog = forwardRef(function WorkLog({
   return (
     <div className="daily-sheet-wrap daily-sheet-wrap--compact">
       <p className="daily-sheet-note" aria-live="polite">
-        {saving ? 'Saving…' : notice || (dirtyCount ? `${dirtyCount} unsaved ${dirtyCount === 1 ? 'change' : 'changes'}` : 'Click any cell to enter work. A new blank row appears as you type.')}
+        {saving ? 'Saving…' : notice || (dirtyCount ? `${dirtyCount} unsaved ${dirtyCount === 1 ? 'change' : 'changes'}` : 'Use Edit to change a row, or type in the blank row to add work.')}
       </p>
       <div className="daily-scroll daily-scroll--fit" ref={scroller} onKeyDown={onKeyDown}>
         <table className="daily-sheet daily-sheet--compact">
           <colgroup>
             {canAssign ? <col className="col-person" /> : null}
             <col className="col-project" />
+            <col className="col-milestone" />
             <col className="col-task" />
             <col className="col-status" />
             <col className="col-deps" />
@@ -732,6 +812,7 @@ export const WorkLog = forwardRef(function WorkLog({
             <tr>
               {canAssign ? <th>Employee</th> : null}
               <th>Project</th>
+              <th>Milestone</th>
               <th>Work Description</th>
               <th>Status</th>
               <th>Dependencies / Blockers</th>
@@ -739,12 +820,12 @@ export const WorkLog = forwardRef(function WorkLog({
               <th>Task Deadline</th>
               <th>Logged Hours</th>
               <th>Reason For Delay</th>
-              <th aria-label="Actions" />
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {!sheetRows.length ? (
-              <tr className="daily-empty"><td colSpan={canAssign ? 10 : 9}>{emptyLabel}</td></tr>
+              <tr className="daily-empty"><td colSpan={canAssign ? 11 : 10}>{emptyLabel}</td></tr>
             ) : sheetRows.map((row, index) => renderRow(row, index, !row.id && String(row.key || '').startsWith('new-')))}
           </tbody>
         </table>

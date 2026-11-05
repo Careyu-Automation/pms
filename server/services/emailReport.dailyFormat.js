@@ -157,12 +157,13 @@ function dateLabel(value) {
 }
 
 function reportColumns() {
-  return ['Project', 'Work Description', 'Status', 'Dependencies', 'Start Date', 'Task Deadline', 'Logged Hours', 'Reason For Delay'];
+  return ['Project', 'Milestone', 'Work Description', 'Status', 'Dependencies', 'Start Date', 'Task Deadline', 'Logged Hours', 'Reason For Delay'];
 }
 
 function reportRowCells(row) {
   return [
     row.projectName || 'No project',
+    row.milestone || '—',
     workDescription(row),
     statusLabel(row.status),
     dependencyText(row),

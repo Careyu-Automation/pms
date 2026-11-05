@@ -58,12 +58,23 @@ function attachShifts(rows) {
   });
 }
 
+function canSetMilestoneDeadline(user) {
+  const { actorKind } = require('./workflow.roles');
+  const kind = actorKind(user);
+  // Milestone + Task Deadline are assigned only by PM (Arivan) or Engineering Director (Sabarigiri).
+  return kind === 'PM' || kind === 'ED' || kind === 'ADMIN';
+}
+
 function present(user, row) {
   const own = row.employeeId === user.id;
   const editable = own || seesOrganization(user);
   return {
     ...row,
-    access: { canEdit: editable, canDelete: editable && Boolean(row.id) && row.entryKind !== 'ASSIGNED' },
+    access: {
+      canEdit: editable,
+      canDelete: editable && Boolean(row.id) && row.entryKind !== 'ASSIGNED',
+      canSetMilestoneDeadline: canSetMilestoneDeadline(user),
+    },
   };
 }
 
@@ -139,6 +150,7 @@ function asCarriedRow(row, day) {
     loggedHours: 0,
     description: '',
     workTitle: row.workTitle || row.taskTitle || 'Daily work',
+    milestone: row.milestone || '',
     morningWork: '',
     eveningWork: '',
     reasonForDelay: '',
@@ -236,7 +248,28 @@ async function buildInput(user, body, current) {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   const startDate = cleanDate(body.startDate || current?.startDate);
-  const deadline = cleanDate(body.deadline || body.taskDeadline || current?.deadline);
+  const canAssignSchedule = canSetMilestoneDeadline(user);
+  const requestedDeadline = cleanDate(body.deadline || body.taskDeadline);
+  const requestedMilestone = clean(body.milestone, 200);
+  if (!canAssignSchedule && current) {
+    const changingDeadline = requestedDeadline && requestedDeadline !== cleanDate(current.deadline);
+    const clearingDeadline = Object.prototype.hasOwnProperty.call(body, 'deadline')
+      && !requestedDeadline
+      && Boolean(cleanDate(current.deadline));
+    const changingMilestone = Object.prototype.hasOwnProperty.call(body, 'milestone')
+      && requestedMilestone !== clean(current.milestone, 200);
+    if (changingDeadline || clearingDeadline || changingMilestone) {
+      throw new ApiError(403, 'Only the Project Manager or Engineering Director can set milestone and task deadline.', {
+        fields: { deadline: 'Only PM or Engineering Director can set this.', milestone: 'Only PM or Engineering Director can set this.' },
+      });
+    }
+  }
+  const deadline = canAssignSchedule
+    ? (requestedDeadline || (current ? cleanDate(current.deadline) : ''))
+    : cleanDate(current?.deadline);
+  const milestone = canAssignSchedule
+    ? requestedMilestone
+    : clean(current?.milestone, 200);
   if (startDate && deadline && deadline < startDate) {
     throw new ApiError(400, 'The deadline cannot be before the start date.', { fields: { deadline: 'The deadline cannot be before the start date.' } });
   }
@@ -276,6 +309,7 @@ async function buildInput(user, body, current) {
     projectName: clean(body.projectName, 200),
     startDate,
     deadline,
+    milestone,
     reasonForDelay,
     morningWork: clean(body.morningWork, 4000),
     eveningWork: clean(body.eveningWork, 4000),
@@ -369,7 +403,10 @@ async function list(user, filters = {}) {
     window,
     today: isoToday(),
     lookups,
-    access: { canAssignEmployee: organization },
+    access: {
+      canAssignEmployee: organization,
+      canSetMilestoneDeadline: canSetMilestoneDeadline(user),
+    },
   };
 }
 
