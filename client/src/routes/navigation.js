@@ -63,7 +63,16 @@ export const navigation = [
         icon: 'Activity',
         title: 'Active Projects',
         description: 'Orders activated after payment confirmation',
-        note: 'Shown only after order conversion and required payment confirmation.',
+        note: 'Shown only after order conversion and required payment confirmation. Remains until project status is Completed.',
+      },
+      {
+        id: 'completed-projects',
+        label: 'Completed Projects',
+        path: '/projects/completed',
+        icon: 'FolderKanban',
+        title: 'Completed Projects',
+        description: 'Projects marked Completed with preserved history',
+        note: 'Completed projects leave Active and Daily Work dropdowns but keep all historical records.',
       },
       {
         id: 'projects',

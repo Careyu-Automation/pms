@@ -441,7 +441,7 @@ const STATUS_LABEL = {
 };
 
 function isActiveProject(project) {
-  return Boolean(project.isActivated) && project.status !== 'CANCELLED';
+  return Boolean(project.isActivated) && project.status !== 'CANCELLED' && project.status !== 'COMPLETED';
 }
 
 function projectSummary(projects) {
@@ -613,10 +613,12 @@ async function listProjects(view, user) {
     roleName: person.role?.name || '',
   }));
   const activity = await repository.listRecentActivity(8);
-  // Active Projects: confirmed-order activation only. Projects: all pre-sales + planning (incl. manual).
+  // Active: activated and not completed. Completed: status COMPLETED. All: open + completed (not cancelled unless ordered).
   const scoped = view === 'active'
     ? projects.filter((project) => isActiveProject(project))
-    : projects.filter((project) => project.status !== 'CANCELLED' || Boolean(project.orderCode));
+    : view === 'completed'
+      ? projects.filter((project) => project.status === 'COMPLETED')
+      : projects.filter((project) => project.status !== 'CANCELLED' || Boolean(project.orderCode));
   let dependencyOptions = [];
   try {
     dependencyOptions = await repository.listDependencyOptions();
@@ -628,7 +630,7 @@ async function listProjects(view, user) {
     managers,
     activity,
     summary: projectSummary(scoped),
-    view: view === 'active' ? 'active' : 'all',
+    view: view === 'active' || view === 'completed' ? view : 'all',
     access: projectAccess(user),
     lifecycleStages: Object.entries(repository.STAGE_LABELS || {}).map(([value, label]) => ({ value, label })),
     dependencyOptions,

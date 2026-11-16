@@ -9,7 +9,7 @@ const teamService = require('./team.service');
 const TASK_STATUSES = new Set(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'AT_RISK', 'ON_HOLD', 'CANCELLED', 'BLOCKED']);
 const PRIORITIES = new Set(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']);
 const TEAMS = new Set(['vision', 'robotics', 'software', 'procurement', 'execution']);
-const MILESTONE_STATUSES = new Set(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'MISSED']);
+const MILESTONE_STATUSES = new Set(['PENDING', 'NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'MISSED']);
 const TASK_STATUS_LABEL = {
   NOT_STARTED: 'Not Started',
   IN_PROGRESS: 'In Progress',
@@ -114,7 +114,7 @@ async function people() {
 
 async function getPlan(projectId) {
   const project = await requireProject(projectId);
-  const [phases, tasks, dependencies, milestones, baseline, users, timeEntries] = await Promise.all([
+  const [phases, tasks, dependencies, allMilestones, baseline, users, timeEntries] = await Promise.all([
     repository.listPhases(projectId),
     repository.listTasks({ projectId }),
     repository.listDependencies(projectId),
@@ -123,16 +123,19 @@ async function getPlan(projectId) {
     people(),
     repository.listTimeEntries(projectId),
   ]);
+  const milestones = allMilestones.filter((item) => item.active);
+  const milestoneHistory = allMilestones.filter((item) => item.history);
   return {
     project,
     phases,
     tasks,
     dependencies,
     milestones,
+    milestoneHistory,
     baseline,
     users,
     timeEntries,
-    summary: summarize(tasks, milestones, project, baseline),
+    summary: summarize(tasks, allMilestones, project, baseline),
   };
 }
 
@@ -733,12 +736,15 @@ function milestoneInput(body) {
   const name = cleanText(body.name, 200);
   const date = cleanDate(body.date);
   if (!name || !date) throw new ApiError(400, 'Milestone name and date are required.');
+  const status = MILESTONE_STATUSES.has(body.status)
+    ? repository.normalizeMilestoneStatus(body.status)
+    : 'PENDING';
   return {
     name,
     date,
     ownerId: optionalUuid(body.ownerId),
     description: cleanText(body.description, 2000),
-    status: MILESTONE_STATUSES.has(body.status) ? body.status : 'PENDING',
+    status,
   };
 }
 

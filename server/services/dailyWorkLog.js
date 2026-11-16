@@ -215,7 +215,17 @@ async function buildInput(user, body, current) {
   const productId = body.productId && body.productId !== 'none' ? String(body.productId) : null;
   if (projectId && !UUID.test(projectId)) throw new ApiError(400, 'Select a valid project.');
   if (productId && !UUID.test(productId)) throw new ApiError(400, 'Select a valid product.');
-  if (projectId && !catalog.projects.some((item) => item.id === projectId)) throw new ApiError(400, 'Select a valid project.');
+  const knownProjects = [
+    ...(catalog.projects || []),
+    ...(catalog.completedProjects || []),
+    ...(catalog.allProjects || []),
+  ];
+  const knownProject = projectId ? knownProjects.find((item) => item.id === projectId) : null;
+  // New rows use any non-completed project. Edits may keep a completed project already on the row.
+  if (projectId && !knownProject) throw new ApiError(400, 'Select a valid project.');
+  if (projectId && knownProject?.isCompleted && (!current || current.projectId !== projectId)) {
+    throw new ApiError(400, 'Completed projects cannot receive new daily work entries.');
+  }
   if (productId && !catalog.products.some((item) => item.id === productId)) throw new ApiError(400, 'Select a valid product.');
   const memberships = catalog.memberships.filter((item) => item.userId === employeeId);
   let teamId = body.teamId ? String(body.teamId) : (current?.teamId || '');
@@ -250,14 +260,39 @@ async function buildInput(user, body, current) {
   const minutes = totalMinutes % 60;
   const startDate = cleanDate(body.startDate || current?.startDate);
   const canAssignSchedule = canSetMilestoneDeadline(user);
-  // Milestone is optional. Only PM / Engineering Director may set or change it / deadline;
-  // other roles keep whatever is already stored and are never blocked for leaving it blank.
+  // Deadline: PM / Engineering Director only. Milestone: any employee may select a shared project milestone.
   const deadline = canAssignSchedule
     ? cleanDate(body.deadline || body.taskDeadline || current?.deadline)
     : cleanDate(current?.deadline);
-  const milestone = canAssignSchedule
-    ? clean(body.milestone, 200)
-    : clean(current?.milestone, 200);
+  let milestoneId = '';
+  if (Object.prototype.hasOwnProperty.call(body, 'milestoneId')) {
+    milestoneId = UUID.test(String(body.milestoneId || '')) ? String(body.milestoneId) : '';
+  } else if (current?.milestoneId) {
+    milestoneId = current.milestoneId;
+  }
+  let milestone = clean(body.milestone, 200) || clean(current?.milestone, 200);
+  if (milestoneId) {
+    const planning = require('../db/planning.repository');
+    const choices = (catalog.milestonesByProject?.[projectId] || catalog.milestones || [])
+      .filter((item) => !projectId || item.projectId === projectId);
+    let match = choices.find((item) => item.id === milestoneId)
+      || (catalog.milestones || []).find((item) => item.id === milestoneId);
+    if (!match && current?.milestoneId === milestoneId) {
+      match = await planning.findMilestone(milestoneId);
+    } else if (!match) {
+      match = await planning.findMilestone(milestoneId);
+    }
+    if (!match || (projectId && match.projectId && match.projectId !== projectId)) {
+      throw new ApiError(400, 'Select a milestone that belongs to this project.', { fields: { milestoneId: 'Select a project milestone.' } });
+    }
+    // New selections must still be in the active (incl. 24h grace) list.
+    if (current?.milestoneId !== milestoneId && match.history) {
+      throw new ApiError(400, 'That milestone is archived. Choose an active milestone.', { fields: { milestoneId: 'Select an active milestone.' } });
+    }
+    milestone = match.name || milestone;
+  } else if (Object.prototype.hasOwnProperty.call(body, 'milestoneId')) {
+    milestone = '';
+  }
   if (startDate && deadline && deadline < startDate) {
     throw new ApiError(400, 'The deadline cannot be before the start date.', { fields: { deadline: 'The deadline cannot be before the start date.' } });
   }
@@ -298,6 +333,7 @@ async function buildInput(user, body, current) {
     startDate,
     deadline,
     milestone,
+    milestoneId: milestoneId || null,
     reasonForDelay,
     morningWork: clean(body.morningWork, 4000),
     eveningWork: clean(body.eveningWork, 4000),
@@ -422,6 +458,14 @@ async function history(ref, user) {
   return { update: row, updates: [row, ...related].sort((a, b) => String(b.currentDate).localeCompare(String(a.currentDate))), activity };
 }
 
+async function syncLinkedMilestone(input) {
+  if (!input.milestoneId || !input.projectId) return;
+  const planning = require('../db/planning.repository');
+  if (input.status === 'IN_PROGRESS' || input.status === 'BLOCKED') {
+    await planning.bumpMilestoneProgress(input.milestoneId, input.projectId, 'IN_PROGRESS');
+  }
+}
+
 async function create(user, body) {
   const input = await buildInput(user, body);
   if (!seesOrganization(user) && input.employeeId !== user.id) {
@@ -429,19 +473,23 @@ async function create(user, body) {
   }
   const id = await repository.withTransaction(async (client) => {
     const linked = input.taskId ? await repository.linkAssignedTask(client, input.taskId, input) : null;
+    // Same-day re-save of an assigned task updates that day's row only — never prior dates.
     if (linked?.updateId) {
       await repository.saveLog(client, linked.updateId, input);
       await repository.syncTimeEntry(client, linked.updateId, input);
       await repository.replaceActivities(client, linked.updateId, { ...input, workItemId: linked.itemId }, input.activities);
       await repository.syncAssignedTask(client, input.taskId, input);
       await repository.addActivity(client, linked.itemId, linked.updateId, user.id, `${user.fullName} updated ${input.workTitle}`);
+      await syncLinkedMilestone(input);
       return linked.updateId;
     }
+    // Manual entries always insert a new date-wise record (multiple rows per project/date allowed).
     const updateId = await repository.insertLog(client, { ...input, workItemId: linked?.itemId || null });
     await repository.syncTimeEntry(client, updateId, input);
     await repository.replaceActivities(client, updateId, { ...input, workItemId: linked?.itemId || null }, input.activities);
     if (input.taskId) await repository.syncAssignedTask(client, input.taskId, input);
     await repository.addActivity(client, linked?.itemId || null, updateId, user.id, `${user.fullName} added ${input.workTitle}`);
+    await syncLinkedMilestone(input);
     return updateId;
   });
   return detailUpdate(id, user);
@@ -462,6 +510,7 @@ async function update(id, user, body) {
       await repository.addActivity(client, null, current.id, user.id, `${user.fullName} updated the work entry`);
     }
     if (current.taskId) await repository.syncAssignedTask(client, current.taskId, input);
+    await syncLinkedMilestone(input);
   });
   return detailUpdate(current.id, user);
 }

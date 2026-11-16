@@ -183,7 +183,12 @@ export default function DailyWorkPage() {
             <span>Project</span>
             <select className="select" aria-label="Project" value={projectId} onChange={(event) => setProjectId(event.target.value)}>
               <option value="">All projects</option>
-              {(lookups.projects || []).map((project) => <option key={project.id} value={project.id}>{project.name || project.title}</option>)}
+              {(lookups.allProjects || lookups.projects || []).map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.label || project.name || project.title}
+                  {project.isCompleted ? ' (Completed)' : ''}
+                </option>
+              ))}
             </select>
           </label>
           <label className="daily-meta-field">

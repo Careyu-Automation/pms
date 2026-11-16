@@ -561,6 +561,7 @@ const LOG_FROM = `
   LEFT JOIN products pr ON pr.id = d.product_id
   LEFT JOIN daily_work_types wt ON wt.code = d.work_type
   LEFT JOIN project_tasks tsk ON tsk.id = i.task_id
+  LEFT JOIN project_milestones ms ON ms.id = d.milestone_id
 `;
 
 function mapLog(row) {
@@ -583,7 +584,8 @@ function mapLog(row) {
     currentDate: isoDate(row.update_date),
     startDate: isoDate(row.task_start || row.start_date),
     deadline: isoDate(row.task_deadline || row.linked_deadline),
-    milestone: row.milestone || '',
+    milestoneId: row.milestone_id || '',
+    milestone: row.milestone_name || row.milestone || '',
     completionDate: isoDate(row.completion_date),
     reasonForDelay: row.reason_for_delay || '',
     delayStatus: row.delay_status || '',
@@ -608,7 +610,9 @@ const LOG_COLUMNS = `
   d.id, d.employee_id, d.project_id, d.product_id, d.team_id, d.update_date, d.description,
   d.status, d.priority, d.created_by, d.created_at, d.updated_at, d.hours, d.minutes,
   d.next_action, d.dependency_type, d.dependency_details, d.task_deadline, d.completion_date,
-  d.reason_for_delay, d.delay_status, d.milestone, i.task_id, tsk.progress AS task_progress,
+  d.reason_for_delay, d.delay_status, d.milestone, d.milestone_id,
+  COALESCE(ms.name, d.milestone, '') AS milestone_name,
+  i.task_id, tsk.progress AS task_progress,
   tsk.start_date AS task_start, tsk.end_date AS linked_deadline,
   COALESCE(tsk.assignment_status, 'ACCEPTED') AS assignment_status,
   COALESCE(NULLIF(d.work_title, ''), i.title, 'Work update') AS work_title,
@@ -716,6 +720,19 @@ async function ensureMilestoneColumn() {
     return;
   }
   await query(`ALTER TABLE daily_work_updates ADD COLUMN IF NOT EXISTS milestone VARCHAR(200) NOT NULL DEFAULT ''`);
+  await query(`ALTER TABLE daily_work_updates ADD COLUMN IF NOT EXISTS milestone_id UUID`);
+  try {
+    await query(`
+      DO $$ BEGIN
+        ALTER TABLE daily_work_updates
+          ADD CONSTRAINT daily_work_updates_milestone_id_fkey
+          FOREIGN KEY (milestone_id) REFERENCES project_milestones (id) ON DELETE SET NULL;
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$;
+    `);
+  } catch {
+    // Ignore when project_milestones is unavailable in this environment.
+  }
   milestoneColumnReady = true;
 }
 
@@ -727,16 +744,16 @@ async function insertLog(client, input) {
        work_item_id, employee_id, project_id, product_id, team_id, work_type, work_title,
        description, status, priority, update_date, task_deadline, completion_date,
        delay_days, delay_status, reason_for_delay, remarks, next_action, hours, minutes,
-       dependency_type, dependency_details, created_by, milestone
+       dependency_type, dependency_details, created_by, milestone, milestone_id
      ) VALUES (
-       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,0,'ON_TIME',$14,'',$15,$16,$17,$18,$19,$20,$21
+       $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,0,'ON_TIME',$14,'',$15,$16,$17,$18,$19,$20,$21,$22
      ) RETURNING id`,
     [
       input.workItemId || null, input.employeeId, input.projectId, input.productId, input.teamId, input.workType, input.workTitle,
       input.description, input.status, input.priority, input.updateDate,
       input.deadline || null, input.completionDate || null, input.reasonForDelay || '',
       input.nextAction, input.hours, input.minutes, input.dependencyType, input.dependencyDetails, input.createdById,
-      input.milestone || '',
+      input.milestone || '', input.milestoneId || null,
     ],
   );
   return result.rows[0].id;
@@ -750,13 +767,14 @@ async function saveLog(client, id, input) {
        employee_id = $2, project_id = $3, product_id = $4, team_id = $5, work_type = $6, work_title = $7,
        description = $8, status = $9, priority = $10, update_date = $11, next_action = $12,
        hours = $13, minutes = $14, dependency_type = $15, dependency_details = $16,
-       task_deadline = $17, completion_date = $18, reason_for_delay = $19, milestone = $20
+       task_deadline = $17, completion_date = $18, reason_for_delay = $19, milestone = $20, milestone_id = $21
      WHERE id = $1`,
     [
       id, input.employeeId, input.projectId, input.productId, input.teamId, input.workType, input.workTitle,
       input.description, input.status, input.priority, input.updateDate, input.nextAction,
       input.hours, input.minutes, input.dependencyType, input.dependencyDetails,
       input.deadline || null, input.completionDate || null, input.reasonForDelay || '', input.milestone || '',
+      input.milestoneId || null,
     ],
   );
 }
@@ -809,11 +827,37 @@ async function activityForUpdate(updateId) {
   return result.rows.map((row) => ({ action: row.action, at: row.created_at, actor: row.full_name || '' }));
 }
 
+function mapCatalogProject(row) {
+  return {
+    id: row.id,
+    name: row.title,
+    code: row.project_code || '',
+    status: row.status || '',
+    isActivated: Boolean(row.is_activated),
+    isCompleted: row.status === 'COMPLETED',
+    label: row.project_code ? `${row.project_code} · ${row.title}` : row.title,
+  };
+}
+
 async function catalog() {
-  const [people, teams, projects, products, types, memberships] = await Promise.all([
+  const planning = require('./planning.repository');
+  const [people, teams, projectRows, products, types, memberships] = await Promise.all([
     query(`SELECT id, full_name FROM users WHERE is_active = TRUE AND account_status = 'ACTIVE' ORDER BY full_name`),
     query(`SELECT id, name FROM teams WHERE status = 'ACTIVE' ORDER BY name`),
-    query(`SELECT id, title, project_code FROM projects WHERE status <> 'CANCELLED' ORDER BY updated_at DESC NULLS LAST, title LIMIT 500`),
+    query(`
+      SELECT p.id, p.title, p.project_code, p.status,
+        CASE
+          WHEN to_regclass('public.project_orders') IS NULL THEN (p.status NOT IN ('CANCELLED', 'COMPLETED'))
+          ELSE EXISTS (
+            SELECT 1 FROM project_orders o
+            WHERE o.project_id = p.id AND o.activated_at IS NOT NULL
+          )
+        END AS is_activated
+      FROM projects p
+      WHERE p.status <> 'CANCELLED'
+      ORDER BY p.updated_at DESC NULLS LAST, p.title
+      LIMIT 500
+    `),
     query(`SELECT id, name FROM products ORDER BY name LIMIT 300`),
     query(`SELECT code, name FROM daily_work_types WHERE is_active = TRUE ORDER BY sort_order, name`),
     query(
@@ -823,15 +867,36 @@ async function catalog() {
        ORDER BY m.is_primary DESC, t.name`,
     ),
   ]);
+  const allProjects = projectRows.rows.map(mapCatalogProject);
+  // Restore full project list for Daily Work: every non-cancelled project stays selectable
+  // until status becomes Completed (not gated on order activation / employee).
+  const projects = allProjects.filter((project) => !project.isCompleted);
+  const completedProjects = allProjects.filter((project) => project.isCompleted);
+  const milestones = await planning.listActiveMilestonesForProjects(projects.map((project) => project.id));
+  const milestonesByProject = {};
+  milestones.forEach((item) => {
+    const list = milestonesByProject[item.projectId] || [];
+    list.push({
+      id: item.id,
+      projectId: item.projectId,
+      name: item.name,
+      status: item.status,
+      completedAt: item.completedAt,
+      label: item.status === 'NOT_STARTED' || item.status === 'PENDING'
+        ? item.name
+        : `${item.name} · ${String(item.status).replace(/_/g, ' ')}`,
+    });
+    milestonesByProject[item.projectId] = list;
+  });
   return {
     people: people.rows.map((row) => ({ id: row.id, fullName: row.full_name })),
     teams: teams.rows.map((row) => ({ id: row.id, name: row.name })),
-    projects: projects.rows.map((row) => ({
-      id: row.id,
-      name: row.title,
-      code: row.project_code || '',
-      label: row.project_code ? `${row.project_code} · ${row.title}` : row.title,
-    })),
+    projects,
+    completedProjects,
+    // Union for filters / historical row display without dropping completed project names.
+    allProjects: [...projects, ...completedProjects],
+    milestones,
+    milestonesByProject,
     products: products.rows.map((row) => ({ id: row.id, name: row.name })),
     workTypes: types.rows.map((row) => ({ code: row.code, name: row.name })),
     memberships: memberships.rows.map((row) => ({

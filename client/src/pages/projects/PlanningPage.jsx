@@ -22,6 +22,7 @@ import {
   deleteTask,
   getPlan,
   setBaseline,
+  updateMilestone,
   updateTask,
 } from '../../services/planning.service';
 import { formatDate } from '../../utils/format';
@@ -80,7 +81,7 @@ export default function PlanningPage() {
   const [editor, setEditor] = useState(null);
   const [form, setForm] = useState(blankTask);
   const [phaseForm, setPhaseForm] = useState({ name: '', startDate: '', endDate: '', description: '' });
-  const [milestoneForm, setMilestoneForm] = useState({ name: '', date: '', ownerId: '', description: '', status: 'PENDING' });
+  const [milestoneForm, setMilestoneForm] = useState({ name: '', date: '', ownerId: '', description: '', status: 'NOT_STARTED' });
   const [predecessorId, setPredecessorId] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -361,9 +362,29 @@ export default function PlanningPage() {
           {(plan.milestones || []).length ? (
             <ul className="plan-milestones">
               {plan.milestones.map((item) => (
-                <li key={item.id}><button type="button" onClick={() => setMilestone(item)}>◆ {item.name}</button></li>
+                <li key={item.id}>
+                  <button type="button" onClick={() => setMilestone(item)}>
+                    ◆ {item.name}
+                    {item.status && item.status !== 'NOT_STARTED' && item.status !== 'PENDING' ? ` · ${String(item.status).replace(/_/g, ' ')}` : ''}
+                  </button>
+                </li>
               ))}
             </ul>
+          ) : null}
+
+          {(plan.milestoneHistory || []).length ? (
+            <div className="plan-milestone-history">
+              <h3>Completed Milestone History</h3>
+              <ul className="plan-milestones">
+                {plan.milestoneHistory.map((item) => (
+                  <li key={item.id}>
+                    <button type="button" onClick={() => setMilestone(item)}>
+                      ◆ {item.name} · Completed
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : null}
 
           <ul className="plan-legend">
@@ -502,8 +523,8 @@ export default function PlanningPage() {
           </label>
           <label className="field"><span className="field__label">Status</span>
             <select className="select" value={milestoneForm.status} onChange={(event) => setMilestoneForm({ ...milestoneForm, status: event.target.value })}>
-              <option value="PENDING">Pending</option>
-              <option value="IN_PROGRESS">In progress</option>
+              <option value="NOT_STARTED">Not Started</option>
+              <option value="IN_PROGRESS">In Progress</option>
               <option value="COMPLETED">Completed</option>
               <option value="MISSED">Missed</option>
             </select>
@@ -520,9 +541,40 @@ export default function PlanningPage() {
         {milestone ? (
           <div className="feas-stack">
             <p>Date: {formatDate(milestone.date)}</p>
-            <p>Status: {milestone.status}</p>
+            <p>Status: {String(milestone.status || '').replace(/_/g, ' ') || 'Not Started'}</p>
             <p>Owner: {milestone.owner || 'Not assigned'}</p>
             <p>{milestone.description || 'No description.'}</p>
+            {milestone.completedAt ? <p>Completed at: {formatDate(String(milestone.completedAt).slice(0, 10))}</p> : null}
+            <label className="field">
+              <span className="field__label">Update status</span>
+              <select
+                className="select"
+                value={milestone.status === 'PENDING' ? 'NOT_STARTED' : milestone.status}
+                onChange={async (event) => {
+                  const status = event.target.value;
+                  const payload = await run(
+                    () => updateMilestone(projectId, milestone.id, {
+                      name: milestone.name,
+                      date: milestone.date,
+                      ownerId: milestone.ownerId || '',
+                      description: milestone.description || '',
+                      status,
+                    }),
+                    'Milestone status updated.',
+                  );
+                  if (payload) {
+                    const next = (payload.data?.milestones || []).find((item) => item.id === milestone.id)
+                      || (payload.data?.milestoneHistory || []).find((item) => item.id === milestone.id);
+                    setMilestone(next || null);
+                  }
+                }}
+              >
+                <option value="NOT_STARTED">Not Started</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="MISSED">Missed</option>
+              </select>
+            </label>
             <div className="lead-actions">
               <Button variant="secondary" onClick={() => setMilestone(null)}>Close</Button>
               <Button variant="secondary" onClick={async () => {

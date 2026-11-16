@@ -91,11 +91,36 @@ function mapPhase(row) {
   };
 }
 
+const MILESTONE_GRACE_MS = 24 * 60 * 60 * 1000;
+
+function normalizeMilestoneStatus(status) {
+  const key = String(status || '').toUpperCase();
+  if (key === 'NOT_STARTED' || key === 'PENDING') return 'PENDING';
+  if (key === 'IN_PROGRESS' || key === 'COMPLETED' || key === 'MISSED') return key;
+  return 'PENDING';
+}
+
+function displayMilestoneStatus(status) {
+  const key = normalizeMilestoneStatus(status);
+  if (key === 'PENDING') return 'NOT_STARTED';
+  return key;
+}
+
+function isMilestoneActive(row, now = Date.now()) {
+  const status = normalizeMilestoneStatus(row.status);
+  if (status !== 'COMPLETED') return true;
+  const completedAt = row.completed_at ? new Date(row.completed_at).getTime() : 0;
+  if (!completedAt) return false;
+  return now - completedAt < MILESTONE_GRACE_MS;
+}
+
 function mapMilestone(row) {
   const date = isoDate(row.milestone_date);
   const today = new Date();
   const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const missed = Boolean(date) && date < todayIso && row.status !== 'COMPLETED';
+  const rawStatus = normalizeMilestoneStatus(row.status);
+  const missed = Boolean(date) && date < todayIso && rawStatus !== 'COMPLETED';
+  const active = isMilestoneActive(row);
   return {
     id: row.id,
     projectId: row.project_id,
@@ -104,9 +129,24 @@ function mapMilestone(row) {
     ownerId: row.owner_id,
     owner: row.owner_name || '',
     description: row.description || '',
-    status: missed && row.status === 'PENDING' ? 'MISSED' : row.status,
+    status: missed && rawStatus === 'PENDING' ? 'MISSED' : displayMilestoneStatus(rawStatus),
+    rawStatus,
+    completedAt: row.completed_at || null,
+    active,
+    history: rawStatus === 'COMPLETED' && !active,
     missed,
   };
+}
+
+let milestoneColumnsReady = false;
+
+async function ensureMilestoneColumns() {
+  if (milestoneColumnsReady) return;
+  await query(`ALTER TABLE project_milestones ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ`);
+  await query(`ALTER TABLE project_milestones DROP CONSTRAINT IF EXISTS project_milestones_status_check`);
+  await query(`ALTER TABLE project_milestones ADD CONSTRAINT project_milestones_status_check
+    CHECK (status IN ('PENDING', 'NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'MISSED'))`);
+  milestoneColumnsReady = true;
 }
 
 const TASK_SELECT = `
@@ -210,15 +250,45 @@ async function listDependencies(projectId) {
   }));
 }
 
-async function listMilestones(projectId) {
+async function listMilestones(projectId, options = {}) {
+  await ensureMilestoneColumns();
   const result = await query(`
     SELECT m.*, u.full_name AS owner_name
     FROM project_milestones m
     LEFT JOIN users u ON u.id = m.owner_id
     WHERE m.project_id = $1
-    ORDER BY m.milestone_date
+    ORDER BY m.milestone_date, m.created_at
   `, [projectId]);
-  return result.rows.map(mapMilestone);
+  const mapped = result.rows.map(mapMilestone);
+  if (options.activeOnly) return mapped.filter((item) => item.active);
+  if (options.historyOnly) return mapped.filter((item) => item.history);
+  return mapped;
+}
+
+async function listActiveMilestonesForProjects(projectIds = []) {
+  await ensureMilestoneColumns();
+  const ids = (projectIds || []).filter(Boolean);
+  if (!ids.length) return [];
+  const result = await query(`
+    SELECT m.*, u.full_name AS owner_name
+    FROM project_milestones m
+    LEFT JOIN users u ON u.id = m.owner_id
+    WHERE m.project_id = ANY($1::uuid[])
+    ORDER BY m.project_id, m.milestone_date, m.created_at
+  `, [ids]);
+  return result.rows.map(mapMilestone).filter((item) => item.active);
+}
+
+async function findMilestone(id) {
+  await ensureMilestoneColumns();
+  if (!id) return null;
+  const result = await query(`
+    SELECT m.*, u.full_name AS owner_name
+    FROM project_milestones m
+    LEFT JOIN users u ON u.id = m.owner_id
+    WHERE m.id = $1
+  `, [id]);
+  return result.rows[0] ? mapMilestone(result.rows[0]) : null;
 }
 
 async function latestBaseline(projectId) {
@@ -466,19 +536,61 @@ async function deleteDependency(id, projectId) {
 }
 
 async function insertMilestone(projectId, input) {
+  await ensureMilestoneColumns();
+  const status = normalizeMilestoneStatus(input.status);
+  const completedAt = status === 'COMPLETED' ? (input.completedAt || new Date()) : null;
   const result = await query(
-    `INSERT INTO project_milestones (project_id, name, milestone_date, owner_id, description, status)
-     VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-    [projectId, input.name, input.date, input.ownerId, input.description, input.status],
+    `INSERT INTO project_milestones (project_id, name, milestone_date, owner_id, description, status, completed_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+    [projectId, input.name, input.date, input.ownerId, input.description, status === 'NOT_STARTED' ? 'PENDING' : status, completedAt],
   );
   return result.rows[0].id;
 }
 
 async function updateMilestone(id, projectId, input) {
+  await ensureMilestoneColumns();
+  const status = normalizeMilestoneStatus(input.status);
+  const stored = status === 'NOT_STARTED' ? 'PENDING' : status;
   const result = await query(
-    `UPDATE project_milestones SET name = $3, milestone_date = $4, owner_id = $5, description = $6, status = $7, updated_at = NOW()
+    `UPDATE project_milestones SET
+       name = $3,
+       milestone_date = $4,
+       owner_id = $5,
+       description = $6,
+       status = $7,
+       completed_at = CASE
+         WHEN $7 = 'COMPLETED' AND COALESCE(status, '') <> 'COMPLETED' THEN COALESCE($8::timestamptz, NOW())
+         WHEN $7 = 'COMPLETED' THEN COALESCE(completed_at, COALESCE($8::timestamptz, NOW()))
+         ELSE NULL
+       END,
+       updated_at = NOW()
      WHERE id = $1 AND project_id = $2 RETURNING id`,
-    [id, projectId, input.name, input.date, input.ownerId, input.description, input.status],
+    [id, projectId, input.name, input.date, input.ownerId, input.description, stored, input.completedAt || null],
+  );
+  return result.rows[0] || null;
+}
+
+async function bumpMilestoneProgress(id, projectId, nextStatus) {
+  await ensureMilestoneColumns();
+  const status = normalizeMilestoneStatus(nextStatus);
+  if (status !== 'IN_PROGRESS' && status !== 'COMPLETED') return null;
+  const stored = status;
+  const result = await query(
+    `UPDATE project_milestones SET
+       status = $3,
+       completed_at = CASE
+         WHEN $3 = 'COMPLETED' AND COALESCE(status, '') <> 'COMPLETED' THEN NOW()
+         WHEN $3 = 'COMPLETED' THEN COALESCE(completed_at, NOW())
+         ELSE NULL
+       END,
+       updated_at = NOW()
+     WHERE id = $1 AND project_id = $2
+       AND (
+         ($3 = 'IN_PROGRESS' AND status IN ('PENDING', 'NOT_STARTED'))
+         OR ($3 = 'COMPLETED' AND status <> 'COMPLETED')
+       )
+     RETURNING id`,
+    [id, projectId, stored],
   );
   return result.rows[0] || null;
 }
@@ -686,6 +798,12 @@ module.exports = {
   findTask,
   listDependencies,
   listMilestones,
+  listActiveMilestonesForProjects,
+  findMilestone,
+  bumpMilestoneProgress,
+  normalizeMilestoneStatus,
+  displayMilestoneStatus,
+  isMilestoneActive,
   latestBaseline,
   insertPhase,
   updatePhase,

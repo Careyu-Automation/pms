@@ -13,6 +13,7 @@ import SolutionCostingPage from '../pages/feasibility/SolutionCostingPage';
 import SolutionCostingDetailPage from '../pages/feasibility/SolutionCostingDetailPage';
 import ProjectListPage from '../pages/projects/ProjectListPage';
 import ActiveProjectsPage from '../pages/projects/ActiveProjectsPage';
+import CompletedProjectsPage from '../pages/projects/CompletedProjectsPage';
 import ProjectDetailPage from '../pages/projects/ProjectDetailPage';
 import PlanningPage from '../pages/projects/PlanningPage';
 import TaskListPage from '../pages/tasks/TaskListPage';
@@ -52,6 +53,7 @@ const MODULE_PAGES = {
   '/solution-costing': SolutionCostingPage,
   '/projects': ProjectListPage,
   '/projects/active': ActiveProjectsPage,
+  '/projects/completed': CompletedProjectsPage,
   '/projects/planning': PlanningPage,
   '/tasks': TaskListPage,
   '/my-assigned-work': MyAssignedWorkPage,

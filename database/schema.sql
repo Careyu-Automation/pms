@@ -701,9 +701,10 @@ CREATE TABLE IF NOT EXISTS project_milestones (
   owner_id UUID REFERENCES users (id) ON DELETE SET NULL,
   description TEXT NOT NULL DEFAULT '',
   status VARCHAR(40) NOT NULL DEFAULT 'PENDING',
+  completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CONSTRAINT project_milestones_status_check CHECK (status IN ('PENDING', 'IN_PROGRESS', 'COMPLETED', 'MISSED'))
+  CONSTRAINT project_milestones_status_check CHECK (status IN ('PENDING', 'NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'MISSED'))
 );
 
 CREATE INDEX IF NOT EXISTS project_milestones_project_idx ON project_milestones (project_id, milestone_date);
@@ -1029,6 +1030,9 @@ CREATE TABLE IF NOT EXISTS daily_work_updates (
 
 CREATE INDEX IF NOT EXISTS daily_work_updates_employee_idx ON daily_work_updates (employee_id, update_date);
 ALTER TABLE daily_work_updates ADD COLUMN IF NOT EXISTS milestone VARCHAR(200) NOT NULL DEFAULT '';
+ALTER TABLE daily_work_updates ADD COLUMN IF NOT EXISTS milestone_id UUID REFERENCES project_milestones (id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS daily_work_updates_milestone_idx ON daily_work_updates (milestone_id);
+ALTER TABLE project_milestones ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS daily_work_activities (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

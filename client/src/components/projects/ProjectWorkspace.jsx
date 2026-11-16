@@ -96,9 +96,10 @@ export function ProjectWorkspace({
   const { user } = useAuth();
   const manage = canManage(user);
   const activeMode = mode === 'active';
+  const completedMode = mode === 'completed';
   const [view, setView] = useState(() => localStorage.getItem('projectViewMode') || 'list');
   const [query, setQuery] = useState('');
-  const [projectStatus, setProjectStatus] = useState('');
+  const [projectStatus, setProjectStatus] = useState(completedMode ? 'COMPLETED' : '');
   const [paymentStatus, setPaymentStatus] = useState('');
   const [managerId, setManagerId] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -276,11 +277,13 @@ export function ProjectWorkspace({
       <header className="project-board__head">
         <div>
           <p className="project-board__crumb">Internal Projects</p>
-          <h1>{activeMode ? 'Active Projects' : 'Internal Projects'}</h1>
+          <h1>{completedMode ? 'Completed Projects' : activeMode ? 'Active Projects' : 'Internal Projects'}</h1>
           <p>
-            {activeMode
-              ? 'Confirmed orders that have completed payment confirmation and project activation.'
-              : 'Manage projects from initial evaluation to order conversion.'}
+            {completedMode
+              ? 'Projects marked Completed. Historical daily work and milestones stay preserved.'
+              : activeMode
+                ? 'Confirmed orders that have completed payment confirmation and project activation.'
+                : 'Manage projects from initial evaluation to order conversion.'}
           </p>
         </div>
         <div className="project-board__tools">

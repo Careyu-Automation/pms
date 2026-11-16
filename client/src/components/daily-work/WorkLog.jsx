@@ -124,6 +124,7 @@ function blankRow(user, lookups, today) {
     dependencyType: '',
     dependencyDetails: '',
     status: 'NOT_STARTED',
+    milestoneId: '',
     milestone: '',
     startDate: today,
     deadline: '',
@@ -165,6 +166,7 @@ function formFrom(row, stakeholders) {
     dependencyType: row.dependencyType || '',
     dependencyDetails: row.dependencyDetails || '',
     status: row.status || 'IN_PROGRESS',
+    milestoneId: row.milestoneId || '',
     milestone: row.milestone || '',
     startDate: row.startDate || '',
     deadline: row.deadline || '',
@@ -282,9 +284,10 @@ function payloadOf(row, stakeholders, reportDate, options = {}) {
       }))
       .filter((item) => item.description),
   };
-  // Milestone is optional. Only PM / ED send schedule fields; others leave them unchanged on the server.
+  // Shared project milestone: every employee may select. Deadline remains PM / ED only.
+  payload.milestoneId = row.milestoneId || '';
+  payload.milestone = row.milestone || '';
   if (canSetSchedule) {
-    payload.milestone = row.milestone || '';
     payload.deadline = row.deadline || '';
   }
   return payload;
@@ -660,25 +663,54 @@ export const WorkLog = forwardRef(function WorkLog({
             onChange={(event) => patch(key, {
               projectId: event.target.value,
               workType: event.target.value ? 'PROJECT_WORK' : 'INTERNAL',
+              milestoneId: '',
+              milestone: '',
             }, draft)}
           >
             <option value="">Select project</option>
-            {lookups.projects.map((project) => (
+            {(lookups.projects || []).map((project) => (
               <option key={project.id} value={project.id}>{project.label || (project.code ? `${project.code} · ${project.name}` : project.name)}</option>
             ))}
+            {row.projectId && !(lookups.projects || []).some((project) => project.id === row.projectId) ? (
+              <option value={row.projectId}>
+                {(lookups.completedProjects || lookups.allProjects || []).find((project) => project.id === row.projectId)?.label
+                  || row.projectName
+                  || 'Completed project'}
+              </option>
+            ) : null}
           </select>
         ))}
-        {cell(col++, 'milestone', (
-          <input
-            className="daily-cell-input"
-            aria-label="Milestone"
-            placeholder={scheduleLocked ? 'Optional · set by PM / ED' : 'Optional'}
-            value={row.milestone || ''}
-            disabled={scheduleLocked}
-            required={false}
-            onChange={(event) => patch(key, { milestone: event.target.value }, draft)}
-          />
-        ))}
+        {cell(col++, 'milestone', (() => {
+          const projectMilestones = row.projectId
+            ? ((lookups.milestonesByProject && lookups.milestonesByProject[row.projectId]) || (lookups.milestones || []).filter((item) => item.projectId === row.projectId))
+            : [];
+          const hasCurrent = row.milestoneId && projectMilestones.some((item) => item.id === row.milestoneId);
+          return (
+            <select
+              className="daily-status"
+              aria-label="Milestone"
+              value={row.milestoneId || ''}
+              disabled={locked || !row.projectId}
+              title={!row.projectId ? 'Select a project first' : 'Shared project milestone'}
+              onChange={(event) => {
+                const milestoneId = event.target.value;
+                const selected = projectMilestones.find((item) => item.id === milestoneId);
+                patch(key, {
+                  milestoneId,
+                  milestone: selected?.name || '',
+                }, draft);
+              }}
+            >
+              <option value="">{row.projectId ? 'Optional milestone' : 'Select project first'}</option>
+              {projectMilestones.map((item) => (
+                <option key={item.id} value={item.id}>{item.label || item.name}</option>
+              ))}
+              {row.milestoneId && !hasCurrent ? (
+                <option value={row.milestoneId}>{row.milestone || 'Archived milestone'}</option>
+              ) : null}
+            </select>
+          );
+        })())}
         {cell(col++, 'task', (
           <div className="daily-task-stack">
             <textarea
